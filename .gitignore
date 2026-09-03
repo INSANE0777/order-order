@@ -1,0 +1,47 @@
+# Corpus, uploads, model caches, database and object-store volumes.
+# These live under ORDERORDER_DATA_DIR, which is usually outside the repo.
+data/
+*.parquet
+*.sqlite
+*.db
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# Secrets and local config (.env.example is committed)
+.env
+.env.*
+!.env.example
+
+# Local model weights and caches
+models/
+.ollama/
+.cache/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and scratch output
+*.log
+tmp/
+scratch/
