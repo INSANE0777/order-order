@@ -330,9 +330,22 @@ def _paragraphs_of(session: Session, judgment_id: str) -> list[Paragraph]:
     )
 
 
+def corpus_size(session: Session) -> int:
+    """How many judgments the corpus holds text for, counted once per session.
+
+    Every treatment report states this, and a brief has many citations; counting the table afresh for
+    each of them is a table scan to answer a question whose answer cannot change during the run.
+    """
+    cached = getattr(session, "_orderorder_corpus_size", None)
+    if cached is None:
+        cached = session.scalar(select(func.count()).select_from(JudgmentTextVersion)) or 0
+        session._orderorder_corpus_size = cached
+    return cached
+
+
 def treatment_of(session: Session, judgment_id: str) -> TreatmentReport:
     """What every later judgment in the corpus did with this one."""
-    corpus_size = session.scalar(select(func.count()).select_from(JudgmentTextVersion)) or 0
+    held = corpus_size(session)
     cited = session.get(Judgment, judgment_id)
     rows = session.execute(
         select(CitationEdge, Judgment, Paragraph)
@@ -361,7 +374,7 @@ def treatment_of(session: Session, judgment_id: str) -> TreatmentReport:
         )
 
     report = TreatmentReport(
-        judgment_id=judgment_id, status=GOOD_LAW, edges=edges, citing_count=len(edges), corpus_size=corpus_size
+        judgment_id=judgment_id, status=GOOD_LAW, edges=edges, citing_count=len(edges), corpus_size=held
     )
     worst = report.worst
     if worst is not None:
@@ -378,7 +391,7 @@ def treatment_of(session: Session, judgment_id: str) -> TreatmentReport:
     elif not edges:
         report.status = GOOD_LAW
         report.note = (
-            f"no judgment among the {corpus_size:,} the corpus holds has cited this one, "
+            f"no judgment among the {held:,} the corpus holds has cited this one, "
             "which is not the same as none ever having done so"
         )
     return report
