@@ -53,7 +53,7 @@ from sqlalchemy.orm import Session
 
 from orderorder.citations.grammar import extract_citations
 from orderorder.db.models import CitationAlias, CitationEdge, Judgment, JudgmentTextVersion, Paragraph
-from orderorder.engine.sentences import inside_quotation
+from orderorder.engine.sentences import inside_quotation, sentence_bounds
 
 # Treatment labels, from ARCHITECTURE.md section 4.8. Order matters: the first cue to match wins, so
 # the most specific and most serious come first.
@@ -68,6 +68,10 @@ TREATMENT_CUES: list[tuple[str, re.Pattern[str]]] = [
               | (?:does|do)\s+not\s+lay\s+down\s+the\s+correct\s+(?:law|position)
               | (?:is|are)\s+not\s+good\s+law
               | overrule[ds]?\s+the\s+(?:decision|judgment|view)
+              # The Reports' own annotation in the list of authorities: "Vijay Kumar Mishra v. High
+              # Court of Judicature at Patna (2016) 9 SCC 313 - overruled." Terse, but it is the
+              # reporter stating the treatment outright, and it sits right against the citation.
+              | ^\s*[-–—:]\s*overruled\b
             )
             """
         ),
@@ -75,7 +79,13 @@ TREATMENT_CUES: list[tuple[str, re.Pattern[str]]] = [
     (
         "partly_overruled",
         re.compile(
-            r"(?ix)(?:partly\s+overruled|overruled\s+in\s+part|to\s+th(?:at|e)\s+extent[^.]{0,40}overruled)"
+            r"""(?ix)
+            (?: partly\s+overruled
+              | overruled\s+in\s+part
+              | to\s+th(?:at|e)\s+extent[^.]{0,40}overruled
+              | ^\s*[-–—:]\s*partly\s+overruled\b
+            )
+            """
         ),
     ),
     (
@@ -168,8 +178,11 @@ ACTOR_BEFORE = re.compile(
 ACTOR_AFTER = re.compile(
     r"""(?ix)
     ^[\s,)\]"'-]{0,12}
-    (?: overrul(?:ed|ing)\s+the\s+(?:decision|judgment|view|law)
-      | (?:reversed|affirmed|upheld|approved)\s+the\s+(?:decision|judgment|view|order)
+    # "by which this Court overruled ...", "had only partly overruled Surya Dev Rai" — the connectors
+    # courts put between a case they are naming and what that case did.
+    (?:(?:by\s+which\s+)?(?:this\s+Court\s+)?(?:had\s+)?(?:only\s+)?(?:partly\s+)?)
+    (?: overrul(?:ed|ing)\s+(?:the\s+(?:decision|judgment|view|law)|[A-Z])
+      | (?:reversed|affirmed|upheld|approved)\s+(?:the\s+(?:decision|judgment|view|order)|[A-Z])
       | held\s+that
       | laid\s+down
     )
@@ -259,8 +272,13 @@ def classify_treatment(sentence: str, span: tuple[int, int] | None = None) -> st
         return DEFAULT_TREATMENT
 
     start, end = span
-    before = sentence[max(0, start - CUE_WINDOW) : start]
-    after = sentence[end : end + CUE_WINDOW]
+    # Clip the window to the citation's own sentence. Judgments list authorities one after another,
+    # each with its own annotation — "Krishna Veni Nagam ... - partly overruled. Bhuwan Mohan Singh
+    # ... - referred to." — and a window that runs past the full stop takes the previous entry's
+    # treatment and applies it to this one.
+    left, right = sentence_bounds(sentence, start)
+    before = sentence[max(left, start - CUE_WINDOW) : start]
+    after = sentence[end : min(right, end + CUE_WINDOW)]
 
     # "reversed by this Court in ...", "overruled the decision in ..." — what follows performed the
     # action rather than suffering it.

@@ -36,10 +36,15 @@ ABBREVIATIONS = [
     "Para",
 ]
 
+# A sentence may also end before a list marker — "(c)", "(iv)", "(2)" — because judgments enumerate
+# authorities and grounds that way and each item is about a different case. The marker must be short
+# and bracketed, so "the Act (1996) applies" is not mistaken for one.
+LIST_MARKER = r"\((?:[a-z]{1,3}|[ivxIVX]{1,4}|\d{1,2})\)\s"
+
 # Each abbreviation gets its own lookbehind: Python requires a fixed width for each one.
 SENTENCE_BREAK = re.compile(
     "".join(rf"(?<!\b{abbrev})" for abbrev in ABBREVIATIONS)
-    + r"(?<=[a-z0-9\)\"'’”])\.\s+(?=[A-Z\"'“‘])|\n\s*\n"
+    + rf"(?<=[a-z0-9\)\"'’”])\.\s+(?=[A-Z\"'“‘]|{LIST_MARKER})|\n\s*\n"
 )
 
 
@@ -77,6 +82,18 @@ def inside_quotation(text: str, position: int) -> bool:
         elif character in CLOSING_QUOTES:
             depth = max(0, depth - 1)
     return depth > 0
+
+
+def sentence_bounds(text: str, position: int) -> tuple[int, int]:
+    """Offsets of the sentence containing a position, so a window can be clipped to it.
+
+    `sentence_around` collapses whitespace and so loses the offsets; a caller reading the words near a
+    citation needs to know where the sentence stops, because the previous one is about another case.
+    """
+    breaks = [m.end() for m in SENTENCE_BREAK.finditer(text)]
+    start = max((b for b in breaks if b <= position), default=0)
+    end = min((b for b in breaks if b > position), default=len(text))
+    return start, end
 
 
 def split_sentences(text: str) -> list[tuple[str, int]]:

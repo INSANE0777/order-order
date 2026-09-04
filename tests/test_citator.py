@@ -333,3 +333,49 @@ def test_a_quoted_overruling_is_not_credited_to_the_quoting_court() -> None:
     aliases = {normalize_citation_string("(2014) 3 SCC 183"): "cited-id"}
     edges = edges_in_judgment(judgment, [paragraph], aliases)
     assert [e.treatment for e in edges] == ["referred"]
+
+
+# --- the audit: every negative edge the corpus produced, checked by hand -------
+
+
+AUDIT = [
+    # False positives found by reading all 21 negative edges of a full corpus run. Each is a real
+    # sentence, and each was recorded as killing an authority that it does not kill.
+    ("referred", "the 3-Judge Bench in Radhey Shyam v Chhabi Nath, (2015) 5 SCC 423 had only partly "
+                 "overruled Surya Dev Rai (supra) in terms below:", "(2015) 5 SCC 423"),
+    ("referred", "the subsequent decision of this Court in Commissioner of Customs vs. Dilip Kumar "
+                 "[(2018) 9 SCC 1] by which this Court overruled the decision of this Court in Sun "
+                 "Export Corporation", "(2018) 9 SCC 1"),
+    ("referred", "the insurer while taking out the policies was reversed and the appeal was allowed. "
+                 "(c) Canara Bank v. United India Insurance Co. (2020) 3 SCC 455, is a case in which "
+                 "this Court held that if a column is left blank", "(2020) 3 SCC 455"),
+    ("referred", "Krishna Veni Nagam v. Harish Nagam (2017) 4 SCC 150 - partly overruled. Bhuwan "
+                 "Mohan Singh v. Meena (2015) 6 SCC 353 : (2014) 8 SCR 858 - referred to.",
+                 "(2015) 6 SCC 353"),
+    ("referred", "Kharak Singh v. State of Uttar Pradesh AIR 1963 SC 1295 - partly overruled. Maneka "
+                 "Gandhi v. Union of India [1978] 2 SCR 621 : (1978) 1 SCC 248 - referred to.",
+                 "[1978] 2 SCR 621"),
+    # True positives from the same run, which the fixes must not lose.
+    ("overruled", "all judgments rendered on the basis of Pune Municipal Corporation [(2014) 3 SCC "
+                  "183] are overruled in view of the interpretation made to Section 24(2).",
+                  "(2014) 3 SCC 183"),
+    ("overruled", "Vijay Kumar Mishra v. High Court of Judicature at Patna (2016) 9 SCC 313 - "
+                  "overruled.", "(2016) 9 SCC 313"),
+    ("partly_overruled", "Krishna Veni Nagam v. Harish Nagam (2017) 4 SCC 150 - partly overruled.",
+                         "(2017) 4 SCC 150"),
+    ("doubted", "correctness of the decision of Pune Municipal Corporation [2014 (3) SCC 183] has "
+                "been doubted by this Bench.", "2014 (3) SCC 183"),
+    ("referred_to_larger_bench", "New India Assurance v. Hilli Multipurpose Cold Storage, reported in "
+                                 "(2015) 16 SCC 20 has been referred to a larger Bench.",
+                                 "(2015) 16 SCC 20"),
+]
+
+
+@pytest.mark.parametrize(("expected", "body", "citation"), AUDIT)
+def test_the_hand_audited_corpus_sentences(expected: str, body: str, citation: str) -> None:
+    """Read off a full corpus run and checked one by one. Precision here is the whole value.
+
+    A citator that says "overruled" when it means "cited the case that overruled something else" is
+    worse than no citator, because an advocate acts on it.
+    """
+    assert _at(body, citation) == expected
