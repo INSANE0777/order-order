@@ -10,7 +10,6 @@ which is what makes a verdict auditable rather than merely produced.
 
 from __future__ import annotations
 
-import re
 from typing import Any, TypedDict
 
 from langgraph.graph import END, StateGraph
@@ -21,6 +20,7 @@ from orderorder.db.models import Judgment
 from orderorder.engine.locator import Candidate, LocationResult, locate
 from orderorder.engine.providers import StructuredModel
 from orderorder.engine.scope import ScopeVerdict, assess_scope
+from orderorder.engine.sentences import sentence_around
 from orderorder.engine.verdict import CitationVerdict, build_verdict
 from orderorder.engine.voice import VoiceVerdict, attribute_voice, relied_on
 from orderorder.engine.weight import WeightVerdict, classify_weight, find_disposition
@@ -195,35 +195,7 @@ def verify_text(
         session, model, top_k=top_k, voice_model=voice_model, weight_model=weight_model
     )
     for citation in extract_citations(text):
-        proposition = _sentence_around(text, citation.span[0])
+        proposition = sentence_around(text, citation.span[0])
         final = compiled.invoke({"citation": citation, "proposition": proposition})
         verdicts.append(final["verdict"])
     return verdicts
-
-
-# A sentence ends at a full stop that follows a lower-case letter or digit and precedes a capital.
-# Requiring the lower-case or digit is what stops "[2019] 9 S.C.R. 593" and "No. 5522 of 2019" from
-# being split mid-citation, which would hand the scope check half a proposition.
-#
-# The lookbehinds are the abbreviations that end in a lower-case letter and are followed by a capital,
-# which is every case name a brief contains: "Kasturi v. Iyyamperumal" would otherwise be read as two
-# sentences and the claim would lose its verb. Each is written as its own lookbehind because Python
-# requires a fixed width for each.
-_ABBREVIATIONS = ["v", "vs", "No", "Nos", "Anr", "Ors", "Ltd", "Pvt", "Smt", "Sri", "Shri", "Mr", "Mrs", "Dr", "Hon"]
-_SENTENCE_BREAK = re.compile(
-    "".join(rf"(?<!\b{abbrev})" for abbrev in _ABBREVIATIONS)
-    + r"(?<=[a-z0-9\)\"'’”])\.\s+(?=[A-Z\"'“‘])|\n\s*\n"
-)
-
-
-def _sentence_around(text: str, position: int) -> str:
-    """The sentence containing a character position, with the citation itself left in place.
-
-    Whitespace is collapsed, because a brief wrapped at seventy characters would otherwise hand the
-    scope check a proposition with line breaks through the middle of it, and quote every finding back
-    to the reader in the same broken shape.
-    """
-    breaks = [m.end() for m in _SENTENCE_BREAK.finditer(text)]
-    start = max((b for b in breaks if b <= position), default=0)
-    end = min((b for b in breaks if b > position), default=len(text))
-    return " ".join(text[start:end].split())

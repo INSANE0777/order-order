@@ -9,8 +9,9 @@ from __future__ import annotations
 import pytest
 
 from orderorder.db.models import Judgment
-from orderorder.engine.graph import _sentence_around, verify_text
+from orderorder.engine.graph import verify_text
 from orderorder.engine.schemas import ScopeAssessment
+from orderorder.engine.sentences import sentence_around as _sentence_around
 from orderorder.ingest.pdf import ExtractedJudgment
 from orderorder.ingest.store import store_extracted
 

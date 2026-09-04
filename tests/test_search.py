@@ -1,0 +1,199 @@
+"""Authority search: the engine run in the other direction.
+
+A lawyer with a proposition and no citation asks which judgment backs it and where. These tests pin
+the two things that separate that from a text search: a passage that is not the court speaking is not
+an authority however well its words match, and the answer names a line rather than a document.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+
+import pytest
+
+from orderorder.db.models import CitationAlias, Judgment
+from orderorder.engine.search import (
+    best_line,
+    build_index,
+    find_authorities,
+    fts_query,
+    index_exists,
+    search_paragraphs,
+)
+from orderorder.ingest.pdf import ExtractedJudgment
+from orderorder.ingest.store import store_extracted
+
+HOLDING_JUDGMENT = """1. Leave granted.
+
+2. It was strenuously contended on behalf of the appellant that any misrepresentation whatsoever
+vitiates consent in a commercial contract, however immaterial the misstatement.
+
+3. A misrepresentation vitiates consent only where it induced the contract. The burden of proving
+inducement lies upon the party alleging it. Mere inaccuracy in a recital is not enough.
+
+4. In view of the above, the appeals are dismissed with no order as to costs.
+"""
+
+UNRELATED_JUDGMENT = """1. Leave granted.
+
+2. The question is whether the tenant was entitled to notice under Section 106 of the Transfer of
+Property Act before the suit for eviction was instituted.
+
+3. A notice under Section 106 is mandatory and its absence is fatal to a suit for eviction.
+
+4. The appeal is allowed.
+"""
+
+BENCH_JUDGMENT = """1. Leave granted.
+
+2. A misrepresentation vitiates consent only where it induced the contract, and this Court has said
+so consistently since the Contract Act was enacted.
+
+3. The appeal is dismissed.
+"""
+
+
+def _add(session, key: str, title: str, text: str, *, bench: int, year: int, headnote: str = "") -> Judgment:
+    judgment = Judgment(
+        canonical_key=key,
+        court="Supreme Court of India",
+        title=title,
+        source="aws_open_data",
+        source_id=key,
+        bench_strength=bench,
+        decided_on=dt.date(year, 6, 1),
+    )
+    session.add(judgment)
+    session.flush()
+    session.add(
+        CitationAlias(
+            judgment_id=judgment.id,
+            reporter="SCC",
+            citation_string=f"({year}) 1 SCC {bench}",
+            normalized=f"SCC:{year}:1:{bench}",
+        )
+    )
+    store_extracted(
+        session,
+        judgment,
+        ExtractedJudgment(source_path=key, page_count=4, headnote=headnote, judgment=text),
+    )
+    return judgment
+
+
+@pytest.fixture
+def corpus(session):
+    _add(session, "INSC:2019:1", "ALPHA versus BETA", HOLDING_JUDGMENT, bench=2, year=2019)
+    _add(session, "INSC:2020:2", "GAMMA versus DELTA", UNRELATED_JUDGMENT, bench=2, year=2020)
+    session.commit()
+    build_index(session)
+    return session
+
+
+CLAIM = "a misrepresentation vitiates consent only where it induced the contract"
+
+
+def test_the_index_is_built_over_stored_paragraphs(corpus) -> None:
+    assert index_exists(corpus)
+    rows = search_paragraphs(corpus, CLAIM)
+    assert rows
+
+
+def test_the_holding_is_found_across_the_corpus(corpus) -> None:
+    found = find_authorities(corpus, CLAIM, top=3)
+    assert found
+    best = found[0]
+    assert best.canonical_key == "INSC:2019:1"
+    assert best.paragraph_label == "3"
+
+
+def test_the_line_is_named_not_just_the_judgment(corpus) -> None:
+    """The point of the exercise: which sentence of a long judgment to read."""
+    best = find_authorities(corpus, CLAIM, top=1)[0]
+    assert best.line == "A misrepresentation vitiates consent only where it induced the contract."
+    assert best.line_start is not None
+    assert best.body[best.line_start : best.line_end] == best.line
+
+
+def test_counsels_submission_is_not_offered_as_authority(corpus) -> None:
+    """Paragraph 2 states the rule more baldly than the court does, and matches the words better.
+
+    An advocate's submission makes a better keyword match than a holding precisely because it is
+    unqualified. Offering it as authority would hand a lawyer the mistake the verifier exists to catch.
+    """
+    found = find_authorities(corpus, "any misrepresentation whatsoever vitiates consent", top=5)
+    assert all(a.paragraph_label != "2" for a in found)
+
+    with_argument = find_authorities(
+        corpus, "any misrepresentation whatsoever vitiates consent", top=5, court_voice_only=False
+    )
+    counsel = [a for a in with_argument if a.paragraph_label == "2"]
+    assert counsel and counsel[0].voice is not None
+    assert counsel[0].voice.voice == "counsel_argument"
+
+
+def test_the_headnote_is_never_an_authority(session) -> None:
+    """It is the publisher's summary of the judgment, not the court's words."""
+    _add(
+        session,
+        "INSC:2021:3",
+        "EPSILON versus ZETA",
+        HOLDING_JUDGMENT,
+        bench=2,
+        year=2021,
+        headnote="HELD: a misrepresentation vitiates consent only where it induced the contract.",
+    )
+    session.commit()
+    build_index(session)
+    found = find_authorities(session, CLAIM, top=5, one_per_judgment=False)
+    assert found
+    assert all(a.voice is None or a.voice.voice != "headnote" for a in found)
+    assert all("HELD:" not in a.body for a in found)
+
+
+def test_a_larger_bench_outranks_a_smaller_one_on_the_same_point(corpus) -> None:
+    _add(corpus, "INSC:2018:9", "CONSTITUTION BENCH", BENCH_JUDGMENT, bench=7, year=2018)
+    corpus.commit()
+    build_index(corpus, rebuild=True)
+
+    found = find_authorities(corpus, CLAIM, top=3)
+    assert found[0].canonical_key == "INSC:2018:9"
+    assert found[0].bench_strength == 7
+
+
+def test_one_result_per_judgment_by_default(corpus) -> None:
+    found = find_authorities(corpus, CLAIM, top=5)
+    keys = [a.canonical_key for a in found]
+    assert len(keys) == len(set(keys))
+
+
+def test_a_proposition_nothing_matches_returns_nothing(corpus) -> None:
+    assert find_authorities(corpus, "maritime salvage of a derelict vessel", top=3) == []
+
+
+def test_a_query_of_only_stopwords_is_not_a_search(corpus) -> None:
+    assert fts_query("of the and to") == ""
+    assert search_paragraphs(corpus, "of the and to") == []
+
+
+def test_the_authority_names_its_pinpoint(corpus) -> None:
+    best = find_authorities(corpus, CLAIM, top=1)[0]
+    assert best.pinpoint == "(2019) 1 SCC 2, para 3"
+
+
+# --- picking the line ---------------------------------------------------------
+
+
+def test_the_densest_sentence_wins_not_the_longest() -> None:
+    body = (
+        "The appellant relied upon a number of decisions of this Court and of the High Courts, none of "
+        "which was shown to bear upon the question of inducement now raised before us in this appeal. "
+        "A misrepresentation vitiates consent only where it induced the contract."
+    )
+    line, start, end = best_line(body, "misrepresentation vitiates consent where it induced the contract")
+    assert line == "A misrepresentation vitiates consent only where it induced the contract."
+    assert body[start:end] == line
+
+
+def test_a_paragraph_sharing_nothing_yields_no_line() -> None:
+    assert best_line("The appeal is dismissed.", "maritime salvage") == (None, None, None)

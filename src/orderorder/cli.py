@@ -26,10 +26,12 @@ from orderorder.citations.grammar import extract_citations
 from orderorder.config import get_settings
 from orderorder.db.models import CitationAlias, Judgment, JudgmentTextVersion, Paragraph
 from orderorder.db.session import get_session, init_db
+from orderorder.engine import search
 from orderorder.engine.graph import verify_text
 from orderorder.engine.locator import locate as locate_claim
 from orderorder.engine.providers import build_structured, describe_providers
 from orderorder.engine.schemas import ScopeAssessment, VoiceAssessment, WeightAssessment
+from orderorder.ingest import bulk
 from orderorder.ingest import corpus as corpus_mod
 from orderorder.ingest import pdf as pdf_mod
 from orderorder.ingest.metadata import import_parquet
@@ -148,6 +150,71 @@ def ingest_metadata(
             totals[key] = totals.get(key, 0) + value
     if len(years) > 1:
         console.print(f"[bold]total[/bold] {totals}")
+
+
+@ingest_app.command("bulk-text")
+def ingest_bulk_text(
+    years: list[int] = typer.Option(None, "--year", help="Restrict to these years; repeatable."),
+    limit: int | None = typer.Option(None, help="Stop after this many judgments."),
+    workers: int = typer.Option(bulk.DEFAULT_WORKERS, help="Concurrent PDF fetches."),
+    version_key: str = typer.Option("scr_pdf", help="Name for this text version."),
+    retry: bool = typer.Option(False, help="Retry only the judgments in the last failures file."),
+) -> None:
+    """Fetch and store text for every judgment that does not have it yet.
+
+    Resumable: judgments already holding this text version are skipped, and PDFs already on disk are
+    not downloaded again, so a run that dies part-way carries on where it stopped.
+    """
+    settings = get_settings()
+    init_db()
+    failures_path = settings.corpus_dir / "text_ingest_failures.tsv"
+
+    with get_session() as session:
+        if retry:
+            keys = list(bulk.read_failures(failures_path))
+            if not keys:
+                console.print(f"[yellow]no failures recorded[/yellow] in {failures_path}")
+                raise typer.Exit(1)
+            judgments = list(
+                session.scalars(select(Judgment).where(Judgment.canonical_key.in_(keys))).all()
+            )
+        else:
+            judgments = bulk.judgments_needing_text(
+                session, version_key=version_key, years=list(years) if years else None, limit=limit
+            )
+
+        already = session.scalar(
+            select(func.count()).select_from(JudgmentTextVersion).where(
+                JudgmentTextVersion.version_key == version_key
+            )
+        ) or 0
+        if not judgments:
+            console.print(f"[green]nothing to do[/green]: {already} judgments already have text")
+            return
+
+        console.print(
+            f"fetching text for [bold]{len(judgments)}[/bold] judgments "
+            f"({already} already done) with {workers} workers"
+        )
+
+        def report(outcome: bulk.Outcome, done: int, total: int) -> None:
+            if not outcome.ok:
+                console.print(f"  [yellow]{outcome.canonical_key}[/yellow] {outcome.status}: {outcome.detail}")
+            elif done % 50 == 0 or done == total:
+                console.print(f"  [dim]{done}/{total}[/dim] {outcome.canonical_key} {outcome.paragraphs} paras")
+
+        result = bulk.ingest_text_bulk(
+            session, judgments, settings.corpus_dir, version_key=version_key,
+            workers=workers, on_result=report,
+        )
+
+    console.print(f"[bold]done[/bold] {result.counts()}, {result.paragraphs:,} paragraphs stored")
+    written = bulk.write_failures(result, failures_path)
+    if written:
+        console.print(
+            f"[yellow]{written} failures[/yellow] written to {failures_path}; "
+            "retry them with [bold]orderorder ingest bulk-text --retry[/bold]"
+        )
 
 
 @ingest_app.command("text")
@@ -288,6 +355,110 @@ def locate_command(
                 "[red]warning[/red] a candidate's paragraph number breaks the judgment's sequence, "
                 "so it is probably quoted from another judgment rather than this court's own words"
             )
+
+
+@app.command("index")
+def index_command(
+    rebuild: bool = typer.Option(False, help="Drop and rebuild, after ingesting more judgments."),
+) -> None:
+    """Build the full-text index that authority search runs against."""
+    init_db()
+    with get_session() as session:
+        rows = search.build_index(session, rebuild=rebuild)
+    console.print(f"[green]index ready[/green]: {rows:,} paragraphs")
+
+
+@app.command("find")
+def find_command(
+    proposition: str = typer.Argument(..., help="The proposition you want an authority for."),
+    top: int = typer.Option(5, help="How many authorities to show."),
+    candidates: int = typer.Option(
+        search.DEFAULT_CANDIDATES, help="Paragraphs retrieved before authority is weighed."
+    ),
+    any_voice: bool = typer.Option(
+        False, "--any-voice", help="Keep passages that are not the court speaking. Off by default."
+    ),
+    check: bool = typer.Option(True, help="Run the verifier over each authority found."),
+) -> None:
+    """Search every judgment for an authority backing a proposition, and name the line.
+
+    The opposite direction from `verify`: no citation is given, so the corpus is searched for one.
+    """
+    init_db()
+    with get_session() as session:
+        if not search.index_exists(session):
+            console.print("[dim]building the full-text index (first run)...[/dim]")
+            search.build_index(session)
+
+        authorities = search.find_authorities(
+            session, proposition, top=top, candidates=candidates, court_voice_only=not any_voice
+        )
+        if not authorities:
+            console.print(
+                "[yellow]nothing found[/yellow]. The corpus holds text for "
+                f"{session.scalar(select(func.count()).select_from(JudgmentTextVersion)) or 0} judgments; "
+                "run [bold]orderorder ingest bulk-text[/bold] for more, or rephrase the proposition."
+            )
+            raise typer.Exit(1)
+
+        model = build_structured(ScopeAssessment) if check else None
+        if check and model is None:
+            console.print(
+                "[yellow]no language model configured[/yellow], so these are candidates the words match, "
+                "not authorities confirmed to support you. Add a provider key to have each one checked."
+            )
+
+        for rank, authority in enumerate(authorities, start=1):
+            console.print(
+                f"\n[bold]{rank}. {authority.title[:70]}[/bold]\n"
+                f"   [cyan]{authority.pinpoint}[/cyan]  "
+                f"[dim]{authority.decided_on or '?'} · bench {authority.bench_strength or '?'} · "
+                f"score {authority.score:.2f}[/dim]"
+            )
+            if authority.line:
+                console.print(f'   [green]"{authority.line[:300]}"[/green]')
+            if authority.voice and not authority.voice.is_the_court:
+                console.print(f"   [yellow]voice[/yellow]: {authority.voice.voice}")
+
+            if model is not None:
+                verdict = _check_authority(session, authority, proposition, model)
+                colour = {"full": "green", "partial": "yellow"}.get(verdict.support, "red")
+                console.print(f"   [{colour}]checked[/{colour}]: {verdict.support}", end="")
+                if verdict.scope and verdict.scope.gap:
+                    console.print(f" — {verdict.scope.gap}")
+                else:
+                    console.print()
+
+        console.print(f"\n[dim]{len(authorities)} authorities from the local corpus.[/dim]")
+
+
+def _check_authority(session, authority, proposition: str, model):
+    """Run the verifier over one retrieved authority: does that paragraph really support the claim?"""
+    from orderorder.engine.locator import locate as locate_in
+    from orderorder.engine.scope import assess_scope
+    from orderorder.engine.verdict import build_verdict
+    from orderorder.resolver import Resolution
+
+    paragraphs = load_paragraphs(session, authority.judgment_id)
+    label = authority.paragraph_label
+    location = locate_in(paragraphs, proposition, claimed_pinpoint=label, top_k=6)
+    scope = assess_scope(proposition, location.candidates, model)
+    return build_verdict(
+        authority.citation or authority.canonical_key,
+        proposition,
+        Resolution(
+            status="found",
+            method="search",
+            judgment_id=authority.judgment_id,
+            canonical_key=authority.canonical_key,
+            score=100.0,
+        ),
+        judgment_title=authority.title,
+        pinpoint=location.pinpoint,
+        scope=scope,
+        voice=authority.voice,
+        claimed_pinpoint=label,
+    )
 
 
 @app.command("verify")
