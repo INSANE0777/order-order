@@ -1,0 +1,30 @@
+# Hackathon profile: only Postgres runs in Docker; the API and engine run from the virtualenv.
+# Before `docker compose up`, check that Docker has room for its disk image (docs/TECH_STACK.md section 9).
+#
+#   docker compose -f infra/docker-compose.yml --profile hackathon up -d postgres
+#
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    profiles: [hackathon, prod]
+    environment:
+      POSTGRES_USER: orderorder
+      POSTGRES_PASSWORD: orderorder
+      POSTGRES_DB: orderorder
+    ports:
+      - "5432:5432"
+    volumes:
+      - "${ORDERORDER_DATA_DIR:-data}/postgres:/var/lib/postgresql/data"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orderorder -d orderorder"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  ollama:
+    image: ollama/ollama
+    profiles: [offline]
+    ports:
+      - "11434:11434"
+    volumes:
+      - "${ORDERORDER_DATA_DIR:-data}/ollama:/root/.ollama"
