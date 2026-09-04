@@ -40,11 +40,14 @@ ABBREVIATIONS = [
 # authorities and grounds that way and each item is about a different case. The marker must be short
 # and bracketed, so "the Act (1996) applies" is not mistaken for one.
 LIST_MARKER = r"\((?:[a-z]{1,3}|[ivxIVX]{1,4}|\d{1,2})\)\s"
+# A footnote marker and the citation it introduces: "... a larger Bench. 30 (2016) 10 SCC 484".
+# The number belongs to the apparatus, not to the sentence that ended before it.
+FOOTNOTE_MARKER = r"\d{1,3}\s+[\(\[]"
 
 # Each abbreviation gets its own lookbehind: Python requires a fixed width for each one.
 SENTENCE_BREAK = re.compile(
     "".join(rf"(?<!\b{abbrev})" for abbrev in ABBREVIATIONS)
-    + rf"(?<=[a-z0-9\)\"'’”])\.\s+(?=[A-Z\"'“‘]|{LIST_MARKER})|\n\s*\n"
+    + rf"(?<=[a-z0-9\)\"'’”])\.\s+(?=[A-Z\"'“‘]|{LIST_MARKER}|{FOOTNOTE_MARKER})|\n\s*\n"
 )
 
 

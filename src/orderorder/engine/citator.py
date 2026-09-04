@@ -105,6 +105,9 @@ TREATMENT_CUES: list[tuple[str, re.Pattern[str]]] = [
         re.compile(
             r"""(?ix)
             (?: we\s+(?:respectfully\s+)?(?:doubt|are\s+unable\s+to\s+(?:agree|subscribe))
+                  # ... with the earlier decision, not with counsel: rejecting a submission says
+                  # nothing about the authority cited alongside it.
+                  (?!\s+(?:with\s+)?(?:to\s+)?the\s+(?:submission|contention|argument|plea))
               | (?:with\s+respect|respectfully)\s*,?\s*we\s+(?:differ|disagree)
               | (?:we\s+are\s+not\s+in\s+agreement\s+with)
               | (?:cannot\s+be\s+said\s+to\s+lay\s+down)
@@ -162,6 +165,14 @@ TREATMENT_CUES: list[tuple[str, re.Pattern[str]]] = [
 # How far from the citation a cue may sit and still be about it. A sentence in a judgment runs long
 # and cites several cases; a cue at the other end of it is about one of the others.
 CUE_WINDOW = 160
+# Negative treatment is measured on two different scales, because the two directions carry different
+# risks. Every true negative found in the corpus sits within twenty-odd characters *after* its
+# citation — "- overruled.", "are overruled", "has been doubted" — so that window is tight. A cue
+# *before* the citation has to clear the case name in between ("we are unable to agree with the
+# reasoning in Kasturi v. Iyyamperumal, (2015) 6 SCC 733"), so that window is long, and what keeps it
+# safe is not distance but the absence of another citation between the cue and this one.
+NEGATIVE_AFTER_WINDOW = 40
+NEGATIVE_BEFORE_WINDOW = 120
 
 # The citation performs the action rather than suffering it. "was reversed by this Court in <cite>",
 # "overruled the decision in <cite>" — everything here names the citation as the overruling court, so
@@ -188,6 +199,9 @@ ACTOR_AFTER = re.compile(
     )
     """
 )
+
+# Something that looks like another citation: a bracketed year, which every Indian reporter carries.
+INTERVENING_CITATION = re.compile(r"[(\[]\s*\d{4}[)\]]|\d{4}\)")
 
 # Treatment that puts an authority in doubt. Anything else leaves it standing.
 NEGATIVE = {"overruled", "partly_overruled", "reversed", "doubted", "referred_to_larger_bench"}
@@ -279,6 +293,8 @@ def classify_treatment(sentence: str, span: tuple[int, int] | None = None) -> st
     left, right = sentence_bounds(sentence, start)
     before = sentence[max(left, start - CUE_WINDOW) : start]
     after = sentence[end : min(right, end + CUE_WINDOW)]
+    near_before = sentence[max(left, start - NEGATIVE_BEFORE_WINDOW) : start]
+    near_after = sentence[end : min(right, end + NEGATIVE_AFTER_WINDOW)]
 
     # "reversed by this Court in ...", "overruled the decision in ..." — what follows performed the
     # action rather than suffering it.
@@ -286,8 +302,21 @@ def classify_treatment(sentence: str, span: tuple[int, int] | None = None) -> st
         return DEFAULT_TREATMENT
 
     for label, pattern in TREATMENT_CUES:
-        # The citation is the actor: "(2019) 8 SCC 714 overruled the decision in ..."
-        if label in NEGATIVE and ACTOR_AFTER.match(after):
+        if label in NEGATIVE:
+            # The citation is the actor: "(2019) 8 SCC 714 overruled the decision in ..."
+            if ACTOR_AFTER.match(after):
+                continue
+            # Every negative treatment found in the corpus has its cue within twenty-odd characters
+            # after the citation: "- overruled.", "are overruled", "has been doubted".
+            if pattern.search(near_after):
+                return label
+            # Before the citation the cue can only be the active form, "we overrule the decision in
+            # X v. Y, (2005) 6 SCC 733". If another citation stands between the cue and this one, the
+            # cue belongs to that one: the Reports' tables of authorities read
+            # "... partly overruled Para 3 [1970] 3 SCR 530 relied on Para 3 [1978] 2 SCR 621 ...".
+            matches = list(pattern.finditer(near_before))
+            if matches and not INTERVENING_CITATION.search(near_before[matches[-1].end() :]):
+                return label
             continue
         if pattern.search(after) or pattern.search(before):
             return label
