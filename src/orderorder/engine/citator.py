@@ -70,8 +70,9 @@ TREATMENT_CUES: list[tuple[str, re.Pattern[str]]] = [
               | overrule[ds]?\s+the\s+(?:decision|judgment|view)
               # The Reports' own annotation in the list of authorities: "Vijay Kumar Mishra v. High
               # Court of Judicature at Patna (2016) 9 SCC 313 - overruled." Terse, but it is the
-              # reporter stating the treatment outright, and it sits right against the citation.
-              | ^\s*[-–—:]\s*overruled\b
+              # reporter stating the treatment outright. Adjacency is enforced by the position check,
+              # not by anchoring, which would now anchor to the sentence rather than the citation.
+              | [-–—:]\s*overruled\b
             )
             """
         ),
@@ -83,7 +84,7 @@ TREATMENT_CUES: list[tuple[str, re.Pattern[str]]] = [
             (?: partly\s+overruled
               | overruled\s+in\s+part
               | to\s+th(?:at|e)\s+extent[^.]{0,40}overruled
-              | ^\s*[-–—:]\s*partly\s+overruled\b
+              | [-–—:]\s*partly\s+overruled\b
             )
             """
         ),
@@ -109,7 +110,10 @@ TREATMENT_CUES: list[tuple[str, re.Pattern[str]]] = [
                   # nothing about the authority cited alongside it.
                   (?!\s+(?:with\s+)?(?:to\s+)?the\s+(?:submission|contention|argument|plea))
               | (?:with\s+respect|respectfully)\s*,?\s*we\s+(?:differ|disagree)
-              | (?:we\s+are\s+not\s+in\s+agreement\s+with)
+              # "... not in agreement with the view taken by the learned Single Judge" disagrees with
+              # a court, not with the case cited beside it. Disagreement with a case reads "the view
+              # taken *in*" and still counts.
+              | (?:we\s+are\s+not\s+in\s+agreement\s+with(?!\s+the\s+view\s+taken\s+by))
               | (?:cannot\s+be\s+said\s+to\s+lay\s+down)
               | (?:has\s+been\s+doubted)
             )
@@ -260,6 +264,25 @@ class TreatmentReport:
         return None
 
 
+def _negative_cue_governs(pattern: re.Pattern[str], line: str, at_start: int, at_end: int) -> bool:
+    """Whether a negative cue in this sentence is about the citation at `at_start`.
+
+    The two directions carry different risks and get different rules. Every genuine negative treatment
+    in the corpus sits a few characters *after* its citation — "- overruled.", "are overruled", "has
+    been doubted" — so a short leash suffices there. A cue *before* the citation has to clear the case
+    name in between ("we are unable to agree with the reasoning in Kasturi v. Iyyamperumal, (2015) 6
+    SCC 733"), so distance cannot be the test; what makes it safe is that no other citation stands in
+    between. In the Reports' tables of authorities one always does.
+    """
+    for match in pattern.finditer(line):
+        if at_end <= match.start() <= at_end + NEGATIVE_AFTER_WINDOW:
+            return True
+    for match in reversed(list(pattern.finditer(line))):
+        if match.end() <= at_start and at_start - match.end() <= NEGATIVE_BEFORE_WINDOW:
+            return not INTERVENING_CITATION.search(line[match.end() : at_start])
+    return False
+
+
 def classify_treatment(sentence: str, span: tuple[int, int] | None = None) -> str:
     """What the citing court did with the cited case.
 
@@ -286,15 +309,21 @@ def classify_treatment(sentence: str, span: tuple[int, int] | None = None) -> st
         return DEFAULT_TREATMENT
 
     start, end = span
-    # Clip the window to the citation's own sentence. Judgments list authorities one after another,
-    # each with its own annotation — "Krishna Veni Nagam ... - partly overruled. Bhuwan Mohan Singh
-    # ... - referred to." — and a window that runs past the full stop takes the previous entry's
-    # treatment and applies it to this one.
+    # Search the citation's own sentence and judge each cue by where it falls. Judgments list
+    # authorities one after another, each with its own annotation — "Krishna Veni Nagam ... - partly
+    # overruled. Bhuwan Mohan Singh ... - referred to." — so a cue past the full stop belongs to the
+    # previous entry.
+    #
+    # The cues are matched against the whole sentence rather than against a trimmed window, and the
+    # window is then applied to the match's position. Trimming first would silently disarm every
+    # guard that has to look further than the window: the lookahead in "not in agreement with (not the
+    # view taken by)" needs to see four words that a forty-character window cuts off, and a negative
+    # lookahead whose text has been truncated away always succeeds.
     left, right = sentence_bounds(sentence, start)
-    before = sentence[max(left, start - CUE_WINDOW) : start]
-    after = sentence[end : min(right, end + CUE_WINDOW)]
-    near_before = sentence[max(left, start - NEGATIVE_BEFORE_WINDOW) : start]
-    near_after = sentence[end : min(right, end + NEGATIVE_AFTER_WINDOW)]
+    line = sentence[left:right]
+    at_start, at_end = start - left, end - left
+    before = line[max(0, at_start - CUE_WINDOW) : at_start]
+    after = line[at_end : at_end + CUE_WINDOW]
 
     # "reversed by this Court in ...", "overruled the decision in ..." — what follows performed the
     # action rather than suffering it.
@@ -306,16 +335,7 @@ def classify_treatment(sentence: str, span: tuple[int, int] | None = None) -> st
             # The citation is the actor: "(2019) 8 SCC 714 overruled the decision in ..."
             if ACTOR_AFTER.match(after):
                 continue
-            # Every negative treatment found in the corpus has its cue within twenty-odd characters
-            # after the citation: "- overruled.", "are overruled", "has been doubted".
-            if pattern.search(near_after):
-                return label
-            # Before the citation the cue can only be the active form, "we overrule the decision in
-            # X v. Y, (2005) 6 SCC 733". If another citation stands between the cue and this one, the
-            # cue belongs to that one: the Reports' tables of authorities read
-            # "... partly overruled Para 3 [1970] 3 SCR 530 relied on Para 3 [1978] 2 SCR 621 ...".
-            matches = list(pattern.finditer(near_before))
-            if matches and not INTERVENING_CITATION.search(near_before[matches[-1].end() :]):
+            if _negative_cue_governs(pattern, line, at_start, at_end):
                 return label
             continue
         if pattern.search(after) or pattern.search(before):
