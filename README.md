@@ -139,9 +139,10 @@ Measured on the real corpus, which is now the whole of it:
 | | |
 |---|---|
 | Judgments (2013-2025) | 9,429 |
-| Citation aliases | 18,908 |
+| Citation aliases | 20,778, of which 1,870 learned from the corpus itself |
 | Judgments with full text | 9,424 (99.95%) |
 | Paragraphs indexed | 409,499 |
+| Citation edges | 8,276 |
 
 - Importing metadata takes about 15 seconds a year and parses every citation in the source.
 - Ingesting the text of the whole corpus takes about 0.4 seconds a judgment on a CPU-only laptop with
@@ -150,6 +151,20 @@ Measured on the real corpus, which is now the whole of it:
   have and three that yield no text after cleaning.
 - Building the full-text index over 409,499 paragraphs takes 87 seconds. A search across all of them
   answers in about 8 seconds.
+- The citator extracts 8,276 edges, of which 7 are negative. Every one of those seven was read against
+  the judgment that produced it, and the false positives that reading found are pinned as tests. The
+  precision bar here is asymmetric: a missed overruling costs an advocate nothing they did not already
+  lack, while a false one has them drop a binding authority.
+- `orderorder treatment INSC:2014:53` reports Pune Municipal Corporation as **doubted**, cited by 77
+  of the 9,424 judgments held, and notes that the 2022 bench whose words claim to overrule it was two
+  judges against three and so could not.
+
+**Known gap.** The citator sees negative treatment *of* a judgment, not of the line of authority it
+belongs to. A 2016 judgment faithfully applying a rule that a Constitution Bench discarded in 2020 is
+still reported as good law, because nothing has been said about that judgment itself. The edges to fix
+this are already stored — a judgment that `relied_on` an overruled one is wounded by it — and the
+Constitution Bench in Indore Development Authority said as much in terms: "all other decisions in
+which Pune Municipal Corpn. has been followed, are also overruled."
 - Fetching and parsing a judgment's official PDF takes two to three seconds; a 51-page judgment
   segments into 118 paragraphs.
 - A citation to a paragraph the judgment does not have is reported as such, which is the Delhi High
