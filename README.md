@@ -34,32 +34,51 @@ uv run orderorder stats
 
 uv run orderorder cite parse "Kesavananda Bharati v. State of Kerala, (1973) 4 SCC 225, para 316"
 uv run orderorder resolve "[2019] 9 S.C.R. 593"
+
+uv run orderorder ingest text INSC:2019:770          # fetch the official PDF, clean and segment it
+uv run orderorder locate INSC:2019:770 "the plaintiff is the dominus litis" --pinpoint 73
 ```
 
 `uv run pytest` runs the suite; it uses an in-memory database and never touches the network.
 
 ### What works today
 
-The data spine and the resolver, which together detect the first two failure modes in the taxonomy:
-a citation that does not exist, and a citation attached to the wrong case.
+Two of the three questions the product asks about a citation: **does the case exist**, and **which
+paragraph is being relied on**. Between them these detect failure modes 1, 2 and 12 from the taxonomy
+in [docs/PRD.md](docs/PRD.md), and give a first signal on 5. None of it calls a language model.
 
 | Piece | Module |
 |---|---|
-| Citation grammar for SCC, SCC OnLine, AIR, SCR, SCALE, JT, INSC, High Court neutral citations and Indian Kanoon IDs, with pinpoints and party names | `src/orderorder/citations/grammar.py` |
-| Corpus client for the AWS Open Data bucket (anonymous HTTP, no AWS account) | `src/orderorder/ingest/corpus.py` |
-| Metadata import into `judgment` and `citation_alias` | `src/orderorder/ingest/metadata.py` |
-| Resolver: exact alias match, then fuzzy party names | `src/orderorder/resolver.py` |
-| Quote verifier, the quote-or-nothing rule | `src/orderorder/engine/quotes.py` |
-| Paragraph segmentation with printed labels and offsets | `src/orderorder/ingest/segment.py` |
+| Citation grammar for SCC, SCC OnLine, AIR, SCR, SCALE, JT, INSC, High Court neutral citations and Indian Kanoon IDs, with pinpoints and party names | `citations/grammar.py` |
+| Corpus client for the AWS Open Data bucket (anonymous HTTP, no AWS account) | `ingest/corpus.py` |
+| Metadata import into `judgment` and `citation_alias` | `ingest/metadata.py` |
+| Resolver: exact alias match, then fuzzy party names | `resolver.py` |
+| Reports PDF cleaning: margin letters, running headers, the editorial headnote, the coram and the authoring judge | `ingest/pdf.py` |
+| Paragraph segmentation with printed labels, sub-labels and offsets | `ingest/segment.py` |
+| Persistence of text versions, opinions and paragraphs | `ingest/store.py` |
+| BM25 ranking inside a judgment, and the fusion seam for embeddings | `engine/lexical.py` |
+| Locator and pinpoint checking | `engine/locator.py` |
+| Quote verifier, the quote-or-nothing rule | `engine/quotes.py` |
 
-Importing 2019 to 2024 takes about 15 seconds and yields roughly 5,000 judgments and 9,900 citation
-aliases, with every citation in the source parsed by the grammar.
+Measured on the real corpus:
+
+- Importing 2019 to 2024 takes about 15 seconds and yields roughly 5,000 judgments and 9,900 citation
+  aliases, with every citation in the source parsed by the grammar.
+- Fetching and parsing a judgment's official PDF takes two to three seconds; a 51-page judgment
+  segments into 118 paragraphs.
+- A citation to a paragraph the judgment does not have is reported as such, which is the Delhi High
+  Court failure of September 2025.
+
+Two things the corpus does not tell you, which the PDF does. The metadata's judge column names only
+the **presiding** judge, so bench strength arrives under-counted; the coram printed on the judgment is
+read instead, because bench strength decides which precedents bind which. And the Reports open with an
+**editorial headnote**, which is the publisher's summary rather than the court's words; it is stored
+separately and never used as the text a pinpoint resolves against.
 
 ### Not built yet
 
-Judgment text ingestion, embeddings and hybrid retrieval, the locator, the scope comparator, the
-citator, the LangGraph assembly of the engine, and both web surfaces. See
-[docs/ROADMAP.md](docs/ROADMAP.md).
+Embeddings and hybrid retrieval, the scope comparator, voice and weight classification, the citator,
+the LangGraph assembly of the engine, and both web surfaces. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Status
 

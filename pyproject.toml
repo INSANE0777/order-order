@@ -23,6 +23,7 @@ dependencies = [
     "pyarrow>=25.0.1",
     "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",
+    "pypdfium2>=5.13.0",
     "python-dotenv>=1.2.3",
     "rapidfuzz>=3.14.6",
     "rich>=15.0.0",

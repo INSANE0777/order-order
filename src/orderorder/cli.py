@@ -23,10 +23,13 @@ from sqlalchemy import func, select
 from orderorder import __version__
 from orderorder.citations.grammar import extract_citations
 from orderorder.config import get_settings
-from orderorder.db.models import CitationAlias, Judgment, Paragraph
+from orderorder.db.models import CitationAlias, Judgment, JudgmentTextVersion, Paragraph
 from orderorder.db.session import get_session, init_db
+from orderorder.engine.locator import locate as locate_claim
 from orderorder.ingest import corpus as corpus_mod
+from orderorder.ingest import pdf as pdf_mod
 from orderorder.ingest.metadata import import_parquet
+from orderorder.ingest.store import load_paragraphs, store_extracted
 from orderorder.resolver import resolve as resolve_citation
 
 app = typer.Typer(help="Citation-integrity engine for Indian case law.", no_args_is_help=True)
@@ -135,6 +138,102 @@ def ingest_metadata(
         console.print(f"[bold]total[/bold] {totals}")
 
 
+@ingest_app.command("text")
+def ingest_text(
+    keys: list[str] = typer.Argument(..., help="Canonical keys, e.g. INSC:2019:770."),
+    version_key: str = typer.Option("scr_pdf", help="Name for this text version."),
+) -> None:
+    """Fetch each judgment's official PDF, clean it, segment it and store the paragraphs."""
+    settings = get_settings()
+    init_db()
+    for key in keys:
+        with get_session() as session:
+            judgment = session.scalars(select(Judgment).where(Judgment.canonical_key == key)).first()
+            if judgment is None:
+                console.print(f"[red]{key}[/red] not in the knowledge base; import its year first")
+                continue
+            if not judgment.source_id:
+                console.print(f"[red]{key}[/red] has no source path, cannot locate a PDF")
+                continue
+            year = (judgment.extra or {}).get("year") or (
+                judgment.decided_on.year if judgment.decided_on else None
+            )
+            try:
+                path = pdf_mod.fetch_pdf(judgment.source_id, year, settings.corpus_dir)
+                extracted = pdf_mod.extract(path, judgment.source_id)
+            except Exception as exc:  # noqa: BLE001 - report and continue with the next key
+                console.print(f"[red]{key}[/red] {type(exc).__name__}: {exc}")
+                continue
+            if not extracted.has_judgment:
+                console.print(f"[yellow]{key}[/yellow] no judgment text found after cleaning")
+                continue
+            result = store_extracted(
+                session,
+                judgment,
+                extracted,
+                version_key=version_key,
+                source_url=pdf_mod.pdf_url(judgment.source_id, year),
+            )
+            bench = f"bench {extracted.bench_strength}" if extracted.bench_strength else "bench ?"
+            console.print(
+                f"[green]{key}[/green] {extracted.page_count}p "
+                f"{len(extracted.judgment):,}ch {result.paragraphs} paras, "
+                f"{bench}, author {extracted.author or '-'}"
+                + (" [yellow](bench corrected)[/yellow]" if result.bench_corrected else "")
+                + (" [dim](replaced)[/dim]" if result.replaced else "")
+            )
+
+
+@app.command("locate")
+def locate_command(
+    key: str = typer.Argument(..., help="Canonical key of the judgment, e.g. INSC:2019:770."),
+    proposition: str = typer.Argument(..., help="The proposition the brief attributes to the judgment."),
+    pinpoint: str | None = typer.Option(None, help="The paragraph the brief cited, e.g. 5.1."),
+    top: int = typer.Option(5, help="How many candidate paragraphs to show."),
+) -> None:
+    """Rank a judgment's paragraphs against a proposition and check the pinpoint."""
+    with get_session() as session:
+        judgment = session.scalars(select(Judgment).where(Judgment.canonical_key == key)).first()
+        if judgment is None:
+            console.print(f"[red]{key}[/red] not in the knowledge base")
+            raise typer.Exit(1)
+        paragraphs = load_paragraphs(session, judgment.id)
+        if not paragraphs:
+            console.print(f"[yellow]{key}[/yellow] has no text; run [bold]orderorder ingest text {key}[/bold]")
+            raise typer.Exit(1)
+
+        result = locate_claim(paragraphs, proposition, claimed_pinpoint=pinpoint, top_k=top)
+        console.print(f"[bold]{judgment.title[:80]}[/bold]")
+        console.print(f"[dim]{len(paragraphs)} paragraphs; query terms: {', '.join(result.query_terms[:12])}[/dim]\n")
+
+        check = result.pinpoint
+        if check.status == "ok":
+            console.print(f"[green]pinpoint ok[/green] paragraph {check.claimed} exists")
+        elif check.is_problem:
+            console.print(f"[red]pinpoint problem[/red] {check.note}")
+        elif check.status == "none_claimed":
+            console.print(f"[dim]no pinpoint claimed; numbering runs to {check.highest_label}[/dim]")
+
+        table = Table(show_header=True, header_style="bold")
+        table.add_column("para")
+        table.add_column("score", justify="right")
+        table.add_column("terms")
+        table.add_column("text")
+        for candidate in result.candidates[:top]:
+            label = candidate.printed_label or f"#{candidate.seq}"
+            if candidate.is_claimed_pinpoint:
+                label = f"{label} (cited)"
+            if candidate.likely_quoted:
+                label = f"[red]{label} quoted?[/red]"
+            table.add_row(label, f"{candidate.score:.2f}", ", ".join(candidate.matched_terms[:4]), candidate.preview)
+        console.print(table)
+        if any(c.likely_quoted for c in result.candidates[:top]):
+            console.print(
+                "[red]warning[/red] a candidate's paragraph number breaks the judgment's sequence, "
+                "so it is probably quoted from another judgment rather than this court's own words"
+            )
+
+
 @cite_app.command("parse")
 def cite_parse(text: str = typer.Argument(..., help="Text to scan for citations.")) -> None:
     """Show every citation the grammar finds, with its normalised key and pinpoint."""
@@ -189,6 +288,7 @@ def stats() -> None:
         for name, model in [
             ("judgment", Judgment),
             ("citation_alias", CitationAlias),
+            ("judgment_text_version", JudgmentTextVersion),
             ("paragraph", Paragraph),
         ]:
             count = session.scalar(select(func.count()).select_from(model)) or 0

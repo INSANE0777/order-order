@@ -73,3 +73,54 @@ def test_hyphenated_line_break_is_repaired() -> None:
 
 def test_empty_input() -> None:
     assert segment("") == []
+
+
+# --- quoted-passage detection -------------------------------------------------
+#
+# A court numbers its own paragraphs in order. A judgment that quotes another judgment at length
+# reproduces that judgment's numbering, so a high label lands among lower ones. Attributing such a
+# paragraph to the citing court is failure mode 5, so the break in sequence is worth detecting.
+
+from orderorder.ingest.segment import find_out_of_sequence, label_value  # noqa: E402
+
+
+def test_label_value_orders_sub_paragraphs() -> None:
+    assert label_value("5") == 5.0
+    assert label_value("5.1") == 5.01
+    assert 5.0 < label_value("5.1") < 6.0
+    assert label_value(None) is None
+    assert label_value("preamble") is None
+
+
+def test_out_of_sequence_label_is_flagged() -> None:
+    """The real shape from [2019] 9 S.C.R. 593: paragraph 16 sits between 5.2 and 6."""
+    text = "\n\n".join(
+        [
+            "1. First point of the court.",
+            "5. We have heard the learned counsel.",
+            "5.2 An identical question came before this Court.",
+            "16. That apart, from a plain reading of the expression used.",
+            "6. Now so far as the reliance placed upon the decision.",
+            "7. In view of the above the appeals are dismissed.",
+        ]
+    )
+    paragraphs = segment(text)
+    flagged = find_out_of_sequence(paragraphs)
+    quoted = {p.printed_label for p in paragraphs if p.seq in flagged}
+    assert quoted == {"16"}
+
+
+def test_ascending_labels_are_never_flagged() -> None:
+    text = "\n\n".join(f"{n}. Paragraph number {n} of the judgment." for n in range(1, 9))
+    assert find_out_of_sequence(segment(text)) == set()
+
+
+def test_sub_paragraphs_do_not_trip_the_detector() -> None:
+    text = "\n\n".join(
+        ["1. First.", "2. Second.", "2.1 Second part one.", "2.2 Second part two.", "3. Third."]
+    )
+    assert find_out_of_sequence(segment(text)) == set()
+
+
+def test_too_few_labels_to_judge() -> None:
+    assert find_out_of_sequence(segment("9. Only one labelled paragraph here.")) == set()
