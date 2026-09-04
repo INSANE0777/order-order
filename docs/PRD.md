@@ -30,7 +30,7 @@ Two surfaces, one engine:
 | **A. Citation Stress-Test** | A brief, memorial, submission or paper (PDF, DOCX or pasted text); optionally the facts of the matter | A verdict for every citation, an annotated copy of the brief, an opposing-counsel memo, and a verification report |
 | **B. Verified Drafting** | Case documents (pleadings, contracts, notices, orders, scanned annexures, images) plus a narrative of facts | Case digest, framed issues, ranked authorities, a draft written submission with table of authorities, and a verification appendix |
 
-The MVP targets moot-court students and junior litigators. The corpus is Supreme Court of India judgments from open, licence-clean sources. Everything runs on hardware the team controls; no client document leaves the box unless the user explicitly turns on a cloud model.
+The MVP targets moot-court students and junior litigators. The corpus is Supreme Court of India judgments from open, licence-clean sources. In production everything runs on hardware the team controls and no client document leaves the box unless the user explicitly turns on a cloud model; the hackathon build costs nothing, running on free API tiers with demo data only (§8).
 
 ---
 
@@ -87,7 +87,7 @@ The Delhi High Court incident is the level-2 failure in its purest form: a pinpo
 
 - **Regulators have named the use case.** The Supreme Court's draft *Regulations for Use of Artificial Intelligence (AI) in Courts, 2026* (published 3 June 2026 under the Court's AI Committee, applying to the Supreme Court, High Courts, tribunals and statutory adjudicators) expressly list **citation verification** among permitted assistive uses, while prohibiting AI adjudication and making "the model hallucinated" no defence ([LiveLaw](https://www.livelaw.in/top-stories/supreme-court-publishes-draft-regulations-on-ai-use-in-judiciary-invites-feedback-536746) · [The Leaflet](https://theleaflet.in/law-and-technology/explained-the-supreme-court-of-indias-draft-regulations-for-use-of-artificial-intelligence-in-courts-2026)). Kerala High Court's July 2025 policy was India's first binding judicial AI policy ([PDF](https://images.assettype.com/theleaflet/2025-07-22/mt4bw6n7/Kerala_HC_AI_Guidelines.pdf)). The Bar Council of India constituted a digital-ethics sub-committee in June 2026 covering fabricated citations ([SCC blog](https://www.scconline.com/blog/post/2026/07/18/bci-social-media-digital-ethics-guidelines/)).
 - **A licence-clean corpus exists.** AWS Open Data hosts the Indian Supreme Court judgments 1950-2025 and the judgments of all 25 High Courts under CC-BY-4.0 (§11). Two years ago building a legal knowledge base in India meant scraping.
-- **Open-weight models are good enough and run locally.** 2026-generation 27-31B models with 256K context, Apache-2.0 licences and schema-constrained JSON output run on one 24 GB GPU; self-hosting is now a feature, not a compromise (see [TECH_STACK.md](TECH_STACK.md)).
+- **Open-weight models are good enough, run locally, and are served free.** 2026-generation 27-31B models with 256K context, Apache-2.0 licences and schema-constrained JSON output run on one 24 GB GPU, so self-hosting is a feature, not a compromise; and the same open models are served on free API tiers by several providers, which is what makes a ₹0 hackathon build possible (see [TECH_STACK.md](TECH_STACK.md)).
 - **Incumbents are racing to "AI-enabled search", not verification.** SCC Online launched AI Pro (Feb 2026) and partnered with Harvey (Jan 2026); Manupatra sells AI search with overruled-flags. None checks the extent of support (§13).
 
 ---
@@ -221,12 +221,12 @@ Priority: **P0** = hackathon MVP; **P1** = phase 1 (first three months after); *
 |---|---|
 | **Accuracy** | Targets in §12; quote-grounding rate is 100% by construction (a verdict cannot say "supported" without a string-matched quote) |
 | **Latency** | A 30-citation brief verified in under 10 minutes on the production GPU box; under 60 seconds for a single citation whose judgment is already digested |
-| **Self-hosting** | Every component runs on hardware the team controls, from a laptop (reduced models) to a rented India-resident GPU server; no mandatory external API. Cloud models are an explicit, off-by-default toggle |
+| **Self-hosting** | The production requirement: every component can run on hardware the team controls, from a laptop (reduced models) to a rented India-resident GPU server, with no mandatory external API. The hackathon build instead runs the language model on free cloud API tiers with fallbacks and uses free GPU notebooks for batch work, on non-privileged demo data only; the provider is a configuration value, so the switch to self-hosted models is not a code change |
 | **Confidentiality** | Per-matter isolation, encryption at rest, TLS in transit, audit log of every access and export, delete-on-request, no training on user data, upload malware scanning |
 | **Auditability** | Every verdict stores its evidence (paragraph IDs, quotes, offsets, text version, source URL, model and prompt version) |
 | **Determinism** | Same brief, same corpus, same model version gives the same verdicts; all LLM calls use schema-constrained output and are logged |
 | **Availability** | Hackathon: best effort. Phase 1: 99% monthly for the web app; batch jobs resumable |
-| **Cost** | Per-judgment digest is computed once and cached; per-citation verification stays under ₹5 of GPU time at production scale (see the cost sketch in [TECH_STACK.md](TECH_STACK.md)) |
+| **Cost** | The hackathon build costs ₹0 (free tiers and local CPU; bill of materials in [TECH_STACK.md](TECH_STACK.md) §12). In production the per-judgment digest is computed once and cached, and per-citation verification stays under ₹5 of GPU time |
 | **Licensing** | Only permissive-licence components in the product path (MIT, Apache-2.0, BSD, CC-BY); AGPL, non-commercial and revenue-capped licences are excluded (list in [TECH_STACK.md](TECH_STACK.md)) |
 | **Attribution** | "Powered by IKanoon" attribution wherever Indian Kanoon data is shown or used for retrieval context; AWS Open Data datasets cited per their CC-BY terms |
 
@@ -349,7 +349,8 @@ The demo memorial's eight citations produce the eight expected verdicts, each wi
 | Corpus text quality (OCR of old scanned judgments) | Medium | Medium | Prefer official born-digital PDFs; PaddleOCR-VL for scans; OCR-derived flag lowers confidence; fuzzy quote match only for OCR text |
 | Indian Kanoon terms on caching are unwritten | Medium | Medium | Bulk corpus from AWS Open Data instead; Indian Kanoon lookup-only with attribution; get written confirmation in phase 1 |
 | Self-hosted models weaker than frontier cloud models | Medium | Medium | 2026 open models at 27-31B are strong on long-context reading; batching and the digest cache make the 120B-class affordable on one 80 GB card; cloud toggle exists for consenting users |
-| The laptop cannot run demo-quality models | Certain | Medium | Rented India-resident GPU for demo days (a few hundred rupees per session); laptop for CPU development |
+| The laptop cannot run demo-quality models | Certain | Medium | Free API tiers serve 70B-120B-class open models for the live demo; a free Kaggle or Colab GPU does the batch work; the laptop runs the app and offline development |
+| A free tier rate-limits or goes down during the demo | High | Medium | Three providers configured behind LangChain fallbacks; digests precomputed and cached; local Ollama as the last resort; backup video |
 | Scope creep between verify and draft | High | Medium | Draft surface reuses the verify engine unchanged; the gate is the only new logic |
 | Legal liability / unauthorised practice | Low | High | Research-aid positioning; disclaimers; lawyer remains responsible; no outcome prediction; aligns with draft regulations |
 | Privilege waiver through cloud processing | Medium | High | Self-hosted default; cloud toggle requires explicit consent, zero-retention and region check |
@@ -360,7 +361,7 @@ The demo memorial's eight citations produce the eight expected verdicts, each wi
 ## 15. Legal, compliance and ethics
 
 1. **Data protection.** The Digital Personal Data Protection Act 2023 and the DPDP Rules 2025 (notified 14 November 2025) phase in; principal substantive obligations apply from around May 2027 ([PIB](https://static.pib.gov.in/WriteReadData/specificdocs/documents/2025/nov/doc20251117695301.pdf)). There is no blanket localisation mandate, but the Government may restrict transfers by notification ([SFLC](https://sflc.in/dpdp-rules-2025-significant-data-fiduciaries-and-data-transfers/)). OrderOrder processes in India by default, minimises personal data, supports deletion, and keeps an audit log.
-2. **Privilege.** Advocate-client communications are protected under sections 132-134 of the Bharatiya Sakshya Adhiniyam 2023; the protection does not extend to salaried in-house counsel ([AZB](https://www.azbpartners.com/bank/legal-privilege-professional-secrecy-in-india/)). Sending a client brief to a third-party model without consent is a waiver risk; hence self-hosting by default and an explicit consent step for the cloud toggle.
+2. **Privilege.** Advocate-client communications are protected under sections 132-134 of the Bharatiya Sakshya Adhiniyam 2023; the protection does not extend to salaried in-house counsel ([AZB](https://www.azbpartners.com/bank/legal-privilege-professional-secrecy-in-india/)). Sending a client brief to a third-party model without consent is a waiver risk; hence self-hosting by default in production and an explicit consent step for the cloud toggle. The hackathon build runs on free cloud tiers, which is acceptable only because it processes moot memorials and synthetic matters, never client documents.
 3. **Professional conduct.** Following *Pooja Ramesh Singh* the advocate remains responsible for every citation filed. OrderOrder's outputs say so on every page and never present a verdict as legal advice.
 4. **Court AI policies.** Kerala HC's 2025 policy and the Supreme Court's 2026 draft regulations permit assistive uses including citation verification, require human verification, and bar AI adjudication. OrderOrder is designed inside those lines and will track the final regulations.
 5. **Naming and marketing.** The product is OrderOrder, from the courtroom call to order; the repository is `order-order`. Still outstanding before launch: a trademark search, a domain, and a check that marketing to advocates does not trip Bar Council of India rules on advertising by advocates (the product markets itself, not any advocate).
@@ -373,7 +374,7 @@ The demo memorial's eight citations produce the eight expected verdicts, each wi
 
 | Phase | Window | Scope | Exit criterion |
 |---|---|---|---|
-| **0. Hackathon MVP** | 10 working days (compressible) | SC-only subset corpus; Surface A for modes 1, 2, 4, 5, 6, 8, 10, 12; Surface B for one matter type with the gate; DOCX export; minimal UI; 50-claim gold set | Demo script runs end to end on the demo box |
+| **0. Hackathon MVP** | 10 working days (compressible) | SC-only subset corpus; Surface A for modes 1, 2, 4, 5, 6, 8, 10, 12; Surface B for one matter type with the gate; DOCX export; minimal UI; 50-claim gold set; ₹0 stack on free tiers | Demo script runs end to end on the laptop against free tiers |
 | **1. Foundation** | Months 1-3 after | Full SC corpus; own citator graph; retrained role classifier; 2-3 High Courts; gold set 500+; teams; Word add-in spike; Indian Kanoon written terms | Phase-1 metric targets met; 3 moot societies onboarded |
 | **2. Practitioner product** | Months 4-9 | BYO-login connectors; moot-court mode; pricing and billing; DPDP-ready handling; on-prem package | Paying practitioners; firm pilot |
 | **3. Coverage** | Months 10-18 | All High Courts; tribunals; statutes and amendments; statutory-provision verification; regional-language OCR | — |

@@ -22,16 +22,16 @@ Phase 0 is the hackathon sprint. Phases 1-3 take the same engine to a startup. D
 
 | Day | Developer (D) | Co-founder (L) | Exit criterion |
 |---|---|---|---|
-| **0** (prep, before the sprint) | Machine prep per [TECH_STACK.md](TECH_STACK.md) §9: free up the system drive, point Docker and Ollama at the data directory, install uv and Python 3.12. Indian Kanoon API token and non-commercial allowance request. Download the AWS Open Data SC parquet metadata and the 2014-2025 text. Book a GPU box for days 9-10. | Collect 5-10 real memorials with authors' permission. Choose the demo matter (contract fraud). Write the citation-format list (every reporter style seen in practice, with examples). | Data under `ORDERORDER_DATA_DIR`; memorials in hand |
-| **1** | Monorepo scaffold; dev compose (postgres, redis, tei, ollama); Alembic schema for judgment, text version, paragraph, alias, edge, verdict. Ingest parquet metadata into `judgment` and `citation_alias`. Citation grammar v1 with tests generated from L's list. | Draft the 8-citation demo memorial: 2 clean, 1 phantom, 1 overstated, 1 dissent-as-holding, 1 overruled, 1 counsel-argument-as-holding, 1 wrong pinpoint. Record the expected verdict for each. | `orderorder resolve` finds every real citation in the demo memorial by exact alias |
-| **2** | Text ingestion for the subset: Docling parse, paragraph segmentation, canonical IDs, opinion boundaries (rules), full-text index; start CPU embeddings overnight with BGE-M3. CLI `orderorder ingest`. | Gold set v0: 20 items covering modes 1, 2, 4, 8, 12 from the memorials; label with paragraph IDs from the viewer-less CLI dump. | Every judgment in the demo memorial and gold set is segmented with printed labels captured |
+| **0** (prep, before the sprint) | Machine prep per [TECH_STACK.md](TECH_STACK.md) §9: free up the system drive, point Docker and Ollama at the data directory, install uv and Python 3.12. Indian Kanoon API token and non-commercial allowance request. Download the AWS Open Data SC parquet metadata and the 2014-2025 text. Create the free accounts (Groq, Google AI Studio, Cerebras, LangSmith, Kaggle, Hugging Face) and verify each key with one call. | Collect 5-10 real memorials with authors' permission. Choose the demo matter (contract fraud). Write the citation-format list (every reporter style seen in practice, with examples). | Data under `ORDERORDER_DATA_DIR`; memorials in hand |
+| **1** | Monorepo scaffold; dev compose (postgres, ollama); LangGraph skeleton of the engine with stub nodes and a checkpointer; Alembic schema for judgment, text version, paragraph, alias, edge, verdict. Ingest parquet metadata into `judgment` and `citation_alias`. Citation grammar v1 with tests generated from L's list. | Draft the 8-citation demo memorial: 2 clean, 1 phantom, 1 overstated, 1 dissent-as-holding, 1 overruled, 1 counsel-argument-as-holding, 1 wrong pinpoint. Record the expected verdict for each. | `orderorder resolve` finds every real citation in the demo memorial by exact alias |
+| **2** | Text ingestion for the subset: Docling parse, paragraph segmentation, canonical IDs, opinion boundaries (rules), full-text index; embed on a free Kaggle T4 session (CPU overnight on a smaller subset as the fallback) and import. CLI `orderorder ingest`. | Gold set v0: 20 items covering modes 1, 2, 4, 8, 12 from the memorials; label with paragraph IDs from the viewer-less CLI dump. | Every judgment in the demo memorial and gold set is segmented with printed labels captured |
 | **3** | Resolver: exact, neutral citation, fuzzy party names, Indian Kanoon lookup with stub caching and attribution; metadata and hierarchy check; abstention codes. | Precedent-hierarchy rules as a table (Article 141, bench strength, territorial HC rule, dissent, obiter). Written-submission template (synopsis, list of dates, issues, arguments, prayer, table of authorities). | Fabrication recall 100% on gold v0 |
-| **4** | Locator: hybrid search within a judgment, reranker, candidate set with claimed pinpoint injected; quote verifier with normalisation and offsets; pinpoint reconciliation; digest builder on the 4B model for smoke tests. `orderorder verify` end to end for existence + location. | Gold set v1: extend to 50 items, adding modes 5, 6, 10; second-annotate 10 items. | Pinpoint hit@3 measured; quote-grounding 100% |
+| **4** | Locator: hybrid search within a judgment, reranker, candidate set with claimed pinpoint injected; quote verifier with normalisation and offsets; pinpoint reconciliation; digest builder as a LangChain chain on a free long-context API, with the local 4B model for offline smoke tests. `orderorder verify` end to end for existence + location. | Gold set v1: extend to 50 items, adding modes 5, 6, 10; second-annotate 10 items. | Pinpoint hit@3 measured; quote-grounding 100% |
 | **5** | Voice and opinion attribution; weight classifier (rule-assisted LLM); scope comparator: claim decomposition, NLI first pass, adjudicator schema with dropped qualifiers, modality, generality, narrowed proposition; selective-quotation check. | Review 20 engine verdicts against own judgment; write the opposing-counsel memo style guide with three worked examples. | Overstatement recall measured on gold v1 |
 | **6** | Citator: own edges from ingested judgments + Indian Kanoon cited-by; treatment cue phrases + LLM; grade rubric; memo generation; first full eval run and retrieval tuning. | Label treatment for the gold set's mode-10 items; check the memo tone on 10 verdicts. | Eval report v1 with all P0 metrics |
 | **7** | Drafting engine: case digest from uploaded documents (born-digital and one scanned page via PP-OCRv6), issue framing, authority retrieval and ranking, proposition drafting bound to paragraphs, gate policy, assembly from L's template, DOCX export with verification appendix. | Prepare the demo matter's documents (a contract, a notice, a reply, one scanned annexure) and the facts narrative; review the generated draft. | Draft exports with zero unverified propositions |
 | **8** | Web UI: upload, verdict board with live progress, annotated brief, judgment viewer with paragraph highlight and version badge, memo panel, export; minimal drafting workspace (digest confirm, issues confirm, draft view, export). | Usability pass with two classmates on the stress-test flow; log confusions. | The demo script runs in the browser end to end on the laptop with the 4B model |
-| **9** | Bring up the GPU box (SGLang, Qwen3.5-27B AWQ, TEI on GPU, PaddleOCR-VL); rebuild digests for the demo judgments; run the full eval; fix failures; verification report PDF; rehearsal 1 with timing. | Rehearsal 1 as presenter; tighten the narrative; prepare the hook slide (the July 2026 Supreme Court judgment; the "para 73 of 27" incident). | Demo under 7 minutes on the GPU box; eval report v2 |
+| **9** | Full run on the free tiers with all three providers and fallbacks configured; rebuild digests for the demo judgments on Kaggle; count the demo's model calls against each provider's daily limit; run the full eval; fix failures; verification report PDF; rehearsal 1 with timing. | Rehearsal 1 as presenter; tighten the narrative; prepare the hook slide (the July 2026 Supreme Court judgment; the "para 73 of 27" incident). | Demo under 7 minutes on free tiers; eval report v2 |
 | **10** | Polish; rehearsals 2 and 3; record a backup video of the full run; submission package (repo, docs, eval report, video). | Final Q&A prep: what the engine cannot do, why self-hosted, data sources and licences, roadmap. | Submitted |
 
 ### 1.3 Demo script ("catch the fake citation", about 7 minutes)
@@ -58,8 +58,8 @@ Phase 0 is the hackathon sprint. Phases 1-3 take the same engine to a startup. D
 
 | Risk | Mitigation |
 |---|---|
-| GPU box provisioning fails on day 9 | Book on day 0 and test SGLang once on day 4 for an hour; fall back to AWS Mumbai L4 |
-| CPU embedding of the subset takes too long | Start on day 2 evening; embed only judgments from 2018 onward if needed |
+| A free tier rate-limits or goes down during the demo | Three providers behind LangChain fallbacks; digests precomputed on day 9; local Ollama as the last resort; backup video |
+| CPU embedding of the subset takes too long | Use a Kaggle T4 session on day 2; embed only judgments from 2018 onward if it must stay on the laptop |
 | Citation grammar misses formats in the memorials | L's format list on day 0; tests drive the grammar; NER catches names without citations |
 | Demo network failure | Backup video recorded on day 10; the whole stack runs on the laptop with reduced quality as a second fallback |
 
@@ -87,7 +87,7 @@ gantt
     Drafting engine and DOCX export              :d7, after d6, 1d
     Web UI                                       :d8, after d7, 1d
     section Demo
-    GPU box, eval report, rehearsal              :d9, after d8, 1d
+    Free-tier full run, eval report, rehearsal   :d9, after d8, 1d
     Polish, rehearsals, submission               :d10, after d9, 1d
     Demo day                                     :milestone, m1, after d10, 0d
 ```
@@ -114,7 +114,7 @@ gantt
 
 | Goal | Deliverable | Owner | Exit criterion |
 |---|---|---|---|
-| Full Supreme Court corpus | Ingest 1950-2025 from AWS Open Data; official PDFs for the most-cited 5,000 judgments; digests built in batches on the GPU box | D | Coverage report: every citation in the gold set resolves locally |
+| Full Supreme Court corpus | Ingest 1950-2025 from AWS Open Data; official PDFs for the most-cited 5,000 judgments; digests built in batches on Kaggle sessions or the first paid GPU hours | D | Coverage report: every citation in the gold set resolves locally |
 | Citator graph | Own citation-edge extraction across the corpus; treatment classifier trained on cue-phrase labels plus L's labels; Indian Kanoon cited-by merged | D, L | Treatment recall ≥ 90% on gold |
 | Gold set to 500 | Items across all 12 modes; 20% double-annotated; agreement reported | L | Kappa reported; P1 metric targets in [PRD.md](PRD.md) §12 met |
 | Retrained role classifier | InLegalBERT fine-tuned on OpenNyAI roles + LegalSeg; deployed with LLM fallback | D | Agreement with LLM labels ≥ 85%; ratio/obiter agreement with L ≥ 75% |
@@ -170,7 +170,8 @@ gantt
 | 2026-09-04 | Docling + PaddleOCR-VL; no PyMuPDF, MinerU, Marker, Surya | Licences |
 | 2026-09-04 | Rhetorical roles by local LLM now, retrained InLegalBERT later | OpenNyAI package unmaintained; label set retained |
 | 2026-09-04 | Postgres + pgvector only; Qdrant deferred | Corpus fits; one system for a team of two |
-| 2026-09-04 | Demo on a rented India-resident GPU; laptop for development | Laptop is CPU-only with 16 GB RAM |
+| 2026-09-04 | Hackathon build is ₹0: free LLM API tiers behind LangChain fallbacks, free GPU notebooks for batch work, laptop for the app; the self-hosted GPU box is deferred to production | Laptop is CPU-only; no budget now; the demo processes no privileged data |
+| 2026-09-04 | LangChain + LangGraph as the orchestration layer, replacing the earlier Pydantic AI plan | Provider swapping across free tiers, a state graph that matches the verdict state machine, ready integrations for Docling, pgvector and tracing, LangSmith's free plan |
 | 2026-09-04 | Named OrderOrder, repository `order-order` | The courtroom call to order; replaced the first draft's working name |
 | Open | Trademark, domain and Bar Council advertising checks for the name | Needed before public launch, not before the hackathon |
 | Open | Embedding model (BGE-M3 vs Qwen3-Embedding) | Decided on the gold set on sprint day 6 |

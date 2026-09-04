@@ -23,7 +23,7 @@ This document specifies how OrderOrder is built: the ingestion pipeline and know
 | Temperature is not safety | Sampling is configuration. Correctness comes from retrieval quality, string verification and schema-constrained decoding. |
 | Abstain | Every stage returns a typed result that includes `needs_review` with a reason code; the UI shows it as a first-class state. |
 
-The engine is **deterministic code with language-model calls at the leaves**, not an autonomous agent. Every LLM call has a Pydantic output schema, constrained decoding, a prompt version, and a logged trace.
+The engine is **deterministic code with language-model calls at the leaves**, not an autonomous agent. It is implemented as a LangGraph state graph (§4.13): each stage is a typed Python node, each decision is a conditional edge, and the verdict-in-progress is the graph state. Every LLM call goes through LangChain's model interface with a Pydantic output schema (`with_structured_output`), a prompt version and a logged trace; no node runs a ReAct-style tool loop.
 
 ---
 
@@ -39,12 +39,12 @@ flowchart LR
     subgraph orderorder["OrderOrder (self-hosted)"]
         WEB["Web app<br/>Next.js"]
         API["API<br/>FastAPI"]
-        Q["Job queue<br/>Redis + arq"]
+        Q["Job runner<br/>in-process now, arq later"]
         ING["Ingestion and KB builder"]
         ENG["Verification engine"]
         DRF["Drafting engine"]
-        LLM["Local LLM<br/>SGLang or Ollama"]
-        EMB["Embeddings + reranker<br/>TEI"]
+        LLM["LLM behind LangChain<br/>free API tiers or Ollama now,<br/>SGLang in production"]
+        EMB["Embeddings + reranker<br/>local now, TEI in production"]
         OCR["Docling + PaddleOCR-VL"]
         DB[("PostgreSQL<br/>pgvector + full-text")]
         OBJ[("Object store<br/>MinIO or disk")]
@@ -85,13 +85,13 @@ flowchart LR
 |---|---|---|
 | Web app | Upload, verdict board, annotated brief, judgment viewer, drafting workspace, exports | `apps/web` |
 | API | Auth, matters, uploads, jobs, verdict and draft endpoints, server-sent progress events | `apps/api` |
-| Workers | Long-running jobs: ingestion, verification, drafting, digest building | `apps/api` (worker entrypoint) |
+| Job runner | Long-running jobs: ingestion, verification, drafting, digest building; FastAPI background tasks with a jobs table for the hackathon, arq workers in production | `apps/api` |
 | Ingestion and KB builder | Parsing, OCR, segmentation, roles, embeddings, digests, citation graph | `packages/ingest` |
 | Verification engine | The per-citation pipeline (§4); pure Python, CLI-testable without the web app | `packages/engine` |
 | Drafting engine | Case digest, issues, retrieval, propositions, gate, assembly, self-attack | `packages/engine` |
-| Local LLM | OpenAI-compatible endpoint with JSON-schema constrained decoding | container |
-| Embeddings + reranker | Text Embeddings Inference serving the embedding and reranker models | container |
-| OCR | Docling for born-digital pages; PaddleOCR-VL (GPU) or PP-OCRv6 (CPU) for scans | container |
+| LLM | Reached only through LangChain's model interface, so the provider is configuration: free API tiers with fallbacks for the hackathon, Ollama for offline development, SGLang for production; structured output via `with_structured_output` | config |
+| Embeddings + reranker | BGE-M3 and bge-reranker-v2-m3 in-process on CPU for the hackathon (bulk corpus embedding on a free Kaggle GPU session), Text Embeddings Inference in production | in-process or container |
+| OCR | Docling for born-digital pages; PP-OCRv6 on CPU for scans during the hackathon, PaddleOCR-VL on a free Kaggle GPU for batches or as a production container | in-process or container |
 | PostgreSQL | System of record, vectors (pgvector), full-text (tsvector), citation graph | container |
 | Object store | Original files, OCR output, rendered reports | MinIO or local disk |
 
@@ -115,7 +115,7 @@ flowchart TD
     I --> J["Canonical paragraph IDs<br/>judgment / text version / sequence / printed label"]
     J --> K["Opinion boundaries and headnote split<br/>majority, concurring, dissent"]
     K --> L["Rhetorical role labels<br/>facts, issues, arguments, analysis, ratio, disposition"]
-    L --> M["Embed paragraphs<br/>BGE-M3 or Qwen3-Embedding via TEI"]
+    L --> M["Embed paragraphs<br/>BGE-M3 on CPU or a free Kaggle GPU,<br/>TEI in production"]
     M --> N[("Postgres: paragraphs, roles, vectors, tsvector")]
     K --> O["Citation extraction<br/>grammar + NER"]
     O --> P[("citation_edge")]
@@ -262,7 +262,7 @@ sequenceDiagram
     participant U as User
     participant W as Web app
     participant A as API
-    participant Q as Worker (arq)
+    participant Q as Job runner
     participant E as Verification engine
     participant DB as Postgres (KB)
     participant IK as Indian Kanoon API
@@ -382,6 +382,30 @@ The grade is a rubric, not a model opinion: start at A; phantom or not-there is 
 ### 4.12 Abstention rules
 
 `needs_review` with a reason code is returned when: the resolver has several plausible matches; the digest failed quote-grounding; the quote verifier only found fuzzy matches on born-digital text; the scope adjudicator's confidence is below threshold or disagrees with the NLI prior; the citator has conflicting treatments; OCR confidence on the located page is low. Reviewed verdicts are stored with the reviewer's decision and feed the gold set.
+
+### 4.13 Implementation: the engine as a LangGraph state graph
+
+The pipeline above is one LangGraph `StateGraph`. The state is the verdict-in-progress (the object in §8 plus working fields: candidate paragraphs, retrieval trace, flags). Each stage is a node; each decision in Diagram 3 is a conditional edge; the graph is compiled with a checkpointer so a brief's run survives a restart and every intermediate state is inspectable.
+
+| Stage | Node | Kind | Reads | Writes |
+|---|---|---|---|---|
+| Extraction | `extract_citations` | Pure Python (grammar + NER); LLM only for ambiguous spans | brief text | citations, propositions, claimed pinpoints |
+| Decomposition | `decompose_claims` | LLM, structured output | proposition | atomic claims |
+| Resolver | `resolve` | Pure Python (SQL, rapidfuzz, Indian Kanoon client) | citation | existence, judgment id, candidates |
+| Metadata check | `check_hierarchy` | Pure Python (rules table) | digest metadata | flags |
+| Digest | `ensure_digest` | Cached; LLM chain over the whole judgment on a miss | judgment text | digest |
+| Locator | `locate` | Hybrid SQL retriever + reranker, then LLM asked for quotes | atomic claims, paragraphs | candidate paragraphs, quotes |
+| Quote verifier | `verify_quotes` | **Pure Python, no model** | quotes, paragraph text | verified quotes, offsets, match types |
+| Voice and opinion | `attribute` | Rules first, LLM confirms | paragraph, opinion map | voice, opinion |
+| Weight | `classify_weight` | Rules + LLM | role, digest holdings | ratio or obiter |
+| Scope | `compare_scope` | NLI model, then LLM adjudicator | claim structure, holding | support level, gap, qualifiers |
+| Citator | `check_treatment` | Pure Python (graph query) | citation edges | treatment |
+| Facts | `compare_facts` | LLM, only when facts are supplied | user facts, digest facts | applicability |
+| Assembly | `assemble` | Rubric in Python; LLM writes the memo text | everything | grade, memo, fixes |
+
+Conditional edges: `resolve` routes straight to `assemble` on `not_found`; `verify_quotes` routes to `assemble` when no quote matches anywhere; `compare_scope` skips `compare_facts` when no facts were supplied. Any node may set `needs_review`, which raises a LangGraph interrupt so the run pauses for a human decision and resumes from the checkpoint. The graph runs once per citation and is mapped over a brief; a `Send`-style fan-out lets independent citations run concurrently within the provider's rate limits.
+
+What this buys: the provider behind every LLM node is a configuration string with ordered fallbacks across free tiers; every node is a plain function that is unit-tested without a model; the graph's execution trace is the audit trail. What it does not change: the quote verifier and the resolver never call a model, and no node runs an agent loop.
 
 ---
 
@@ -678,44 +702,37 @@ stateDiagram-v2
 
 ```mermaid
 flowchart TB
-    subgraph dev["Developer laptop (CPU, 16 GB RAM, data on drive G)"]
-        d1["web (Next.js dev)"]
-        d2["api + worker (uv, Python 3.12)"]
-        d3["postgres + pgvector"]
-        d4["redis"]
-        d5["ollama: Qwen3.5-4B Q4"]
-        d6["tei: BGE-M3 (CPU)"]
-        d7["minio or local disk"]
+    subgraph free["Hackathon profile: zero cost (laptop + free tiers, demo data only)"]
+        f1["web: Next.js dev server<br/>Vercel Hobby if a public link is needed"]
+        f2["api + LangGraph engine<br/>FastAPI, background tasks, jobs table"]
+        f3["postgres + pgvector<br/>Docker, volume on drive G"]
+        f4["ollama: Qwen3.5-4B Q4<br/>offline fallback"]
+        f5["free LLM API tiers behind LangChain fallbacks<br/>Groq, Google AI Studio, Cerebras"]
+        f6["Kaggle or Colab GPU notebook<br/>batch: embeddings, digests, PaddleOCR-VL"]
+        f7["LangSmith Developer plan<br/>traces and eval datasets"]
     end
-    subgraph prod["Rented India-resident GPU box (E2E A100 or AWS Mumbai L4)"]
+    subgraph prod["Production profile: self-hosted GPU box (privileged data)"]
         p1["web"]
-        p2["api"]
-        p3["worker x N"]
-        p4["postgres + pgvector<br/>halfvec HNSW"]
-        p5["redis"]
-        p6["sglang: Qwen3.5-27B AWQ<br/>or gpt-oss-120b on 80 GB"]
-        p7["tei: Qwen3-Embedding-8B + reranker"]
-        p8["paddleocr-vl service"]
-        p9["minio"]
-        p10["langfuse"]
-        p11["caddy TLS"]
+        p2["api + arq workers"]
+        p3["postgres + pgvector"]
+        p4["sglang: Qwen3.5-27B AWQ<br/>or gpt-oss-120b on 80 GB"]
+        p5["tei: embeddings + reranker"]
+        p6["paddleocr-vl service"]
+        p7["minio, langfuse, caddy TLS"]
     end
-    dev -. "same docker-compose, different profile" .-> prod
-    p11 --> p1
-    p11 --> p2
-    p2 --> p5
-    p3 --> p5
-    p3 --> p6
-    p3 --> p7
-    p3 --> p8
+    free -. "same LangGraph code, only environment variables change" .-> prod
+    f2 --> f3
+    f2 --> f4
+    f2 --> f5
+    f2 -.-> f7
+    f6 -. "parquet and JSONL import" .-> f3
+    p2 --> p3
     p2 --> p4
-    p3 --> p4
-    p3 --> p9
-    p2 --> p10
-    p3 --> p10
+    p2 --> p5
+    p2 --> p6
 ```
 
-**Diagram 9.** One docker-compose file with two profiles. The laptop runs reduced models for development; the rented GPU box runs the demo and, later, production. Nothing in either profile calls an external model unless the cloud toggle is switched on for a matter.
+**Diagram 9.** Two profiles of the same code. The hackathon profile costs nothing: the laptop runs the app and the database, free API tiers serve the language model behind LangChain fallbacks, a free GPU notebook does the batch work, and only demo data flows through it. The production profile brings every model onto a self-hosted GPU box because privileged documents must not leave it.
 
 ---
 
@@ -768,7 +785,7 @@ Each item is one claim-citation pair from a real or planted brief, labelled by t
 
 ### 11.3 Procedure
 
-- `evals/run.py` executes the engine over the gold set against a pinned corpus snapshot and model version and writes a report; DeepEval assertions gate CI on the P0 metrics.
+- `evals/run.py` executes the engine over the gold set against a pinned corpus snapshot and model version and writes a report; the gold set is mirrored as a LangSmith dataset so runs across providers can be compared side by side; DeepEval assertions gate CI on the P0 metrics.
 - Retrieval choices (embedding model, reranker, chunk context prefix, top-k) are compared on pinpoint hit@k; model choices on support F1 and overstatement recall.
 - Every user override in production is offered to the gold set (anonymised, opt-in).
 - Inter-annotator agreement (Cohen's kappa) is reported for the double-annotated subset; labels with low agreement (weight, applicability) are treated as soft targets.
@@ -777,7 +794,7 @@ Each item is one claim-citation pair from a real or planted brief, labelled by t
 
 ## 12. Observability
 
-- Every LLM call is traced in Langfuse (self-hosted) with prompt version, input token count, output, latency and cost proxy; traces are linked to the verdict's `retrieval_trace_id`.
+- Every LLM call is traced through LangChain's callback layer: LangSmith's free Developer plan during the hackathon, Langfuse self-hosted in production because privileged text must not leave the box. Traces carry prompt version, token counts, output, latency and a cost proxy, and link to the verdict's `retrieval_trace_id`.
 - Structured logs per job stage; metrics for queue depth, digest cache hit rate, quote-verification failure rate, abstention rate, Indian Kanoon call counts against quota.
 - A weekly report of the eval harness on the current model and corpus snapshot.
 
