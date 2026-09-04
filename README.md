@@ -41,8 +41,11 @@ uv run orderorder locate INSC:2019:770 "the plaintiff is the dominus litis" --pi
 uv run orderorder verify --file brief.txt            # every citation in a brief
 
 uv run orderorder ingest bulk-text                   # text for the whole corpus; resumable
+uv run orderorder ingest aliases                     # learn the SCC citations the open data omits
 uv run orderorder index                              # full-text index over every paragraph
+uv run orderorder citator                            # who cited whom, and what they did with it
 uv run orderorder find "a misrepresentation vitiates consent only where it induced the contract"
+uv run orderorder treatment INSC:2019:770            # is this authority still good law?
 ```
 
 The engine runs in two directions.
@@ -65,7 +68,7 @@ only the verifier confirms.
 All three questions the product asks about a citation: **does the case exist**, **which paragraph is
 being relied on**, and **does that paragraph support the claim to the extent claimed** — and, once a
 paragraph is fixed, **whose words they are** and **whether they carried the decision**. Between them
-these detect failure modes 1, 2, 4, 5, 6, 7, 8, 9 and 12 from the taxonomy in
+these detect failure modes 1, 2, 4, 5, 6, 7, 8, 9, 10 and 12 from the taxonomy in
 [docs/PRD.md](docs/PRD.md). Only extent of support and ratio-versus-obiter need a language model.
 
 And the same machinery run backwards: **given a proposition and no citation, which judgment backs it,
@@ -95,6 +98,18 @@ for us to decide"), and otherwise by a model whose answer must quote the sentenc
 answer that cannot be grounded becomes `unclear`, which costs a citation nothing. Calling a holding a
 passing remark is as damaging as the reverse, so the classifier abstains rather than guesses.
 
+**And a citation can be sound in every one of those respects and still be dead law.** The citator
+reads every judgment's citations of every other, and what the citing court did with each: followed,
+distinguished, doubted, overruled. One rule there is arithmetic rather than language — a bench cannot
+overrule one at least as large as itself, so two judges saying a three-judge decision "does not lay
+down the correct law" are recorded as having doubted it, with the claim attached. Reporting an
+overruling that did not happen would have an advocate drop a binding authority.
+
+The treatment report always states how many judgments it searched, because "no negative treatment
+found" over nine thousand judgments means something different from the same words over the full
+seventy-five years — and 56% of the citations these judgments make are to cases decided before 2013,
+which the corpus does not yet hold.
+
 | Piece | Module |
 |---|---|
 | Citation grammar for SCC, SCC OnLine, AIR, SCR, SCALE, JT, INSC, High Court neutral citations and Indian Kanoon IDs, with pinpoints and party names | `citations/grammar.py` |
@@ -112,7 +127,9 @@ passing remark is as damaging as the reverse, so the classifier abstains rather 
 | Weight: ratio versus obiter, with abstention as the default | `engine/weight.py` |
 | Sentence boundaries that survive "Kasturi v. Iyyamperumal" and "[2019] 9 S.C.R. 593" | `engine/sentences.py` |
 | Corpus-wide authority search: which judgment backs a proposition, and which line | `engine/search.py` |
+| The citator: treatment of one judgment by later ones, and the bench-strength rule | `engine/citator.py` |
 | Resumable bulk text ingestion for the whole corpus | `ingest/bulk.py` |
+| Learning the reporter citations the open data omits, from how judgments cite each other | `ingest/aliases.py` |
 | Model providers with fallbacks across free tiers | `engine/providers.py` |
 | Verdict assembly and the grading rubric | `engine/verdict.py` |
 | The engine as a LangGraph state graph | `engine/graph.py` |
@@ -151,8 +168,8 @@ separately and never used as the text a pinpoint resolves against.
 
 ### Not built yet
 
-Embeddings and hybrid retrieval, the citator for overruled judgments, the fact comparator, the
-drafting surface and the web app. See [docs/ROADMAP.md](docs/ROADMAP.md).
+Embeddings and hybrid retrieval, the fact comparator, the drafting surface and the web app. See
+[docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Status
 
