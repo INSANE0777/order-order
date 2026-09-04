@@ -379,3 +379,212 @@ def test_the_hand_audited_corpus_sentences(expected: str, body: str, citation: s
     worse than no citator, because an advocate acts on it.
     """
     assert _at(body, citation) == expected
+
+
+# --- undermined: what the judgment stood on was taken away ---------------------
+
+
+@pytest.fixture
+def chain(session):
+    """A 2014 decision, a 2016 judgment that followed it, and a 2020 bench that overruled the first."""
+    base = _judgment(session, "INSC:2014:1", "PUNE MUNICIPAL versus HARAKCHAND", bench=3, year=2014,
+                     scc="(2014) 3 SCC 183")
+    follower = _judgment(
+        session, "INSC:2016:2", "VIJAY LATKA versus STATE OF HARYANA", bench=2, year=2016,
+        scc="(2016) 2 SCC 764",
+        text=(
+            "1. Leave granted. This appeal concerns the lapsing of acquisition proceedings under "
+            "Section 24(2) of the 2013 Act, a question on which the authorities have not spoken with "
+            "one voice and which falls for decision here.\n\n"
+            "2. The issue is squarely covered by the decision in Pune Municipal Corporation, "
+            "(2014) 3 SCC 183, which we respectfully follow. The acquisition proceedings therefore "
+            "lapsed on the failure to deposit compensation in court.\n\n"
+            "3. The appeal is allowed with no order as to costs."
+        ),
+    )
+    _judgment(
+        session, "INSC:2020:3", "INDORE DEVELOPMENT AUTHORITY versus MANOHARLAL", bench=5, year=2020,
+        scc="(2020) 8 SCC 129",
+        text=(
+            "1. Leave granted. This reference was occasioned by a conflict between two lines of "
+            "authority upon the construction of Section 24(2) of the 2013 Act, and it falls to this "
+            "Bench of five judges to resolve it once and for all.\n\n"
+            "2. Resultantly, the decision rendered in Pune Municipal Corporation, (2014) 3 SCC 183, "
+            "is hereby overruled. The contrary construction is restored.\n\n"
+            "3. The reference is answered accordingly."
+        ),
+    )
+    session.commit()
+    build_citator(session)
+    return session, base, follower
+
+
+def test_a_judgment_that_followed_an_overruled_one_is_undermined(chain) -> None:
+    """Nothing was said about this judgment. What it stood on was taken away.
+
+    The Constitution Bench said as much in terms: "all other decisions in which Pune Municipal
+    Corpn. has been followed, are also overruled."
+    """
+    session, _, follower = chain
+    report = treatment_of(session, follower.id)
+    assert report.status == "undermined"
+    assert report.is_doubtful
+    assert report.is_undermined
+    assert len(report.undermined_by) == 1
+    link = report.undermined_by[0]
+    assert link.relied_on_key == "INSC:2014:1"
+    assert link.relied_on_treatment == "overruled"
+    assert link.killed_by_key == "INSC:2020:3"
+
+
+def test_the_report_says_the_inference_is_not_a_holding(chain) -> None:
+    """A court said the earlier case was wrong. No court has said anything about this one."""
+    session, _, follower = chain
+    note = treatment_of(session, follower.id).note or ""
+    assert "not a holding of any court" in note
+    assert "which part of the earlier case it used" in note
+
+
+def test_the_case_that_was_actually_overruled_reports_that_not_this(chain) -> None:
+    session, base, _ = chain
+    assert treatment_of(session, base.id).status == "overruled"
+
+
+def test_a_judgment_decided_after_the_overruling_is_not_undermined(session) -> None:
+    """It had the news already, and may have dealt with it. Silence is not reliance."""
+    _judgment(session, "INSC:2014:1", "PUNE MUNICIPAL versus HARAKCHAND", bench=3, year=2014,
+              scc="(2014) 3 SCC 183")
+    _judgment(
+        session, "INSC:2020:3", "INDORE versus MANOHARLAL", bench=5, year=2020, scc="(2020) 8 SCC 129",
+        text=("1. Leave granted. The reference concerns Section 24(2) of the 2013 Act and the "
+              "conflict between two lines of authority upon its construction.\n\n"
+              "2. Resultantly, the decision rendered in Pune Municipal Corporation, (2014) 3 SCC 183, "
+              "is hereby overruled.\n\n3. The reference is answered."),
+    )
+    later = _judgment(
+        session, "INSC:2023:4", "LATER versus SOMEBODY", bench=2, year=2023, scc="(2023) 1 SCC 1",
+        text=("1. Leave granted. The appeal concerns the same statutory provision and the effect of "
+              "the failure to deposit compensation within the time allowed by the Act.\n\n"
+              "2. The issue is squarely covered by the decision in Pune Municipal Corporation, "
+              "(2014) 3 SCC 183, which we follow.\n\n3. The appeal is allowed."),
+    )
+    session.commit()
+    build_citator(session)
+    assert treatment_of(session, later.id).status == "good_law"
+
+
+def test_merely_referring_to_an_overruled_case_does_not_undermine(session) -> None:
+    """Reliance is what carries the wound. A judgment that mentions a case did not stand on it."""
+    _judgment(session, "INSC:2014:1", "PUNE MUNICIPAL versus HARAKCHAND", bench=3, year=2014,
+              scc="(2014) 3 SCC 183")
+    mentioner = _judgment(
+        session, "INSC:2016:2", "MENTIONER versus SOMEBODY", bench=2, year=2016, scc="(2016) 2 SCC 764",
+        text=("1. Leave granted. The appeal concerns the construction of Section 24(2) of the Act of "
+              "2013 and the consequences of a failure to deposit compensation in court.\n\n"
+              "2. The appellant cited Pune Municipal Corporation, (2014) 3 SCC 183, in the course of "
+              "arguments, but nothing turns on it for present purposes.\n\n3. The appeal is dismissed."),
+    )
+    _judgment(
+        session, "INSC:2020:3", "INDORE versus MANOHARLAL", bench=5, year=2020, scc="(2020) 8 SCC 129",
+        text=("1. Leave granted. The reference concerns Section 24(2) of the 2013 Act and the "
+              "conflict between two lines of authority upon its construction.\n\n"
+              "2. Resultantly, the decision rendered in Pune Municipal Corporation, (2014) 3 SCC 183, "
+              "is hereby overruled.\n\n3. The reference is answered."),
+    )
+    session.commit()
+    build_citator(session)
+    assert treatment_of(session, mentioner.id).status == "good_law"
+
+
+def test_direct_treatment_outranks_the_inference(chain) -> None:
+    """What a court said about this judgment beats what can be inferred about its foundations."""
+    session, _, follower = chain
+    _judgment(
+        session, "INSC:2022:9", "CRITIC versus SOMEBODY", bench=3, year=2022, scc="(2022) 1 SCC 9",
+        text=("1. Leave granted. The appeal turns on the same provision considered in the decisions "
+              "referred to below, and on the effect of the deposit of compensation.\n\n"
+              "2. With respect, we differ from the view taken in Vijay Latka versus State of Haryana, "
+              "(2016) 2 SCC 764, for the reasons that follow.\n\n3. The appeal is allowed."),
+    )
+    session.commit()
+    build_citator(session)
+    report = treatment_of(session, follower.id)
+    assert report.status == "doubted"
+
+
+# --- "(supra)": a case named without its citation ------------------------------
+
+
+def test_a_case_named_only_by_supra_is_still_an_edge(session) -> None:
+    """The sentence that overruled Pune Municipal Corporation carries no citation at all.
+
+    "Resultantly, the decision rendered in Pune Municipal Corporation & Anr. (supra) is hereby
+    overruled" — the case was cited in full three hundred paragraphs earlier, and by the time the
+    court comes to decide it says "(supra)". A citator reading only citations cannot see the thing it
+    exists to find.
+    """
+    cited = _judgment(session, "INSC:2014:1", "PUNE MUNICIPAL CORPORATION & ANR. versus HARAKCHAND",
+                      bench=3, year=2014, scc="(2014) 3 SCC 183")
+    citing = _judgment(
+        session, "INSC:2020:2", "INDORE DEVELOPMENT AUTHORITY versus MANOHARLAL", bench=5, year=2020,
+        scc="(2020) 8 SCC 129",
+        text=(
+            "1. Leave granted. This reference concerns Section 24(2) of the 2013 Act and the conflict "
+            "between two lines of authority upon its construction, which falls to this Bench.\n\n"
+            "2. The decisions were surveyed at length, among them Pune Municipal Corporation, "
+            "(2014) 3 SCC 183, upon which much of the argument turned before us.\n\n"
+            "3. Resultantly, the decision rendered in Pune Municipal Corporation & Anr. (supra) is "
+            "hereby overruled and the contrary construction is restored.\n\n"
+            "4. The reference is answered accordingly."
+        ),
+    )
+    session.commit()
+
+    from orderorder.engine.citator import alias_map, title_map
+
+    paragraphs = [p for p in _paragraphs(session, citing.id)]
+    edges = edges_in_judgment(citing, paragraphs, alias_map(session), title_map(session))
+    by_treatment = {e.treatment: e for e in edges if e.cited_id == cited.id}
+    assert "overruled" in by_treatment
+    assert "(supra)" in by_treatment["overruled"].cited_alias
+
+
+def test_supra_resolves_only_against_cases_this_judgment_cites(session) -> None:
+    """A "(supra)" means a case cited earlier here, so the corpus at large is not a candidate.
+
+    Without that limit the name would be matched against nine thousand titles, and a common one —
+    "State of Maharashtra v. Ramesh" — would attach an overruling to whichever happened to score best.
+    """
+    elsewhere = _judgment(session, "INSC:2014:9", "FAMOUS CASE versus SOMEBODY", bench=3, year=2014,
+                          scc="(2014) 9 SCC 9")
+    citing = _judgment(
+        session, "INSC:2020:2", "LATER versus SOMEBODY", bench=5, year=2020, scc="(2020) 8 SCC 129",
+        text=("1. Leave granted. The appeal concerns a question of construction upon which the "
+              "authorities have not spoken with one voice, and which falls for decision here.\n\n"
+              "2. The decision in Famous Case (supra) is hereby overruled, though we have not cited "
+              "it anywhere in this judgment and it is named here for the first time.\n\n"
+              "3. The appeal is allowed."),
+    )
+    session.commit()
+
+    from orderorder.engine.citator import alias_map, title_map
+
+    edges = edges_in_judgment(
+        citing, _paragraphs(session, citing.id), alias_map(session), title_map(session)
+    )
+    assert [e for e in edges if e.cited_id == elsewhere.id] == []
+
+
+def _paragraphs(session, judgment_id: str) -> list[Paragraph]:
+    from sqlalchemy import select
+
+    from orderorder.db.models import JudgmentTextVersion
+
+    version = session.scalars(
+        select(JudgmentTextVersion).where(JudgmentTextVersion.judgment_id == judgment_id)
+    ).first()
+    return list(
+        session.scalars(
+            select(Paragraph).where(Paragraph.text_version_id == version.id).order_by(Paragraph.seq)
+        ).all()
+    )

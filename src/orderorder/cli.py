@@ -299,6 +299,8 @@ def _law_badge(verdict) -> str:
     """Whether the authority is still good law, in one word."""
     if verdict.treatment is None:
         return "-"
+    if verdict.treatment.is_undermined:
+        return "[yellow]undermined[/yellow]"
     if verdict.treatment.is_doubtful:
         return f"[red]{verdict.treatment.status.replace('_', ' ')}[/red]"
     if verdict.treatment.citing_count == 0:
@@ -454,6 +456,9 @@ def treatment_command(
         if report.note:
             console.print(f"  {report.note}")
 
+        for link in report.undermined_by:
+            console.print(f"  [yellow]rests on[/yellow] {link}")
+
         if report.edges:
             table = Table(show_header=True, header_style="bold")
             for column in ("treatment", "citing judgment", "date", "bench", "para"):
@@ -522,8 +527,9 @@ def find_command(
                 f"score {authority.score:.2f}[/dim]"
             )
             if authority.treatment is not None and authority.treatment.is_doubtful:
+                colour = "yellow" if authority.treatment.is_undermined else "red"
                 console.print(
-                    f"   [red]{authority.treatment.status.replace('_', ' ').upper()}[/red] "
+                    f"   [{colour}]{authority.treatment.status.replace('_', ' ').upper()}[/{colour}] "
                     f"{authority.treatment.note}"
                 )
             if authority.line:

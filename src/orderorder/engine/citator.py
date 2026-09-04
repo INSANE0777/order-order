@@ -212,7 +212,14 @@ NEGATIVE = {"overruled", "partly_overruled", "reversed", "doubted", "referred_to
 # Treatment that only a larger bench may give. Article 141 and the practice under it: a bench cannot
 # overrule one at least as large as itself.
 LARGER_BENCH_ONLY = {"overruled", "partly_overruled"}
+# Treatment that means the judgment rested on the earlier case, so that killing the earlier one
+# wounds this one too. Referring to a case, or distinguishing it, does not.
+RELIANCE = {"relied_on", "followed"}
+# Treatment serious enough to wound whatever rested on it. Doubt and a reference to a larger Bench
+# unsettle a case without killing it, and are not carried onward to everything that followed it.
+KILLING = {"overruled", "partly_overruled", "reversed"}
 DEFAULT_TREATMENT = "referred"
+UNDERMINED = "undermined"
 
 GOOD_LAW = "good_law"
 UNKNOWN = "unknown"
@@ -237,15 +244,36 @@ class TreatmentEdge:
 
 
 @dataclass
+class UnderminedLink:
+    """An authority this judgment rested on, which a later bench has since killed."""
+
+    relied_on_key: str
+    relied_on_title: str
+    relied_on_treatment: str
+    killed_by_key: str
+    killed_by_date: str | None
+    edge_treatment: str
+
+    def __str__(self) -> str:
+        verb = "followed" if self.edge_treatment == "followed" else "relied on"
+        return (
+            f"it {verb} {self.relied_on_title[:50]} ({self.relied_on_key}), which "
+            f"{self.killed_by_key} {self.relied_on_treatment.replace('_', ' ')} in "
+            f"{(self.killed_by_date or '?')[:4]}"
+        )
+
+
+@dataclass
 class TreatmentReport:
     """What the corpus knows about whether a judgment is still good law."""
 
     judgment_id: str
-    status: str  # good_law | overruled | partly_overruled | reversed | doubted | referred_to_larger_bench | unknown
+    status: str  # good_law | overruled | partly_overruled | reversed | doubted | referred_to_larger_bench | undermined | unknown
     edges: list[TreatmentEdge] = field(default_factory=list)
     citing_count: int = 0
     corpus_size: int = 0
     note: str | None = None
+    undermined_by: list[UnderminedLink] = field(default_factory=list)
 
     @property
     def negative(self) -> list[TreatmentEdge]:
@@ -253,7 +281,12 @@ class TreatmentReport:
 
     @property
     def is_doubtful(self) -> bool:
-        return self.status in NEGATIVE
+        return self.status in NEGATIVE or self.status == UNDERMINED
+
+    @property
+    def is_undermined(self) -> bool:
+        """Nothing was said about this judgment; what it stood on was taken away."""
+        return self.status == UNDERMINED
 
     @property
     def worst(self) -> TreatmentEdge | None:
@@ -372,19 +405,127 @@ def alias_map(session: Session) -> dict[str, str]:
     return {normalized: judgment_id for normalized, judgment_id in rows}
 
 
-def edges_in_judgment(
-    judgment: Judgment, paragraphs: list[Paragraph], aliases: dict[str, str]
-) -> list[CitationEdge]:
-    """Every citation in one judgment that resolves to another judgment the corpus holds."""
-    found: list[CitationEdge] = []
-    seen: set[tuple[str, str]] = set()
+# "Pune Municipal Corporation & Anr. (supra)" — a case named without its citation, because the
+# citation was given earlier in the same judgment. The name may run to several words and carry the
+# punctuation of a cause title.
+SUPRA_REFERENCE = re.compile(
+    r"(?P<name>[A-Z][\w.'’-]*(?:\s+(?:v\.?|vs\.?|versus|&|and|of|the|[A-Z][\w.'’-]*)){0,9})"
+    r"\s*\(\s*supra\s*\)"
+)
+# How closely a "(supra)" name must match a case cited in full earlier in the same judgment.
+SUPRA_MATCH_SCORE = 82.0
+SUPRA_MATCH_MARGIN = 8.0
+
+
+@dataclass(frozen=True)
+class _Reference:
+    """A place in a paragraph where a case is named, however it is named there."""
+
+    raw: str
+    span: tuple[int, int]
+    cited_id: str
+
+
+def antecedents(
+    paragraphs: list[Paragraph], aliases: dict[str, str], titles: dict[str, str]
+) -> dict[str, str]:
+    """The cases this judgment cites, as {id: title}: what a "(supra)" reference may refer to.
+
+    Keyed by id and valued by title because that is what the matcher scores — rapidfuzz reads a
+    mapping's values and hands back its keys — and inverting it silently scores the query against a
+    column of identifiers instead of against the titles.
+
+    The candidate set is what makes this safe. A "(supra)" reference means a case cited earlier in the
+    same judgment, so the only cases it can name are the ones this judgment cites — a few dozen, not
+    nine thousand — and a name is matched against their titles rather than against the corpus.
+
+    Matching titles rather than the words printed beside the citation is what makes it work at all.
+    Judgments cite in footnotes: the text reads "Pune Municipal Corporation v. Harakchand Misirimal
+    Solanki38" and the citation "38 (2014) 3 SCC 183" sits at the foot of the page, so the name and the
+    citation are never adjacent and there is nothing to read off the citation itself.
+    """
+    named: dict[str, str] = {}
     for paragraph in paragraphs:
         for citation in extract_citations(paragraph.body):
             cited_id = aliases.get(citation.normalized)
-            if cited_id is None or cited_id == judgment.id:
-                continue  # not in the corpus, or the judgment citing itself
-            # The span is given relative to the paragraph, and so is the citation, so the cue window
-            # is read around the citation where it sits rather than around the sentence as a whole.
+            title = titles.get(cited_id or "")
+            if cited_id and title:
+                named.setdefault(cited_id, title)
+    return named
+
+
+def resolve_supra(name: str, named: dict[str, str]) -> str | None:
+    """Which case cited earlier in this judgment a "(supra)" reference means, if one clearly."""
+    if not named:
+        return None
+    from rapidfuzz import fuzz, process, utils
+
+    matches = process.extract(
+        name,
+        named,
+        scorer=fuzz.token_set_ratio,
+        processor=utils.default_process,
+        limit=2,
+        score_cutoff=SUPRA_MATCH_SCORE,
+    )
+    if not matches:
+        return None
+    # Two different cases cited in this judgment answer to the name. Which one "(supra)" means is
+    # what a reader resolves from context, and guessing would attach a holding to the wrong case.
+    if (
+        len(matches) > 1
+        and (matches[0][1] - matches[1][1]) < SUPRA_MATCH_MARGIN
+        and matches[0][2] != matches[1][2]
+    ):
+        return None
+    return matches[0][2]
+
+
+def title_map(session: Session) -> dict[str, str]:
+    """Every judgment's title, held in memory for the same reason the aliases are."""
+    return {
+        judgment_id: title or ""
+        for judgment_id, title in session.execute(select(Judgment.id, Judgment.title)).all()
+    }
+
+
+def edges_in_judgment(
+    judgment: Judgment,
+    paragraphs: list[Paragraph],
+    aliases: dict[str, str],
+    titles: dict[str, str] | None = None,
+) -> list[CitationEdge]:
+    """Every citation in one judgment that resolves to another judgment the corpus holds.
+
+    Both ways a judgment names a case are read: the full citation, and the "(supra)" reference that
+    stands in for it afterwards. The second matters more than its share of the text suggests, because
+    a judgment gives the full citation while surveying the authorities and says "(supra)" when it
+    comes to decide. The sentence that overruled Pune Municipal Corporation — "Resultantly, the
+    decision rendered in Pune Municipal Corporation & Anr. (supra) is hereby overruled" — carries no
+    citation at all, and a citator reading only citations cannot see the thing it exists to find.
+    """
+    found: list[CitationEdge] = []
+    seen: set[tuple[str, str]] = set()
+    named = antecedents(paragraphs, aliases, titles or {})
+
+    for paragraph in paragraphs:
+        references: list[_Reference] = []
+        for citation in extract_citations(paragraph.body):
+            cited_id = aliases.get(citation.normalized)
+            if cited_id:
+                references.append(_Reference(citation.raw, citation.span, cited_id))
+        for match in SUPRA_REFERENCE.finditer(paragraph.body):
+            supra_id = resolve_supra(match.group("name"), named)
+            if supra_id is not None:
+                name = " ".join(match.group("name").split())
+                references.append(_Reference(f"{name} (supra)", match.span(), supra_id))
+
+        for citation in references:
+            cited_id = citation.cited_id
+            if cited_id == judgment.id:
+                continue  # a judgment citing itself teaches nothing
+            # The span is given relative to the paragraph, and so is the reference, so the cue window
+            # is read around the reference where it sits rather than around the sentence as a whole.
             treatment = classify_treatment(paragraph.body, citation.span)
 
             # A judgment quoting "the decision in X is hereby overruled" is reporting an overruling,
@@ -394,10 +535,10 @@ def edges_in_judgment(
             # actually gave it, which is where this reads it from.
             if treatment in NEGATIVE and inside_quotation(paragraph.body, citation.span[0]):
                 treatment = DEFAULT_TREATMENT
-            key = (cited_id, treatment)
-            if key in seen:
+            marker = (cited_id, treatment)
+            if marker in seen:
                 continue
-            seen.add(key)
+            seen.add(marker)
             found.append(
                 CitationEdge(
                     citing_id=judgment.id,
@@ -438,13 +579,14 @@ def build_citator(
         session.commit()
 
     aliases = alias_map(session)
+    titles = title_map(session)
     stats = CitatorStats()
     judgments = _judgments_with_text(session, limit=limit, skip_done=not rebuild)
     total = len(judgments)
 
     for done, judgment in enumerate(judgments, start=1):
         paragraphs = _paragraphs_of(session, judgment.id)
-        edges = edges_in_judgment(judgment, paragraphs, aliases)
+        edges = edges_in_judgment(judgment, paragraphs, aliases, titles)
         for edge in edges:
             session.add(edge)
         stats.record(edges)
@@ -494,6 +636,89 @@ def corpus_size(session: Session) -> int:
     return cached
 
 
+def undermining_links(session: Session, judgment_id: str) -> list[UnderminedLink]:
+    """Authorities this judgment rested on that have since been overruled.
+
+    A judgment is not only wounded by what was said about it. It is wounded by what happened to the
+    cases it stood on. The Constitution Bench in Indore Development Authority said so in terms:
+    "all other decisions in which Pune Municipal Corpn. has been followed, are also overruled."
+
+    Three limits keep this from spreading further than it should.
+
+    * **Only reliance counts.** `relied_on` and `followed` mean the judgment rested on the earlier
+      case. Merely referring to it, or distinguishing it, does not.
+    * **Only what came afterwards.** A judgment decided after the overruling has had the chance to
+      take it into account, and cannot be undermined by news it already had.
+    * **One hop.** Reliance compounds uncertainty at every step, and the engine cannot see whether
+      the particular holding relied on is the one that was overruled. At one remove the warning is
+      worth giving; at three it would be noise.
+    """
+    judgment = session.get(Judgment, judgment_id)
+    if judgment is None:
+        return []
+    relied = session.execute(
+        select(CitationEdge, Judgment)
+        .join(Judgment, CitationEdge.cited_id == Judgment.id)
+        .where(CitationEdge.citing_id == judgment_id, CitationEdge.treatment.in_(RELIANCE))
+    ).all()
+
+    links: list[UnderminedLink] = []
+    for edge, relied_on_judgment in relied:
+        if relied_on_judgment.id == judgment_id:
+            continue
+        killer = _worst_direct_edge(session, relied_on_judgment)
+        if killer is None or killer.treatment not in KILLING:
+            continue
+        # News a judgment already had cannot have undermined it.
+        if judgment.decided_on and killer.citing_date and judgment.decided_on.isoformat() >= killer.citing_date:
+            continue
+        links.append(
+            UnderminedLink(
+                relied_on_key=relied_on_judgment.canonical_key,
+                relied_on_title=relied_on_judgment.title,
+                relied_on_treatment=killer.treatment,
+                killed_by_key=killer.citing_key,
+                killed_by_date=killer.citing_date,
+                edge_treatment=edge.treatment or DEFAULT_TREATMENT,
+            )
+        )
+    return links
+
+
+def _worst_direct_edge(session: Session, cited: Judgment) -> TreatmentEdge | None:
+    """The most serious thing any later judgment did to this one, with the bench rule applied.
+
+    Direct edges only, and deliberately: this is the step that stops one hop becoming an unbounded
+    walk of the citation graph.
+    """
+    rows = session.execute(
+        select(CitationEdge, Judgment)
+        .join(Judgment, CitationEdge.citing_id == Judgment.id)
+        .where(CitationEdge.cited_id == cited.id, CitationEdge.treatment.in_(NEGATIVE))
+    ).all()
+    edges = []
+    for edge, citing in rows:
+        treatment, claimed = apply_bench_rule(
+            edge.treatment or DEFAULT_TREATMENT, citing.bench_strength, cited.bench_strength
+        )
+        edges.append(
+            TreatmentEdge(
+                citing_key=citing.canonical_key,
+                citing_title=citing.title,
+                citing_date=citing.decided_on.isoformat() if citing.decided_on else None,
+                citing_bench=citing.bench_strength,
+                treatment=treatment,
+                paragraph_label=None,
+                downgraded_from=claimed,
+            )
+        )
+    for label in ("overruled", "reversed", "partly_overruled", "referred_to_larger_bench", "doubted"):
+        for edge in edges:
+            if edge.treatment == label:
+                return edge
+    return None
+
+
 def treatment_of(session: Session, judgment_id: str) -> TreatmentReport:
     """What every later judgment in the corpus did with this one."""
     held = corpus_size(session)
@@ -539,6 +764,15 @@ def treatment_of(session: Session, judgment_id: str) -> TreatmentReport:
                 f"; its words claim it {worst.downgraded_from.replace('_', ' ')} it, but a bench of "
                 f"{worst.citing_bench} cannot overrule one of {cited.bench_strength if cited else '?'}"
             )
+    elif links := undermining_links(session, judgment_id):
+        # Nothing has been said about this judgment. Something has been said about what it rested on.
+        report.status = UNDERMINED
+        report.undermined_by = links
+        report.note = (
+            "no later judgment has criticised this one, but " + str(links[0])
+            + ". That is an inference from the citation graph, not a holding of any court: whether "
+            "this judgment's own reasoning survives depends on which part of the earlier case it used."
+        )
     elif not edges:
         report.status = GOOD_LAW
         report.note = (
