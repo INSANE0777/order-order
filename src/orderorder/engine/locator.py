@@ -34,6 +34,9 @@ class Candidate:
     body: str
     is_claimed_pinpoint: bool = False
     likely_quoted: bool = False
+    opinion_kind: str | None = None
+    opinion_author: str | None = None
+    role: str | None = None
 
     @property
     def preview(self) -> str:
@@ -165,6 +168,9 @@ def locate(
                     claimed_pinpoint is not None and paragraph.printed_label == str(claimed_pinpoint).strip()
                 ),
                 likely_quoted=paragraph.seq in quoted,
+                opinion_kind=paragraph.opinion_kind,
+                opinion_author=paragraph.opinion_author,
+                role=paragraph.role,
             )
         )
     candidates.sort(key=lambda c: (-c.score, c.seq))

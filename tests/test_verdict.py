@@ -10,13 +10,18 @@ from __future__ import annotations
 from orderorder.engine.locator import PinpointCheck
 from orderorder.engine.scope import ScopeVerdict
 from orderorder.engine.verdict import (
+    MODE_MINORITY,
     MODE_NOT_THERE,
+    MODE_OBITER,
     MODE_OVERSTATEMENT,
     MODE_PHANTOM,
     MODE_QUOTED,
     MODE_WRONG_PINPOINT,
+    MODE_WRONG_VOICE,
     build_verdict,
 )
+from orderorder.engine.voice import VoiceVerdict
+from orderorder.engine.weight import WeightVerdict
 from orderorder.resolver import Resolution
 
 CITATION = "(2019) 4 SCC 1"
@@ -154,3 +159,90 @@ def test_ambiguous_resolution_asks_for_review() -> None:
 def test_findings_render_with_their_mode_number() -> None:
     verdict = build_verdict(CITATION, CLAIM, NOT_FOUND)
     assert str(verdict.findings[0]).startswith("[1] no such case")
+
+
+# --- voice, opinion and weight ------------------------------------------------
+
+
+def _voice(**kwargs) -> VoiceVerdict:
+    base = {"voice": "court_majority", "opinion_kind": "majority"}
+    base.update(kwargs)
+    return VoiceVerdict(**base)
+
+
+def test_the_courts_own_words_cost_nothing() -> None:
+    verdict = build_verdict(CITATION, CLAIM, FOUND, scope=_scope(), voice=_voice(), pinpoint=GOOD_PINPOINT)
+    assert verdict.grade == "A"
+    assert not verdict.findings
+
+
+def test_a_dissent_cited_as_the_holding_drops_to_d() -> None:
+    voice = _voice(voice="court_dissent", opinion_kind="dissenting", opinion_author="Nariman, J.")
+    verdict = build_verdict(CITATION, CLAIM, FOUND, scope=_scope(), voice=voice)
+    assert any(f.mode == MODE_MINORITY for f in verdict.findings)
+    assert verdict.grade == "D"
+    assert "Nariman" in str(verdict.findings[0])
+
+
+def test_counsels_argument_cited_as_the_holding_drops_to_d() -> None:
+    voice = _voice(voice="counsel_argument", cue="it was contended", reason="the passage follows a submission")
+    verdict = build_verdict(CITATION, CLAIM, FOUND, scope=_scope(), voice=voice)
+    assert any(f.mode == MODE_WRONG_VOICE for f in verdict.findings)
+    assert verdict.grade == "D"
+
+
+def test_a_voice_finding_never_improves_a_worse_grade() -> None:
+    """The floor pushes a grade down, never up: an unsupported citation stays at F."""
+    scope = _scope(support="none", model_support="none", quote_verified=False)
+    voice = _voice(voice="counsel_argument")
+    verdict = build_verdict(CITATION, CLAIM, FOUND, scope=scope, voice=voice)
+    assert verdict.grade == "F"
+
+
+def test_a_quoted_precedent_adopted_by_the_court_is_not_a_finding() -> None:
+    voice = _voice(voice="quoted_precedent", endorsed=True)
+    verdict = build_verdict(CITATION, CLAIM, FOUND, scope=_scope(), voice=voice)
+    assert not verdict.findings
+    assert verdict.grade == "A"
+
+
+def test_obiter_drops_one_grade() -> None:
+    weight = WeightVerdict(label="obiter", method="rule", reason="the court declined to decide the point")
+    verdict = build_verdict(CITATION, CLAIM, FOUND, scope=_scope(), voice=_voice(), weight=weight)
+    assert any(f.mode == MODE_OBITER for f in verdict.findings)
+    assert verdict.grade == "B"
+
+
+def test_unclear_weight_costs_nothing() -> None:
+    weight = WeightVerdict(label="unclear", method="not_assessed", reason="no model configured")
+    verdict = build_verdict(CITATION, CLAIM, FOUND, scope=_scope(), voice=_voice(), weight=weight)
+    assert verdict.grade == "A"
+    assert not verdict.findings
+
+
+def test_the_out_of_sequence_heuristic_yields_to_the_voice_check() -> None:
+    """Both look at the same thing; reporting both would mark one passage down twice."""
+    voice = _voice(voice="quoted_precedent", method="sequence")
+    verdict = build_verdict(CITATION, CLAIM, FOUND, scope=_scope(), voice=voice, likely_quoted=True)
+    assert [f.mode for f in verdict.findings] == [MODE_WRONG_VOICE]
+
+
+def test_the_heuristic_still_speaks_when_no_paragraph_could_be_attributed() -> None:
+    verdict = build_verdict(CITATION, CLAIM, FOUND, scope=_scope(), voice=None, likely_quoted=True)
+    assert any(f.mode == MODE_QUOTED for f in verdict.findings)
+
+
+def test_a_dissent_is_reported_even_when_support_was_never_assessed() -> None:
+    """With no model the extent of support is unknown, but whose words they are is still known."""
+    scope = ScopeVerdict(
+        claim=CLAIM,
+        support="none",
+        model_support="not_assessed",
+        needs_review=True,
+        review_reason="no language model is configured",
+    )
+    voice = _voice(voice="court_dissent", opinion_kind="dissenting")
+    verdict = build_verdict(CITATION, CLAIM, FOUND, scope=scope, voice=voice, claimed_pinpoint="89")
+    assert verdict.support == "not_assessed"
+    assert any(f.mode == MODE_MINORITY for f in verdict.findings)
+    assert verdict.grade == "D"

@@ -91,3 +91,28 @@ class VoiceAssessment(BaseModel):
         description="If the paragraph quotes another source, whether this court adopted it or rejected it.",
     )
     reason: str | None = Field(default=None, description="One sentence of justification.")
+
+
+class WeightAssessment(BaseModel):
+    """Was the proposition necessary to the outcome, or a remark made along the way?
+
+    `quote` must be copied verbatim from the paragraph, as in `ScopeAssessment`. A classification of
+    `obiter` that cannot be grounded in the text is downgraded to `unclear`, because reporting a
+    holding as a passing remark is as damaging as the reverse.
+    """
+
+    label: Literal["ratio", "obiter", "unclear"] = Field(
+        description="ratio if the statement was necessary to the court's decision; "
+        "obiter if it was said along the way and the outcome would stand without it; "
+        "unclear if the paragraph does not show which."
+    )
+    necessary_to_outcome: bool | None = Field(
+        default=None,
+        description="Whether the decision would have to change if this statement were removed.",
+    )
+    quote: str | None = Field(
+        default=None,
+        description="A verbatim sentence from the paragraph showing why, at least six words, or null.",
+    )
+    reason: str | None = Field(default=None, description="One sentence of justification.")
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)

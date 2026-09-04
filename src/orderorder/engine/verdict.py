@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 
 from orderorder.engine.locator import PinpointCheck
 from orderorder.engine.scope import ScopeVerdict
+from orderorder.engine.voice import VoiceVerdict
+from orderorder.engine.weight import WeightVerdict
 from orderorder.resolver import Resolution
 
 GRADES = ["A", "B", "C", "D", "E", "F"]
@@ -20,6 +22,9 @@ MODE_PHANTOM = 1
 MODE_MISCITE = 2
 MODE_NOT_THERE = 4
 MODE_QUOTED = 5
+MODE_WRONG_VOICE = 5
+MODE_MINORITY = 6
+MODE_OBITER = 7
 MODE_OVERSTATEMENT = 8
 MODE_WRONG_PINPOINT = 12
 
@@ -49,6 +54,8 @@ class CitationVerdict:
     quote_verified: bool = False
     paragraph_label: str | None = None
     claimed_pinpoint: str | None = None
+    voice: VoiceVerdict | None = None
+    weight: WeightVerdict | None = None
     findings: list[Finding] = field(default_factory=list)
     grade: str = "A"
     needs_review: bool = False
@@ -65,6 +72,16 @@ def _drop(grade: str, steps: int = 1) -> str:
     return GRADES[min(GRADES.index(grade) + steps, len(GRADES) - 1)]
 
 
+def _floor(grade: str, worst: str) -> str:
+    """Push a grade down to `worst` if it is not already there or below. Never improves a grade."""
+    return grade if GRADES.index(grade) >= GRADES.index(worst) else worst
+
+
+def voice_label(voice: VoiceVerdict, verdict: CitationVerdict) -> str:
+    """Name the paragraph a voice finding is about, however the verdict came to know it."""
+    return verdict.paragraph_label or verdict.claimed_pinpoint or "the passage relied on"
+
+
 def build_verdict(
     citation_raw: str,
     proposition: str,
@@ -73,6 +90,8 @@ def build_verdict(
     judgment_title: str | None = None,
     pinpoint: PinpointCheck | None = None,
     scope: ScopeVerdict | None = None,
+    voice: VoiceVerdict | None = None,
+    weight: WeightVerdict | None = None,
     claimed_pinpoint: str | None = None,
     likely_quoted: bool = False,
 ) -> CitationVerdict:
@@ -87,6 +106,8 @@ def build_verdict(
         claimed_pinpoint=claimed_pinpoint,
         pinpoint=pinpoint,
         scope=scope,
+        voice=voice,
+        weight=weight,
     )
 
     # Existence. A well-formed citation matching nothing is the phantom case and is terminal.
@@ -120,7 +141,9 @@ def build_verdict(
         verdict.findings.append(Finding(MODE_WRONG_PINPOINT, "pinpoint does not exist", pinpoint.note or ""))
         verdict.grade = _drop(verdict.grade, 2)
 
-    if likely_quoted:
+    # The out-of-sequence heuristic is the weakest form of the voice check, so it only speaks when the
+    # voice check itself has nothing to say; otherwise the same passage would be marked down twice.
+    if likely_quoted and voice is None:
         verdict.findings.append(
             Finding(
                 MODE_QUOTED,
@@ -130,12 +153,45 @@ def build_verdict(
         )
         verdict.grade = _drop(verdict.grade)
 
-    # Scope.
     if scope is not None:
         verdict.quote = scope.quote
         verdict.quote_verified = scope.quote_verified
         verdict.paragraph_label = scope.matched_paragraph_label or scope.paragraph_label
 
+    # Voice and opinion. These are about the paragraph the brief actually relies on, and they are
+    # decided from the judgment's own structure and cues, so they hold even with no model configured.
+    if voice is not None:
+        if voice.is_dissent:
+            verdict.findings.append(
+                Finding(
+                    MODE_MINORITY,
+                    "the passage is from a dissent",
+                    (
+                        f"paragraph {voice_label(voice, verdict)} falls in the dissenting opinion"
+                        + (f" of {voice.opinion_author}" if voice.opinion_author else "")
+                        + ", which decided nothing and binds no one"
+                    ),
+                )
+            )
+            verdict.grade = _floor(verdict.grade, "D")
+        elif voice.is_problem:
+            verdict.findings.append(
+                Finding(MODE_WRONG_VOICE, f"not the court's words ({voice.voice})", voice.reason or "")
+            )
+            verdict.grade = _floor(verdict.grade, "D")
+        if voice.needs_review and not verdict.needs_review:
+            verdict.needs_review = True
+            verdict.review_reason = voice.reason
+
+    # Weight. Only a grounded classification costs a grade; "unclear" is the honest default.
+    if weight is not None and weight.is_obiter:
+        verdict.findings.append(
+            Finding(MODE_OBITER, "obiter, not the holding", weight.reason or "")
+        )
+        verdict.grade = _drop(verdict.grade)
+
+    # Scope.
+    if scope is not None:
         # "Could not check" is not "checked and found wanting". Reporting the first as the second
         # would be the same overclaiming this product exists to catch, so it only asks for review.
         if scope.model_support in {"not_assessed", "error", "malformed"}:

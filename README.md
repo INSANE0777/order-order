@@ -42,17 +42,19 @@ uv run orderorder verify --file brief.txt            # every citation in a brief
 ```
 
 `verify` is the whole engine: it finds each citation, resolves it, loads the judgment, ranks the
-paragraphs, asks how far they support the claim, and grades the result. Extent of support needs a
-language model; the other checks do not, and the command says so rather than staying silent.
+paragraphs, asks how far they support the claim, works out whose words the relied-on paragraph carries
+and whether they decided anything, and grades the result. Extent of support and ratio-versus-obiter
+need a language model; the other checks do not, and the command says so rather than staying silent.
 
 `uv run pytest` runs the suite; it uses an in-memory database and never touches the network.
 
 ### What works today
 
 All three questions the product asks about a citation: **does the case exist**, **which paragraph is
-being relied on**, and **does that paragraph support the claim to the extent claimed**. Between them
-these detect failure modes 1, 2, 4, 8, 9 and 12 from the taxonomy in [docs/PRD.md](docs/PRD.md), with
-a first signal on 5. Only the third needs a language model.
+being relied on**, and **does that paragraph support the claim to the extent claimed** — and, once a
+paragraph is fixed, **whose words they are** and **whether they carried the decision**. Between them
+these detect failure modes 1, 2, 4, 5, 6, 7, 8, 9 and 12 from the taxonomy in
+[docs/PRD.md](docs/PRD.md). Only extent of support and ratio-versus-obiter need a language model.
 
 **The model is never believed, only checked.** It is asked to name a paragraph and copy a sentence
 from it. That sentence is then string-matched against the stored judgment. A quote that does not match
@@ -63,6 +65,19 @@ model produced the answer, which is why the tests can exercise it with a stub an
 Three states are kept apart, because collapsing them is how tools overclaim: **supported**,
 **checked and not supported**, and **not checked**. A missing API key, a provider outage or a
 retrieval miss produces the third, never the second.
+
+**A passage inside a judgment is not automatically the court's holding.** It may be counsel's
+submission recited by the bench, the court below being quoted, an earlier judgment quoted, the
+publisher's headnote, or the dissent. Whose words they are is decided from the judgment's own
+structure and from attributing cues in the text — never from a model — and the cue that governs is the
+last one before the sentence actually relied on, because a paragraph routinely sets out an argument
+and then rejects it. The finding names the cue, so a reader can check it against the judgment. This
+check needs no API key: a brief pinpointing a dissent is caught with nothing configured at all.
+
+Ratio and obiter are told apart the same way where the court says so in terms ("it is not necessary
+for us to decide"), and otherwise by a model whose answer must quote the sentence that shows it. An
+answer that cannot be grounded becomes `unclear`, which costs a citation nothing. Calling a holding a
+passing remark is as damaging as the reverse, so the classifier abstains rather than guesses.
 
 | Piece | Module |
 |---|---|
@@ -77,6 +92,8 @@ retrieval miss produces the third, never the second.
 | Locator and pinpoint checking | `engine/locator.py` |
 | Quote verifier, the quote-or-nothing rule | `engine/quotes.py` |
 | Scope comparator: extent of support, dropped conditions, a narrowed proposition | `engine/scope.py` |
+| Voice and opinion: counsel's argument, the court below, a quoted precedent, the headnote, the dissent | `engine/voice.py` |
+| Weight: ratio versus obiter, with abstention as the default | `engine/weight.py` |
 | Model providers with fallbacks across free tiers | `engine/providers.py` |
 | Verdict assembly and the grading rubric | `engine/verdict.py` |
 | The engine as a LangGraph state graph | `engine/graph.py` |
@@ -89,6 +106,11 @@ Measured on the real corpus:
   segments into 118 paragraphs.
 - A citation to a paragraph the judgment does not have is reported as such, which is the Delhi High
   Court failure of September 2025.
+- Across eleven ingested judgments, the voice rules attribute 8 to 15 per cent of paragraphs to
+  someone other than the deciding court — counsel, the court below, or a quoted precedent — and the
+  disposition paragraph is found in all eleven. On the demo judgment, a brief pinpointing paragraph 3
+  is told that the paragraph is the appellant's advocate speaking, with the cue quoted, and no API key
+  is involved.
 
 Two things the corpus does not tell you, which the PDF does. The metadata's judge column names only
 the **presiding** judge, so bench strength arrives under-counted; the coram printed on the judgment is
@@ -98,13 +120,13 @@ separately and never used as the text a pinpoint resolves against.
 
 ### Not built yet
 
-Embeddings and hybrid retrieval, voice and weight classification (ratio versus obiter), the citator
-for overruled judgments, the fact comparator, the drafting surface and the web app. See
-[docs/ROADMAP.md](docs/ROADMAP.md).
+Embeddings and hybrid retrieval, the citator for overruled judgments, the fact comparator, the
+drafting surface and the web app. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Status
 
-Documents complete; the data spine and resolver are working. Started 4 September 2026.
+Documents complete; the data spine, the resolver and the verification engine through voice, opinion
+and weight are working. Started 4 September 2026.
 
 ## Attribution
 

@@ -22,6 +22,8 @@ from orderorder.engine.locator import Candidate, LocationResult, locate
 from orderorder.engine.providers import StructuredModel
 from orderorder.engine.scope import ScopeVerdict, assess_scope
 from orderorder.engine.verdict import CitationVerdict, build_verdict
+from orderorder.engine.voice import VoiceVerdict, attribute_voice, relied_on
+from orderorder.engine.weight import WeightVerdict, classify_weight, find_disposition
 from orderorder.ingest.store import load_paragraphs
 from orderorder.resolver import Resolution, resolve
 
@@ -37,11 +39,25 @@ class VerifyState(TypedDict, total=False):
     location: LocationResult
     candidates: list[Candidate]
     scope: ScopeVerdict | None
+    voice: VoiceVerdict | None
+    weight: WeightVerdict | None
     verdict: CitationVerdict
 
 
-def build_verify_graph(session: Session, model: StructuredModel | None = None, *, top_k: int = 6):
-    """Compile the per-citation graph against a database session and an optional model."""
+def build_verify_graph(
+    session: Session,
+    model: StructuredModel | None = None,
+    *,
+    top_k: int = 6,
+    voice_model: StructuredModel | None = None,
+    weight_model: StructuredModel | None = None,
+):
+    """Compile the per-citation graph against a database session and its models.
+
+    The three models are separate because each is bound to a different output schema. Any of them may
+    be None: the graph then runs that node's rules alone and says so, rather than skipping the node and
+    leaving the question silently unanswered.
+    """
 
     def resolve_node(state: VerifyState) -> dict:
         citation = state["citation"]
@@ -70,6 +86,32 @@ def build_verify_graph(session: Session, model: StructuredModel | None = None, *
         # unsupported, which is the distinction the verdict depends on.
         return {"scope": assess_scope(state["proposition"], state.get("candidates") or [], model)}
 
+    def attribute_node(state: VerifyState) -> dict:
+        """Whose words are they, and did they carry the decision?
+
+        Both questions are asked only about a paragraph the engine can name with confidence: one whose
+        quote verified, or the one the brief itself pinpointed. Attributing a dissent to a paragraph
+        that merely ranked highest would be a confident guess, which is the failure this engine exists
+        to catch rather than commit.
+        """
+        candidates = state.get("candidates") or []
+        scope = state.get("scope")
+        matched = scope.matched_paragraph_label if scope and scope.quote_verified else None
+        candidate = relied_on(candidates, matched)
+        if candidate is None:
+            return {"voice": None, "weight": None}
+
+        quote_start = scope.char_start if scope and scope.quote_verified else None
+        voice = attribute_voice(candidate, quote_start=quote_start, model=voice_model)
+        weight = classify_weight(
+            candidate,
+            state["proposition"],
+            voice=voice,
+            disposition=find_disposition(state.get("paragraphs") or []),
+            model=weight_model,
+        )
+        return {"voice": voice, "weight": weight}
+
     def assemble_node(state: VerifyState) -> dict:
         citation = state["citation"]
         location = state.get("location")
@@ -81,6 +123,8 @@ def build_verify_graph(session: Session, model: StructuredModel | None = None, *
             judgment_title=state.get("judgment_title"),
             pinpoint=location.pinpoint if location else None,
             scope=state.get("scope"),
+            voice=state.get("voice"),
+            weight=state.get("weight"),
             claimed_pinpoint=citation.pinpoint.label if citation.pinpoint else None,
             likely_quoted=any(c.likely_quoted for c in candidates[:3]),
         )
@@ -98,13 +142,15 @@ def build_verify_graph(session: Session, model: StructuredModel | None = None, *
     graph.add_node("load", load_node)
     graph.add_node("locate", locate_node)
     graph.add_node("scope", scope_node)
+    graph.add_node("attribute", attribute_node)
     graph.add_node("assemble", assemble_node)
 
     graph.set_entry_point("resolve")
     graph.add_conditional_edges("resolve", has_judgment, {"load": "load", "assemble": "assemble"})
     graph.add_conditional_edges("load", has_text, {"locate": "locate", "assemble": "assemble"})
     graph.add_edge("locate", "scope")
-    graph.add_edge("scope", "assemble")
+    graph.add_edge("scope", "attribute")
+    graph.add_edge("attribute", "assemble")
     graph.add_edge("assemble", END)
     return graph.compile()
 
@@ -116,15 +162,25 @@ def verify_citation(
     model: StructuredModel | None = None,
     *,
     top_k: int = 6,
+    voice_model: StructuredModel | None = None,
+    weight_model: StructuredModel | None = None,
 ) -> CitationVerdict:
     """Run one citation through the engine."""
-    compiled = build_verify_graph(session, model, top_k=top_k)
+    compiled = build_verify_graph(
+        session, model, top_k=top_k, voice_model=voice_model, weight_model=weight_model
+    )
     final = compiled.invoke({"citation": citation, "proposition": proposition})
     return final["verdict"]
 
 
 def verify_text(
-    session: Session, text: str, model: StructuredModel | None = None, *, top_k: int = 6
+    session: Session,
+    text: str,
+    model: StructuredModel | None = None,
+    *,
+    top_k: int = 6,
+    voice_model: StructuredModel | None = None,
+    weight_model: StructuredModel | None = None,
 ) -> list[CitationVerdict]:
     """Find every citation in a passage and verify each one.
 
@@ -135,7 +191,9 @@ def verify_text(
     from orderorder.citations.grammar import extract_citations
 
     verdicts: list[CitationVerdict] = []
-    compiled = build_verify_graph(session, model, top_k=top_k)
+    compiled = build_verify_graph(
+        session, model, top_k=top_k, voice_model=voice_model, weight_model=weight_model
+    )
     for citation in extract_citations(text):
         proposition = _sentence_around(text, citation.span[0])
         final = compiled.invoke({"citation": citation, "proposition": proposition})

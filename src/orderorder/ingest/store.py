@@ -176,4 +176,23 @@ def load_paragraphs(
     rows = session.scalars(
         select(Paragraph).where(Paragraph.text_version_id == version.id).order_by(Paragraph.seq)
     ).all()
-    return [SegParagraph(r.seq, r.printed_label, r.body, r.char_start, r.char_end) for r in rows]
+    opinions = {
+        o.id: o
+        for o in session.scalars(select(Opinion).where(Opinion.text_version_id == version.id)).all()
+    }
+    out: list[SegParagraph] = []
+    for row in rows:
+        opinion = opinions.get(row.opinion_id) if row.opinion_id else None
+        out.append(
+            SegParagraph(
+                row.seq,
+                row.printed_label,
+                row.body,
+                row.char_start,
+                row.char_end,
+                opinion_kind=opinion.kind if opinion else None,
+                opinion_author=opinion.author if opinion else None,
+                role=row.role,
+            )
+        )
+    return out

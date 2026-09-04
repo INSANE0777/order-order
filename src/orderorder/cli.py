@@ -29,7 +29,7 @@ from orderorder.db.session import get_session, init_db
 from orderorder.engine.graph import verify_text
 from orderorder.engine.locator import locate as locate_claim
 from orderorder.engine.providers import build_structured, describe_providers
-from orderorder.engine.schemas import ScopeAssessment
+from orderorder.engine.schemas import ScopeAssessment, VoiceAssessment, WeightAssessment
 from orderorder.ingest import corpus as corpus_mod
 from orderorder.ingest import pdf as pdf_mod
 from orderorder.ingest.metadata import import_parquet
@@ -196,6 +196,28 @@ def ingest_text(
             )
 
 
+VOICE_BADGES = {
+    "court_majority": "court",
+    "court_concurring": "concurring",
+    "court_dissent": "[red]dissent[/red]",
+    "counsel_argument": "[red]counsel[/red]",
+    "lower_court": "[red]court below[/red]",
+    "quoted_precedent": "[yellow]quoted[/yellow]",
+    "headnote": "[red]headnote[/red]",
+    "unclear": "[dim]unclear[/dim]",
+}
+
+
+def _voice_badge(verdict) -> str:
+    """One word for whose passage it is. A dash means no paragraph was definite enough to attribute."""
+    if verdict.voice is None:
+        return "-"
+    badge = VOICE_BADGES.get(verdict.voice.voice, verdict.voice.voice)
+    if verdict.weight is not None and verdict.weight.is_obiter:
+        badge += " [yellow]obiter[/yellow]"
+    return badge
+
+
 @app.command("locate")
 def locate_command(
     key: str = typer.Argument(..., help="Canonical key of the judgment, e.g. INSC:2019:770."),
@@ -232,6 +254,7 @@ def locate_command(
 
         table = Table(show_header=True, header_style="bold")
         table.add_column("para")
+        table.add_column("opinion")
         table.add_column("score", justify="right")
         table.add_column("terms")
         table.add_column("text")
@@ -241,8 +264,15 @@ def locate_command(
                 label = f"{label} (cited)"
             if candidate.likely_quoted:
                 label = f"[red]{label} quoted?[/red]"
+            opinion = candidate.opinion_kind or "-"
+            if opinion == "dissenting":
+                opinion = "[red]dissenting[/red]"
             table.add_row(
-                label, f"{candidate.score:.2f}", ", ".join(candidate.matched_terms[:4]), candidate.preview
+                label,
+                opinion,
+                f"{candidate.score:.2f}",
+                ", ".join(candidate.matched_terms[:4]),
+                candidate.preview,
             )
         console.print(table)
         if any(c.likely_quoted for c in result.candidates[:top]):
@@ -266,15 +296,24 @@ def verify_command(
         console.print("[red]give some text, or --file[/red]")
         raise typer.Exit(1)
 
+    # One model per question, because each is bound to its own output schema. Whose words a passage
+    # carries is decided from the judgment's structure, so that check survives having no key at all.
     model = build_structured(ScopeAssessment)
     if model is None:
         console.print(
-            "[yellow]no language model configured[/yellow] so existence, pinpoint and retrieval are "
-            "checked but extent of support is not. Set a provider key; see .env.example."
+            "[yellow]no language model configured[/yellow] so existence, pinpoint, voice and opinion "
+            "are checked but extent of support is not. Set a provider key; see .env.example."
         )
 
     with get_session() as session:
-        verdicts = verify_text(session, text, model, top_k=top)
+        verdicts = verify_text(
+            session,
+            text,
+            model,
+            top_k=top,
+            voice_model=build_structured(VoiceAssessment),
+            weight_model=build_structured(WeightAssessment),
+        )
 
     if not verdicts:
         console.print("[yellow]no citations found[/yellow]")
@@ -285,6 +324,7 @@ def verify_command(
     board.add_column("citation")
     board.add_column("case")
     board.add_column("support")
+    board.add_column("voice")
     board.add_column("findings")
     colours = {"A": "green", "B": "green", "C": "yellow", "D": "yellow", "E": "red", "F": "red"}
     for v in verdicts:
@@ -294,6 +334,7 @@ def verify_command(
             v.citation_raw,
             (v.judgment_title or "-")[:40],
             v.support,
+            _voice_badge(v),
             str(len(v.findings)) if v.findings else "-",
         )
     console.print(board)
@@ -307,6 +348,11 @@ def verify_command(
             console.print(f"  [red]{finding}[/red]")
         if v.needs_review:
             console.print(f"  [yellow]needs review[/yellow]: {v.review_reason}")
+        if v.voice is not None and (v.voice.is_problem or v.voice.is_dissent):
+            where = v.paragraph_label or v.claimed_pinpoint or "?"
+            console.print(f"  [magenta]voice[/magenta] (para {where}): {v.voice.reason}")
+        if v.weight is not None and v.weight.is_obiter:
+            console.print(f"  [magenta]weight[/magenta]: {v.weight.reason}")
         if show_quote and v.quote_verified and v.quote:
             console.print(f'  [green]verified quote[/green] (para {v.paragraph_label}): "{v.quote[:160]}"')
         if v.scope and v.scope.narrowed_proposition:

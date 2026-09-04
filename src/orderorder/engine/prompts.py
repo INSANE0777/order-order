@@ -72,6 +72,31 @@ Answer with the voice. If the paragraph quotes another source, also say whether 
 that source's view or rejected it.
 """
 
+WEIGHT_VERSION = "weight-v1"
+WEIGHT_PROMPT = """Decide whether a statement in a judgment was necessary to the court's decision.
+
+A court's reasoning binds later courts only so far as it was necessary to the outcome. Everything else
+is a remark made along the way: it may be persuasive, but a brief that cites it as the holding is
+overstating what the judgment decided.
+
+The claim the brief attributes to this passage:
+{claim}
+
+Paragraph {label} of the judgment. This is the ONLY text you may rely on:
+{paragraph}
+
+{disposition}
+
+Answer "ratio" if the court's decision would have to change without this statement. Answer "obiter" if
+the decision stands without it: an aside, an observation about a question not before the court, a view
+expressed while expressly declining to decide the point. Answer "unclear" if this paragraph alone does
+not show which, and do not guess.
+
+If you answer "ratio" or "obiter", quote the sentence that shows it, copied word for word from the
+paragraph, at least six words long. The quote is checked against the judgment automatically, and an
+answer whose quote cannot be found is recorded as unclear.
+"""
+
 
 def format_candidates(candidates: list[tuple[str, str]], *, max_chars: int = 1800) -> str:
     """Render (label, body) pairs for a prompt, trimming very long paragraphs."""

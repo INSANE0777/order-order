@@ -43,11 +43,22 @@ _CONTINUES = re.compile(r"^[a-z(\"'“‘0-9]")
 
 @dataclass
 class SegParagraph:
+    """One paragraph of a judgment.
+
+    The last three fields are empty during segmentation and filled when a paragraph is read back from
+    the database, where the opinion it belongs to is known. Whose words a paragraph carries is not a
+    property of the text alone: the same sentence is binding in the majority and merely a minority view
+    in the dissent, so the opinion travels with the paragraph into the locator and the voice check.
+    """
+
     seq: int
     printed_label: str | None
     body: str
     char_start: int
     char_end: int
+    opinion_kind: str | None = None
+    opinion_author: str | None = None
+    role: str | None = None
 
 
 def _label_of(line: str) -> str | None:
