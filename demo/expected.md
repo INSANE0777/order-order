@@ -19,6 +19,7 @@ without one.
 | 6 | Narcotics Control Bureau v. Kashif, (2025) 3 SCC 118 | real case, invented reporter citation | 2 | **D**, "citation string is wrong … matched on party names instead" |
 | 7 | 2024 INSC 1027, para 3 | the High Court's holding cited as the Supreme Court's | 5 | **D**, "the passage follows 'The High Court has vide the impugned judgement held'" |
 | 8 | 2024 INSC 1051, para 18 | nothing — this is sound | — | **A**, voice `court_majority` |
+| 9 | 2019 INSC 770, para 7 | a two-judge decision called a Constitution Bench | 3 | **D**, "the brief calls this 'Constitution Bench', which is 5 judges; the judgment was decided by 2" |
 
 Citation 3 draws a second finding: the paragraph the brief pinpointed cannot be located, and among the
 candidates is one whose printed number breaks the judgment's sequence, which is what a block quoted
@@ -34,5 +35,8 @@ answer: the case exists, the citation string does not.
 - **Modes 8 and 9 (overstatement, selective quotation).** These need a model. Run
   `demo/scripted_model.py` to see the comparator and the quote check working on real judgment text
   with the model's answer supplied from a script.
-- **Modes 3, 10 and 11** (wrong court or bench, dead law, distinguishable) are not built yet. See
-  [../docs/ROADMAP.md](../docs/ROADMAP.md).
+- **Mode 10 (dead law).** The citator is built and holds 8,716 edges, but none of the judgments this
+  brief cites has been negatively treated by a judgment the corpus holds. `orderorder treatment
+  INSC:2014:53` shows the check working, on a judgment a Constitution Bench overruled in 2020.
+- **Mode 11 (distinguishable).** Needs the facts of the matter before the court, which no brief
+  supplies on its own: `orderorder verify --file brief.txt --facts matter.txt`. It also needs a model.
