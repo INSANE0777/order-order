@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from orderorder.citations.grammar import Citation
 from orderorder.db.models import Judgment
+from orderorder.engine.citator import TreatmentReport, treatment_of
 from orderorder.engine.locator import Candidate, LocationResult, locate
 from orderorder.engine.providers import StructuredModel
 from orderorder.engine.scope import ScopeVerdict, assess_scope
@@ -41,6 +42,7 @@ class VerifyState(TypedDict, total=False):
     scope: ScopeVerdict | None
     voice: VoiceVerdict | None
     weight: WeightVerdict | None
+    treatment: TreatmentReport | None
     verdict: CitationVerdict
 
 
@@ -73,6 +75,18 @@ def build_verify_graph(
         if not resolution.judgment_id:
             return {"paragraphs": []}
         return {"paragraphs": load_paragraphs(session, resolution.judgment_id)}
+
+    def treatment_node(state: VerifyState) -> dict:
+        """Has a later judgment killed this authority?
+
+        Asked of the judgment as a whole, not of the paragraph, and asked even when the citation has
+        no text to read: whether a case is still good law is a fact about the case, and the answer is
+        useful even when nothing else about the citation could be checked.
+        """
+        resolution = state["resolution"]
+        if not resolution.judgment_id:
+            return {"treatment": None}
+        return {"treatment": treatment_of(session, resolution.judgment_id)}
 
     def locate_node(state: VerifyState) -> dict:
         citation = state["citation"]
@@ -125,6 +139,7 @@ def build_verify_graph(
             scope=state.get("scope"),
             voice=state.get("voice"),
             weight=state.get("weight"),
+            treatment=state.get("treatment"),
             claimed_pinpoint=citation.pinpoint.label if citation.pinpoint else None,
             likely_quoted=any(c.likely_quoted for c in candidates[:3]),
         )
@@ -139,6 +154,7 @@ def build_verify_graph(
 
     graph = StateGraph(VerifyState)
     graph.add_node("resolve", resolve_node)
+    graph.add_node("treatment", treatment_node)
     graph.add_node("load", load_node)
     graph.add_node("locate", locate_node)
     graph.add_node("scope", scope_node)
@@ -146,7 +162,10 @@ def build_verify_graph(
     graph.add_node("assemble", assemble_node)
 
     graph.set_entry_point("resolve")
-    graph.add_conditional_edges("resolve", has_judgment, {"load": "load", "assemble": "assemble"})
+    graph.add_conditional_edges(
+        "resolve", has_judgment, {"load": "treatment", "assemble": "assemble"}
+    )
+    graph.add_edge("treatment", "load")
     graph.add_conditional_edges("load", has_text, {"locate": "locate", "assemble": "assemble"})
     graph.add_edge("locate", "scope")
     graph.add_edge("scope", "attribute")

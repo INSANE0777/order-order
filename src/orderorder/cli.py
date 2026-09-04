@@ -26,11 +26,12 @@ from orderorder.citations.grammar import extract_citations
 from orderorder.config import get_settings
 from orderorder.db.models import CitationAlias, Judgment, JudgmentTextVersion, Paragraph
 from orderorder.db.session import get_session, init_db
-from orderorder.engine import search
+from orderorder.engine import citator, search
 from orderorder.engine.graph import verify_text
 from orderorder.engine.locator import locate as locate_claim
 from orderorder.engine.providers import build_structured, describe_providers
 from orderorder.engine.schemas import ScopeAssessment, VoiceAssessment, WeightAssessment
+from orderorder.ingest import aliases as alias_learning
 from orderorder.ingest import bulk
 from orderorder.ingest import corpus as corpus_mod
 from orderorder.ingest import pdf as pdf_mod
@@ -217,6 +218,37 @@ def ingest_bulk_text(
         )
 
 
+@ingest_app.command("aliases")
+def ingest_aliases(
+    limit: int | None = typer.Option(None, help="Read only this many judgments."),
+    dry_run: bool = typer.Option(False, help="Report what would be learned without writing it."),
+) -> None:
+    """Learn the reporter citations the open data does not carry, from how judgments cite each other.
+
+    The metadata gives every judgment its neutral and SCR citations. Practice runs on SCC, so a brief
+    citing a real case by its SCC number would otherwise resolve to nothing and be called a phantom.
+    """
+    init_db()
+    with get_session() as session:
+
+        def progress(done: int, total: int) -> None:
+            if done % 1000 == 0 or done == total:
+                console.print(f"  [dim]{done}/{total}[/dim] judgments read")
+
+        before = session.scalar(select(func.count()).select_from(CitationAlias)) or 0
+        stats = alias_learning.learn_aliases(
+            session, limit=limit, on_progress=progress, dry_run=dry_run
+        )
+        after = session.scalar(select(func.count()).select_from(CitationAlias)) or 0
+
+    console.print(f"[bold]{stats.as_dict()}[/bold]")
+    console.print(f"[dim]inferred by reporter: {stats.by_reporter}[/dim]")
+    if dry_run:
+        console.print("[yellow]dry run[/yellow]: nothing written")
+    else:
+        console.print(f"[green]aliases {before:,} -> {after:,}[/green] (+{after - before:,})")
+
+
 @ingest_app.command("text")
 def ingest_text(
     keys: list[str] = typer.Argument(..., help="Canonical keys, e.g. INSC:2019:770."),
@@ -261,6 +293,17 @@ def ingest_text(
                 + (" [yellow](bench corrected)[/yellow]" if result.bench_corrected else "")
                 + (" [dim](replaced)[/dim]" if result.replaced else "")
             )
+
+
+def _law_badge(verdict) -> str:
+    """Whether the authority is still good law, in one word."""
+    if verdict.treatment is None:
+        return "-"
+    if verdict.treatment.is_doubtful:
+        return f"[red]{verdict.treatment.status.replace('_', ' ')}[/red]"
+    if verdict.treatment.citing_count == 0:
+        return "[dim]uncited[/dim]"
+    return f"[green]good[/green] [dim]({verdict.treatment.citing_count})[/dim]"
 
 
 def _shorten(text: str, limit: int) -> str:
@@ -368,6 +411,69 @@ def index_command(
     console.print(f"[green]index ready[/green]: {rows:,} paragraphs")
 
 
+@app.command("citator")
+def citator_command(
+    limit: int | None = typer.Option(None, help="Read only this many judgments."),
+    rebuild: bool = typer.Option(False, help="Drop extracted edges and start again."),
+) -> None:
+    """Extract citation edges from the corpus: who cited whom, and what they did with it."""
+    init_db()
+    with get_session() as session:
+
+        def progress(done: int, total: int) -> None:
+            if done % 500 == 0 or done == total:
+                console.print(f"  [dim]{done}/{total}[/dim] judgments read")
+
+        stats = citator.build_citator(session, limit=limit, rebuild=rebuild, on_progress=progress)
+    console.print(
+        f"[green]{stats.edges:,} edges[/green] from {stats.judgments_read:,} judgments\n"
+        f"[dim]{stats.treatments}[/dim]"
+    )
+
+
+@app.command("treatment")
+def treatment_command(
+    key: str = typer.Argument(..., help="Canonical key or citation of the judgment, e.g. INSC:2019:770."),
+) -> None:
+    """Is this judgment still good law? What every later judgment in the corpus did with it."""
+    with get_session() as session:
+        judgment = session.scalars(select(Judgment).where(Judgment.canonical_key == key)).first()
+        if judgment is None:
+            found = extract_citations(key)
+            resolution = resolve_citation(session, found[0]) if found else None
+            if resolution is None or not resolution.judgment_id:
+                console.print(f"[red]{key}[/red] not in the knowledge base")
+                raise typer.Exit(1)
+            judgment = session.get(Judgment, resolution.judgment_id)
+
+        report = citator.treatment_of(session, judgment.id)
+        colour = "red" if report.is_doubtful else "green"
+        console.print(f"[bold]{judgment.title[:80]}[/bold] [dim]{judgment.canonical_key}[/dim]")
+        console.print(f"[{colour}]{report.status.replace('_', ' ')}[/{colour}]  ", end="")
+        console.print(f"[dim]cited by {report.citing_count} of {report.corpus_size:,} judgments held[/dim]")
+        if report.note:
+            console.print(f"  {report.note}")
+
+        if report.edges:
+            table = Table(show_header=True, header_style="bold")
+            for column in ("treatment", "citing judgment", "date", "bench", "para"):
+                table.add_column(column)
+            for edge in sorted(report.edges, key=lambda e: (not e.is_negative, e.citing_date or "")):
+                label = edge.treatment.replace("_", " ")
+                if edge.is_negative:
+                    label = f"[red]{label}[/red]"
+                if edge.downgraded_from:
+                    label += f" [dim](claimed {edge.downgraded_from})[/dim]"
+                table.add_row(
+                    label,
+                    edge.citing_title[:44],
+                    edge.citing_date or "?",
+                    str(edge.citing_bench or "?"),
+                    edge.paragraph_label or "-",
+                )
+            console.print(table)
+
+
 @app.command("find")
 def find_command(
     proposition: str = typer.Argument(..., help="The proposition you want an authority for."),
@@ -415,6 +521,11 @@ def find_command(
                 f"[dim]{authority.decided_on or '?'} · bench {authority.bench_strength or '?'} · "
                 f"score {authority.score:.2f}[/dim]"
             )
+            if authority.treatment is not None and authority.treatment.is_doubtful:
+                console.print(
+                    f"   [red]{authority.treatment.status.replace('_', ' ').upper()}[/red] "
+                    f"{authority.treatment.note}"
+                )
             if authority.line:
                 console.print(f'   [green]"{authority.line[:300]}"[/green]')
             if authority.voice and not authority.voice.is_the_court:
@@ -504,6 +615,7 @@ def verify_command(
     board.add_column("case")
     board.add_column("support")
     board.add_column("voice")
+    board.add_column("law")
     board.add_column("findings")
     colours = {"A": "green", "B": "green", "C": "yellow", "D": "yellow", "E": "red", "F": "red"}
     for v in verdicts:
@@ -514,6 +626,7 @@ def verify_command(
             (v.judgment_title or "-")[:40],
             v.support,
             _voice_badge(v),
+            _law_badge(v),
             str(len(v.findings)) if v.findings else "-",
         )
     console.print(board)
@@ -527,6 +640,8 @@ def verify_command(
             console.print(f"  [red]{finding}[/red]")
         if v.needs_review:
             console.print(f"  [yellow]needs review[/yellow]: {v.review_reason}")
+        if v.treatment is not None and v.treatment.is_doubtful:
+            console.print(f"  [red]dead law[/red]: {v.treatment.note}")
         if v.voice is not None and (v.voice.is_problem or v.voice.is_dissent):
             where = v.paragraph_label or v.claimed_pinpoint or "?"
             console.print(f"  [magenta]voice[/magenta] (para {where}): {v.voice.reason}")

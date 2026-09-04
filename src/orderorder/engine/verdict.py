@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from orderorder.engine.citator import TreatmentReport
 from orderorder.engine.locator import PinpointCheck
 from orderorder.engine.scope import ScopeVerdict
 from orderorder.engine.voice import VoiceVerdict
@@ -26,6 +27,7 @@ MODE_WRONG_VOICE = 5
 MODE_MINORITY = 6
 MODE_OBITER = 7
 MODE_OVERSTATEMENT = 8
+MODE_DEAD_LAW = 10
 MODE_WRONG_PINPOINT = 12
 
 
@@ -56,6 +58,7 @@ class CitationVerdict:
     claimed_pinpoint: str | None = None
     voice: VoiceVerdict | None = None
     weight: WeightVerdict | None = None
+    treatment: TreatmentReport | None = None
     findings: list[Finding] = field(default_factory=list)
     grade: str = "A"
     needs_review: bool = False
@@ -108,6 +111,7 @@ def build_verdict(
     scope: ScopeVerdict | None = None,
     voice: VoiceVerdict | None = None,
     weight: WeightVerdict | None = None,
+    treatment: TreatmentReport | None = None,
     claimed_pinpoint: str | None = None,
     likely_quoted: bool = False,
 ) -> CitationVerdict:
@@ -124,6 +128,7 @@ def build_verdict(
         scope=scope,
         voice=voice,
         weight=weight,
+        treatment=treatment,
     )
 
     # Existence. A well-formed citation matching nothing is the phantom case and is terminal.
@@ -195,6 +200,14 @@ def build_verdict(
             verdict.grade = _floor(verdict.grade, "D")
         if voice.needs_review:
             verdict.ask_review(voice.reason)
+
+    # Treatment. A citation can be sound in every other respect and still be dead law, and nothing in
+    # the judgment itself records that: only the judgments that came after it do.
+    if treatment is not None and treatment.is_doubtful:
+        verdict.findings.append(
+            Finding(MODE_DEAD_LAW, f"{treatment.status.replace('_', ' ')} by a later judgment", treatment.note or "")
+        )
+        verdict.grade = _floor(verdict.grade, "D")
 
     # Weight. Only a grounded classification costs a grade; "unclear" is the honest default.
     if weight is not None and weight.is_obiter:

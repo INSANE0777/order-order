@@ -36,6 +36,7 @@ from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 
 from orderorder.db.models import Judgment
+from orderorder.engine.citator import TreatmentReport, treatment_of
 from orderorder.engine.lexical import tokenize
 from orderorder.engine.locator import Candidate
 from orderorder.engine.sentences import split_sentences
@@ -69,6 +70,7 @@ class Authority:
     relevance: float
     score: float
     voice: VoiceVerdict | None = None
+    treatment: TreatmentReport | None = None
     line: str | None = None
     line_start: int | None = None
     line_end: int | None = None
@@ -210,6 +212,7 @@ def find_authorities(
     candidates: int = DEFAULT_CANDIDATES,
     court_voice_only: bool = True,
     one_per_judgment: bool = True,
+    check_treatment: bool = True,
 ) -> list[Authority]:
     """Search the corpus for paragraphs that could back a proposition, best first.
 
@@ -277,7 +280,16 @@ def find_authorities(
         seen.add(judgment.id)
 
     found.sort(key=lambda a: -a.score)
-    return found[:top]
+    found = found[:top]
+
+    # Whether an authority is still good law is asked only of the handful being offered, because it is
+    # a query per judgment and the answer changes the ranking: an overruled case belongs below a sound
+    # one however well its words match, and must never be handed over without the warning.
+    if check_treatment:
+        for authority in found:
+            authority.treatment = treatment_of(session, authority.judgment_id)
+        found.sort(key=lambda a: (a.treatment.is_doubtful if a.treatment else False, -a.score))
+    return found
 
 
 def _paragraph_labels(session: Session, paragraph_ids: list[str]) -> dict[str, dict]:
