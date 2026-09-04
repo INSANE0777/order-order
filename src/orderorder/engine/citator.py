@@ -9,7 +9,8 @@ That is what a citator is, and building one from the corpus means two passes.
 
 **Edges.** Every citation in every paragraph of every judgment is extracted by the same grammar the
 brief side uses, and resolved against the alias index. A resolved citation is an edge: this judgment
-cited that one, at this paragraph. Resolution here is exact-alias only and runs off a dictionary held
+cited that one, at this paragraph. A citation inside a block quotation gives no negative treatment,
+because a court quoting an overruling is reporting one rather than performing it. Resolution here is exact-alias only and runs off a dictionary held
 in memory, because four hundred thousand paragraphs cannot each afford a fuzzy party-name search.
 
 **Treatment.** What the citing court *did* with the case it cited — followed it, distinguished it,
@@ -52,6 +53,7 @@ from sqlalchemy.orm import Session
 
 from orderorder.citations.grammar import extract_citations
 from orderorder.db.models import CitationAlias, CitationEdge, Judgment, JudgmentTextVersion, Paragraph
+from orderorder.engine.sentences import inside_quotation
 
 # Treatment labels, from ARCHITECTURE.md section 4.8. Order matters: the first cue to match wins, so
 # the most specific and most serious come first.
@@ -317,6 +319,14 @@ def edges_in_judgment(
             # The span is given relative to the paragraph, and so is the citation, so the cue window
             # is read around the citation where it sits rather than around the sentence as a whole.
             treatment = classify_treatment(paragraph.body, citation.span)
+
+            # A judgment quoting "the decision in X is hereby overruled" is reporting an overruling,
+            # not performing one. Recording it as this court's own would credit a two-judge bench with
+            # a Constitution Bench's work, and the bench rule would then downgrade a real overruling
+            # to doubt. The overruling itself is not lost: it is on the record in the judgment that
+            # actually gave it, which is where this reads it from.
+            if treatment in NEGATIVE and inside_quotation(paragraph.body, citation.span[0]):
+                treatment = DEFAULT_TREATMENT
             key = (cited_id, treatment)
             if key in seen:
                 continue

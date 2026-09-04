@@ -55,6 +55,30 @@ def sentence_around(text: str, position: int) -> str:
     return " ".join(text[start:end].split())
 
 
+OPENING_QUOTES = "“„«"   # “ „ «
+CLOSING_QUOTES = "”»"          # ” »
+
+
+def inside_quotation(text: str, position: int) -> bool:
+    """Whether a position falls inside a block quotation.
+
+    Indian judgments quote earlier judgments at length, in curly quotes, and what is said inside those
+    marks is the earlier court speaking. A judgment quoting "the decision in X is hereby overruled" is
+    reporting an overruling, not performing one, and the difference decides which court gets the
+    credit for it.
+
+    Straight quotes are deliberately ignored: they are used for emphasis and for statutory words as
+    often as for quotation, and guessing at their pairing would be worse than not looking.
+    """
+    depth = 0
+    for character in text[:position]:
+        if character in OPENING_QUOTES:
+            depth += 1
+        elif character in CLOSING_QUOTES:
+            depth = max(0, depth - 1)
+    return depth > 0
+
+
 def split_sentences(text: str) -> list[tuple[str, int]]:
     """Every sentence in the text, with its character offset. Offsets survive so a line can be found
     again in the paragraph it came from and highlighted there."""

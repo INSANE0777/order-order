@@ -13,7 +13,7 @@ import datetime as dt
 import pytest
 
 from orderorder.citations.grammar import normalize_citation_string
-from orderorder.db.models import CitationAlias, Judgment
+from orderorder.db.models import CitationAlias, Judgment, Paragraph
 from orderorder.engine.citator import (
     apply_bench_rule,
     build_citator,
@@ -307,3 +307,29 @@ def test_a_cue_at_the_far_end_of_a_long_sentence_is_about_another_case() -> None
     # the overruling at the far end of the sentence does not reach back and kill it.
     assert _at(body, "(2011) 2 SCC 100") == "relied_on"
     assert _at(body, "(2019) 8 SCC 714") == "overruled"
+
+
+def test_a_quoted_overruling_is_not_credited_to_the_quoting_court() -> None:
+    """Judgments quote the Constitution Bench that did the overruling, at length and verbatim.
+
+    Recording that as the quoting court's own act would credit a two-judge bench with a five-judge
+    bench's work — and the bench rule would then downgrade a real overruling to mere doubt. The fact
+    is not lost: it is read from the judgment that actually gave it.
+    """
+    body = (
+        "The Constitution Bench has observed and held as under:- “365. Resultantly, the decision "
+        "rendered in Pune Municipal Corpn. v. Harakchand Misirimal Solanki, (2014) 3 SCC 183 is hereby "
+        "overruled and all other decisions following it are also overruled.” We respectfully "
+        "follow that decision."
+    )
+    start = body.index("(2014) 3 SCC 183")
+    # The words themselves say "overruled", and read alone that is what they mean.
+    assert classify_treatment(body, (start, start + len("(2014) 3 SCC 183"))) == "overruled"
+
+    judgment = Judgment(canonical_key="INSC:2023:1", court="SC", title="QUOTER versus SOMEBODY", source="x")
+    paragraph = Paragraph(
+        text_version_id="v", seq=1, printed_label="12", body=body, char_start=0, char_end=len(body)
+    )
+    aliases = {normalize_citation_string("(2014) 3 SCC 183"): "cited-id"}
+    edges = edges_in_judgment(judgment, [paragraph], aliases)
+    assert [e.treatment for e in edges] == ["referred"]
