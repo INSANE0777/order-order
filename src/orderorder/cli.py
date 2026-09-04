@@ -196,6 +196,14 @@ def ingest_text(
             )
 
 
+def _shorten(text: str, limit: int) -> str:
+    """Trim to a whole word. A claim cut mid-word reads as though the engine misread the brief."""
+    text = " ".join((text or "").split())
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(" ", 1)[0].rstrip(",;:") + " ..."
+
+
 VOICE_BADGES = {
     "court_majority": "court",
     "court_concurring": "concurring",
@@ -343,7 +351,7 @@ def verify_command(
         if not v.findings and not v.needs_review:
             continue
         console.print(f"\n[bold]{v.citation_raw}[/bold] [dim]{(v.judgment_title or '')[:60]}[/dim]")
-        console.print(f"  claim: [italic]{v.proposition[:150]}[/italic]")
+        console.print(f"  claim: [italic]{_shorten(v.proposition, 150)}[/italic]")
         for finding in v.findings:
             console.print(f"  [red]{finding}[/red]")
         if v.needs_review:
@@ -354,7 +362,9 @@ def verify_command(
         if v.weight is not None and v.weight.is_obiter:
             console.print(f"  [magenta]weight[/magenta]: {v.weight.reason}")
         if show_quote and v.quote_verified and v.quote:
-            console.print(f'  [green]verified quote[/green] (para {v.paragraph_label}): "{v.quote[:160]}"')
+            console.print(
+                f'  [green]verified quote[/green] (para {v.paragraph_label}): "{_shorten(v.quote, 160)}"'
+            )
         if v.scope and v.scope.narrowed_proposition:
             console.print(f"  [cyan]supported instead[/cyan]: {v.scope.narrowed_proposition}")
 
