@@ -242,3 +242,68 @@ def test_the_report_says_how_much_of_the_law_it_searched(corpus) -> None:
     session, earlier = corpus
     report = treatment_of(session, earlier.id)
     assert report.corpus_size == 2  # the two judgments whose text is held
+
+
+# --- direction: who did what to whom -------------------------------------------
+
+
+def _at(body: str, citation: str) -> str:
+    """Classify treatment of one citation where it actually sits in the sentence."""
+    start = body.index(citation)
+    return classify_treatment(body, (start, start + len(citation)))
+
+
+def test_a_case_that_did_the_overruling_is_not_recorded_as_overruled() -> None:
+    """From the corpus. The cited case is the bench that overruled something else.
+
+    Read the other way round, a live authority is reported as dead, which is the worst thing a
+    citator can say and the reason direction is checked at all.
+    """
+    body = (
+        "A three-Judge Bench of this Court in Mayavati Trading Private Limited v. Pradyut Deb Burman "
+        "reported in (2019) 8 SCC 714 overruled the decision in Antique Art (supra) and clarified the "
+        "position of law existing prior to the 2015 amendment."
+    )
+    assert _at(body, "(2019) 8 SCC 714") == "referred"
+
+
+def test_a_case_that_did_the_reversing_is_not_recorded_as_reversed() -> None:
+    body = "The said judgement was reversed by this Court in the Judgment reported in (2020) 10 SCC 264."
+    assert _at(body, "(2020) 10 SCC 264") == "referred"
+
+
+def test_a_case_the_court_merely_considered_is_not_doubted() -> None:
+    body = (
+        "This issue is elaborately considered by the Supreme Court in A. Ayyasamy v. A. Paramasivam "
+        "reported in (2016) 10 SCC 386."
+    )
+    assert _at(body, "(2016) 10 SCC 386") == "referred"
+
+
+def test_the_passive_form_attaches_to_the_citation_before_it() -> None:
+    body = "The decision in Pune Municipal Corporation, (2014) 3 SCC 183, is hereby overruled."
+    assert _at(body, "(2014) 3 SCC 183") == "overruled"
+
+
+def test_the_active_form_attaches_to_the_citation_after_it() -> None:
+    body = "We overrule the decision in Kasturi v. Iyyamperumal, (2005) 6 SCC 733, to that extent."
+    assert _at(body, "(2005) 6 SCC 733") == "overruled"
+
+
+def test_no_longer_good_law_attaches_to_the_case_it_follows() -> None:
+    body = "That view, taken in (2014) 3 SCC 183, is no longer good law after the Constitution Bench."
+    assert _at(body, "(2014) 3 SCC 183") == "overruled"
+
+
+def test_a_cue_at_the_far_end_of_a_long_sentence_is_about_another_case() -> None:
+    """A judgment's sentences run long and cite several cases; proximity is what ties a cue to one."""
+    body = (
+        "The appellant relied upon (2011) 2 SCC 100, a decision of two learned Judges of this Court "
+        "rendered in a wholly different statutory context and on facts bearing no resemblance to "
+        "those before us, and we need not consider it further at this stage of the discussion; the "
+        "decision in Antique Art, (2019) 8 SCC 714, is hereby overruled."
+    )
+    # The first citation was relied on, which is what the words next to it say. What matters is that
+    # the overruling at the far end of the sentence does not reach back and kill it.
+    assert _at(body, "(2011) 2 SCC 100") == "relied_on"
+    assert _at(body, "(2019) 8 SCC 714") == "overruled"

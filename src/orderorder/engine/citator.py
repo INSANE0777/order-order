@@ -14,8 +14,20 @@ in memory, because four hundred thousand paragraphs cannot each afford a fuzzy p
 
 **Treatment.** What the citing court *did* with the case it cited — followed it, distinguished it,
 doubted it, overruled it — is read from the words around the citation. The cues are the ones courts
-actually use, and the sentence carrying the citation governs, because a paragraph routinely cites four
+actually use, and only the words near the citation count, because a paragraph routinely cites four
 cases and treats them differently.
+
+Direction is the trap, and getting it wrong inverts the answer. Both of these appeared in the first
+full run, and both were recorded as the cited case having been killed:
+
+    "A three-Judge Bench of this Court in Mayavati Trading ... reported in (2019) 8 SCC 714
+     overruled the decision in Antique Art (supra)"
+    "The said judgement was reversed by this Court in the Judgment reported in (2020) 10 SCC 264."
+
+In each, the cited case is the court that *did* the overruling. So a cue counts only when the citation
+is its object: the cue follows the citation in the passive ("... is hereby overruled"), or precedes it
+and takes what follows ("we overrule ..."), and never when the words in between mark the citation as
+the actor.
 
 One rule matters more than the cues, and it is arithmetic rather than language: **a bench cannot
 overrule one at least as large as itself.** Two judges saying an earlier three-judge decision "does
@@ -40,7 +52,6 @@ from sqlalchemy.orm import Session
 
 from orderorder.citations.grammar import extract_citations
 from orderorder.db.models import CitationAlias, CitationEdge, Judgment, JudgmentTextVersion, Paragraph
-from orderorder.engine.sentences import sentence_around
 
 # Treatment labels, from ARCHITECTURE.md section 4.8. Order matters: the first cue to match wins, so
 # the most specific and most serious come first.
@@ -136,6 +147,33 @@ TREATMENT_CUES: list[tuple[str, re.Pattern[str]]] = [
     ),
 ]
 
+# How far from the citation a cue may sit and still be about it. A sentence in a judgment runs long
+# and cites several cases; a cue at the other end of it is about one of the others.
+CUE_WINDOW = 160
+
+# The citation performs the action rather than suffering it. "was reversed by this Court in <cite>",
+# "overruled the decision in <cite>" — everything here names the citation as the overruling court, so
+# no negative treatment attaches to it.
+ACTOR_BEFORE = re.compile(
+    r"""(?ix)
+    (?: (?:overruled|reversed|affirmed|approved|upheld|doubted|distinguished)
+        \s+ (?:by\s+[^.]{0,40}?\s+)? in \s+ [^.]{0,60}? $
+      | (?:as\s+)?(?:held|observed|laid\s+down|decided)\s+(?:by\s+[^.]{0,30}?\s+)?in\s+[^.]{0,60}?$
+    )
+    """
+)
+# The citation is the subject of what follows: "<cite> overruled the decision in ...".
+ACTOR_AFTER = re.compile(
+    r"""(?ix)
+    ^[\s,)\]"'-]{0,12}
+    (?: overrul(?:ed|ing)\s+the\s+(?:decision|judgment|view|law)
+      | (?:reversed|affirmed|upheld|approved)\s+the\s+(?:decision|judgment|view|order)
+      | held\s+that
+      | laid\s+down
+    )
+    """
+)
+
 # Treatment that puts an authority in doubt. Anything else leaves it standing.
 NEGATIVE = {"overruled", "partly_overruled", "reversed", "doubted", "referred_to_larger_bench"}
 # Treatment that only a larger bench may give. Article 141 and the practice under it: a bench cannot
@@ -193,10 +231,45 @@ class TreatmentReport:
         return None
 
 
-def classify_treatment(sentence: str) -> str:
-    """What the citing court did with the case, from the sentence carrying the citation."""
+def classify_treatment(sentence: str, span: tuple[int, int] | None = None) -> str:
+    """What the citing court did with the cited case.
+
+    **Word order decides direction, and getting it wrong inverts the answer.** Two sentences from the
+    corpus, both containing "overruled" or "reversed" a few words from a citation:
+
+        "A three-Judge Bench of this Court in Mayavati Trading ... reported in (2019) 8 SCC 714
+         overruled the decision in Antique Art (supra)"
+        "The said judgement was reversed by this Court in the Judgment reported in (2020) 10 SCC 264."
+
+    In both, the cited case is the court that *did* the overruling. Reading the cue as treatment *of*
+    that case would report a live authority as dead, which is the worst thing a citator can say.
+
+    So a cue counts only when the citation is its object: either the cue follows the citation in the
+    passive ("... is hereby overruled"), or it precedes it and takes what follows ("we overrule ..."),
+    and never when the words in between mark the citation as the actor ("overruled ... in <citation>").
+    Without a span there is no direction to read, so the sentence is searched as a whole and the
+    caller gets the older, looser behaviour.
+    """
+    if span is None:
+        for label, pattern in TREATMENT_CUES:
+            if pattern.search(sentence):
+                return label
+        return DEFAULT_TREATMENT
+
+    start, end = span
+    before = sentence[max(0, start - CUE_WINDOW) : start]
+    after = sentence[end : end + CUE_WINDOW]
+
+    # "reversed by this Court in ...", "overruled the decision in ..." — what follows performed the
+    # action rather than suffering it.
+    if ACTOR_BEFORE.search(before):
+        return DEFAULT_TREATMENT
+
     for label, pattern in TREATMENT_CUES:
-        if pattern.search(sentence):
+        # The citation is the actor: "(2019) 8 SCC 714 overruled the decision in ..."
+        if label in NEGATIVE and ACTOR_AFTER.match(after):
+            continue
+        if pattern.search(after) or pattern.search(before):
             return label
     return DEFAULT_TREATMENT
 
@@ -241,8 +314,9 @@ def edges_in_judgment(
             cited_id = aliases.get(citation.normalized)
             if cited_id is None or cited_id == judgment.id:
                 continue  # not in the corpus, or the judgment citing itself
-            sentence = sentence_around(paragraph.body, citation.span[0])
-            treatment = classify_treatment(sentence)
+            # The span is given relative to the paragraph, and so is the citation, so the cue window
+            # is read around the citation where it sits rather than around the sentence as a whole.
+            treatment = classify_treatment(paragraph.body, citation.span)
             key = (cited_id, treatment)
             if key in seen:
                 continue
