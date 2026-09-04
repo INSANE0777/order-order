@@ -37,15 +37,32 @@ uv run orderorder resolve "[2019] 9 S.C.R. 593"
 
 uv run orderorder ingest text INSC:2019:770          # fetch the official PDF, clean and segment it
 uv run orderorder locate INSC:2019:770 "the plaintiff is the dominus litis" --pinpoint 73
+
+uv run orderorder verify --file brief.txt            # every citation in a brief
 ```
+
+`verify` is the whole engine: it finds each citation, resolves it, loads the judgment, ranks the
+paragraphs, asks how far they support the claim, and grades the result. Extent of support needs a
+language model; the other checks do not, and the command says so rather than staying silent.
 
 `uv run pytest` runs the suite; it uses an in-memory database and never touches the network.
 
 ### What works today
 
-Two of the three questions the product asks about a citation: **does the case exist**, and **which
-paragraph is being relied on**. Between them these detect failure modes 1, 2 and 12 from the taxonomy
-in [docs/PRD.md](docs/PRD.md), and give a first signal on 5. None of it calls a language model.
+All three questions the product asks about a citation: **does the case exist**, **which paragraph is
+being relied on**, and **does that paragraph support the claim to the extent claimed**. Between them
+these detect failure modes 1, 2, 4, 8, 9 and 12 from the taxonomy in [docs/PRD.md](docs/PRD.md), with
+a first signal on 5. Only the third needs a language model.
+
+**The model is never believed, only checked.** It is asked to name a paragraph and copy a sentence
+from it. That sentence is then string-matched against the stored judgment. A quote that does not match
+downgrades the claim to unsupported and flags it, however confident the model was. Born-digital text
+never fuzzy-matches, so a near-miss paraphrase fails too. This is ordinary Python and it runs whatever
+model produced the answer, which is why the tests can exercise it with a stub and no API key.
+
+Three states are kept apart, because collapsing them is how tools overclaim: **supported**,
+**checked and not supported**, and **not checked**. A missing API key, a provider outage or a
+retrieval miss produces the third, never the second.
 
 | Piece | Module |
 |---|---|
@@ -59,6 +76,10 @@ in [docs/PRD.md](docs/PRD.md), and give a first signal on 5. None of it calls a 
 | BM25 ranking inside a judgment, and the fusion seam for embeddings | `engine/lexical.py` |
 | Locator and pinpoint checking | `engine/locator.py` |
 | Quote verifier, the quote-or-nothing rule | `engine/quotes.py` |
+| Scope comparator: extent of support, dropped conditions, a narrowed proposition | `engine/scope.py` |
+| Model providers with fallbacks across free tiers | `engine/providers.py` |
+| Verdict assembly and the grading rubric | `engine/verdict.py` |
+| The engine as a LangGraph state graph | `engine/graph.py` |
 
 Measured on the real corpus:
 
@@ -77,8 +98,9 @@ separately and never used as the text a pinpoint resolves against.
 
 ### Not built yet
 
-Embeddings and hybrid retrieval, the scope comparator, voice and weight classification, the citator,
-the LangGraph assembly of the engine, and both web surfaces. See [docs/ROADMAP.md](docs/ROADMAP.md).
+Embeddings and hybrid retrieval, voice and weight classification (ratio versus obiter), the citator
+for overruled judgments, the fact comparator, the drafting surface and the web app. See
+[docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Status
 

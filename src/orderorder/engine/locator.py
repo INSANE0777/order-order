@@ -162,8 +162,7 @@ def locate(
                 matched_terms=scored.matched_terms,
                 body=paragraph.body,
                 is_claimed_pinpoint=(
-                    claimed_pinpoint is not None
-                    and paragraph.printed_label == str(claimed_pinpoint).strip()
+                    claimed_pinpoint is not None and paragraph.printed_label == str(claimed_pinpoint).strip()
                 ),
                 likely_quoted=paragraph.seq in quoted,
             )

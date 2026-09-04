@@ -1,0 +1,82 @@
+"""Prompts, versioned.
+
+Every verdict records the prompt version that produced it, so a change in wording is visible in the
+audit trail and old verdicts can be told apart from new ones. Two rules run through all of them:
+
+  * the model may only use the text it is given, never anything it remembers about the case
+  * when the text does not contain the answer, the required answer is "not there"
+
+The prompts ask for a verbatim quote because the quote is what gets checked. The model is told this
+explicitly, since a model that knows its quote will be verified is less inclined to approximate one.
+"""
+
+from __future__ import annotations
+
+DECOMPOSE_VERSION = "decompose-v1"
+DECOMPOSE_PROMPT = """You are helping check whether a legal brief's citations are sound.
+
+Split the proposition below into the separate assertions it makes. An assertion is one thing that
+could independently be true or false about the law.
+
+Rules:
+- Use only the words of the proposition. Do not add legal knowledge of your own.
+- Do not merge two assertions into one, and do not invent assertions that are not there.
+- If the proposition makes a single assertion, return exactly one.
+- Record any condition the proposition itself attaches ("where the contract was induced", "in a
+  commercial dispute").
+- Record how strongly it is put: must, may, should, or merely observed.
+- Record how broadly it is put, if it says: for example "all commercial contracts".
+
+Proposition:
+{proposition}
+"""
+
+SCOPE_VERSION = "scope-v1"
+SCOPE_PROMPT = """You are opposing counsel checking whether a judgment supports a claim made in a brief.
+
+The claim, taken from the brief:
+{claim}
+
+Numbered paragraphs from the judgment. This is the ONLY text you may rely on. You have no other
+knowledge of this case, and anything you seem to remember about it must be ignored:
+
+{candidates}
+
+Decide how far these paragraphs support the claim.
+
+- If a paragraph states the claim as broadly as the brief does, that is "full".
+- If it states the claim but more narrowly, or only in particular circumstances, that is "partial".
+  Name the conditions the court attached that the brief leaves out.
+- If no paragraph states the claim, that is "none". Do not stretch a paragraph to fit.
+- If a paragraph states the opposite, that is "contradicted".
+
+If you answer "full" or "partial", you must quote the sentence that carries the claim, copied word for
+word from the paragraph you name, at least six words long. The quote is checked against the judgment
+automatically; a quote that is remembered, tidied or paraphrased will fail that check and the claim
+will be recorded as unsupported. If you cannot copy such a sentence, answer "none".
+
+Be exacting. A brief that overstates a holding is the specific problem this check exists to catch.
+"""
+
+VOICE_VERSION = "voice-v1"
+VOICE_PROMPT = """Decide whose words this paragraph of a judgment carries.
+
+A paragraph inside a judgment is not always the court's own view. It may summarise an advocate's
+argument ("learned counsel submitted"), restate what the court below held, quote another judgment, or
+be an editorial headnote written by the publisher rather than the court.
+
+Paragraph {label}:
+{paragraph}
+
+Answer with the voice. If the paragraph quotes another source, also say whether this court adopted
+that source's view or rejected it.
+"""
+
+
+def format_candidates(candidates: list[tuple[str, str]], *, max_chars: int = 1800) -> str:
+    """Render (label, body) pairs for a prompt, trimming very long paragraphs."""
+    blocks = []
+    for label, body in candidates:
+        text = body if len(body) <= max_chars else body[:max_chars].rstrip() + " [...]"
+        blocks.append(f"[paragraph {label}]\n{text}")
+    return "\n\n".join(blocks)

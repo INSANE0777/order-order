@@ -213,7 +213,10 @@ def test_bench_strength_comes_from_the_coram() -> None:
     from orderorder.ingest.pdf import ExtractedJudgment
 
     extracted = ExtractedJudgment(
-        source_path="x", page_count=1, headnote="", judgment="1. Text.",
+        source_path="x",
+        page_count=1,
+        headnote="",
+        judgment="1. Text.",
         coram=["Bela M. Trivedi", "Satish Chandra Sharma"],
     )
     assert extracted.bench_strength == 2

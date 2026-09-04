@@ -56,7 +56,9 @@ def store_extracted(
     replaced = False
     if existing is not None:
         if not replace:
-            return StoreResult(existing.id, len(existing.paragraphs), len(existing.opinions), False, version_key)
+            return StoreResult(
+                existing.id, len(existing.paragraphs), len(existing.opinions), False, version_key
+            )
         session.execute(delete(Paragraph).where(Paragraph.text_version_id == existing.id))
         session.execute(delete(Opinion).where(Opinion.text_version_id == existing.id))
         session.delete(existing)
@@ -159,7 +161,9 @@ def store_extracted(
     )
 
 
-def load_paragraphs(session: Session, judgment_id: str, *, version_key: str | None = None) -> list[SegParagraph]:
+def load_paragraphs(
+    session: Session, judgment_id: str, *, version_key: str | None = None
+) -> list[SegParagraph]:
     """Read a judgment's paragraphs back as segmentation objects, so the locator works the same either way."""
     query = select(JudgmentTextVersion).where(JudgmentTextVersion.judgment_id == judgment_id)
     if version_key:
@@ -172,6 +176,4 @@ def load_paragraphs(session: Session, judgment_id: str, *, version_key: str | No
     rows = session.scalars(
         select(Paragraph).where(Paragraph.text_version_id == version.id).order_by(Paragraph.seq)
     ).all()
-    return [
-        SegParagraph(r.seq, r.printed_label, r.body, r.char_start, r.char_end) for r in rows
-    ]
+    return [SegParagraph(r.seq, r.printed_label, r.body, r.char_start, r.char_end) for r in rows]

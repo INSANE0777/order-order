@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -25,7 +26,10 @@ from orderorder.citations.grammar import extract_citations
 from orderorder.config import get_settings
 from orderorder.db.models import CitationAlias, Judgment, JudgmentTextVersion, Paragraph
 from orderorder.db.session import get_session, init_db
+from orderorder.engine.graph import verify_text
 from orderorder.engine.locator import locate as locate_claim
+from orderorder.engine.providers import build_structured, describe_providers
+from orderorder.engine.schemas import ScopeAssessment
 from orderorder.ingest import corpus as corpus_mod
 from orderorder.ingest import pdf as pdf_mod
 from orderorder.ingest.metadata import import_parquet
@@ -66,17 +70,25 @@ def doctor() -> None:
         "database", settings.db_url.split("://")[0], "postgres" if settings.is_postgres else "sqlite"
     )
 
-    for name, env in [
-        ("GOOGLE_API_KEY", "GOOGLE_API_KEY"),
-        ("GROQ_API_KEY", "GROQ_API_KEY"),
-        ("CEREBRAS_API_KEY", "CEREBRAS_API_KEY"),
-        ("INDIANKANOON_TOKEN", "INDIANKANOON_TOKEN"),
-    ]:
-        table.add_row(name, "set" if os.environ.get(env) else "-", "ok" if os.environ.get(env) else "not set")
-
-    table.add_row("llm primary", settings.llm_primary, "")
-    table.add_row("llm fallbacks", ", ".join(settings.fallback_models) or "-", "")
+    table.add_row("indian kanoon", "set" if os.environ.get("INDIANKANOON_TOKEN") else "-", "")
     console.print(table)
+
+    providers = Table(title="Language models", show_header=True, header_style="bold")
+    providers.add_column("provider:model")
+    providers.add_column("key")
+    providers.add_column("usable")
+    usable = 0
+    for spec, env, ok in describe_providers():
+        providers.add_row(spec, env, "[green]yes[/green]" if ok else "[dim]no key[/dim]")
+        usable += int(ok)
+    console.print(providers)
+    if usable == 0:
+        console.print(
+            "[yellow]no model available[/yellow]: existence, pinpoint and retrieval still work; "
+            "extent of support does not. Add a free key, see .env.example."
+        )
+    else:
+        console.print(f"[green]{usable} provider(s) usable[/green]")
 
     try:
         with get_session() as session:
@@ -199,12 +211,16 @@ def locate_command(
             raise typer.Exit(1)
         paragraphs = load_paragraphs(session, judgment.id)
         if not paragraphs:
-            console.print(f"[yellow]{key}[/yellow] has no text; run [bold]orderorder ingest text {key}[/bold]")
+            console.print(
+                f"[yellow]{key}[/yellow] has no text; run [bold]orderorder ingest text {key}[/bold]"
+            )
             raise typer.Exit(1)
 
         result = locate_claim(paragraphs, proposition, claimed_pinpoint=pinpoint, top_k=top)
         console.print(f"[bold]{judgment.title[:80]}[/bold]")
-        console.print(f"[dim]{len(paragraphs)} paragraphs; query terms: {', '.join(result.query_terms[:12])}[/dim]\n")
+        console.print(
+            f"[dim]{len(paragraphs)} paragraphs; query terms: {', '.join(result.query_terms[:12])}[/dim]\n"
+        )
 
         check = result.pinpoint
         if check.status == "ok":
@@ -225,13 +241,82 @@ def locate_command(
                 label = f"{label} (cited)"
             if candidate.likely_quoted:
                 label = f"[red]{label} quoted?[/red]"
-            table.add_row(label, f"{candidate.score:.2f}", ", ".join(candidate.matched_terms[:4]), candidate.preview)
+            table.add_row(
+                label, f"{candidate.score:.2f}", ", ".join(candidate.matched_terms[:4]), candidate.preview
+            )
         console.print(table)
         if any(c.likely_quoted for c in result.candidates[:top]):
             console.print(
                 "[red]warning[/red] a candidate's paragraph number breaks the judgment's sequence, "
                 "so it is probably quoted from another judgment rather than this court's own words"
             )
+
+
+@app.command("verify")
+def verify_command(
+    text: str = typer.Argument(None, help="Text containing citations. Omit to read from --file."),
+    file: str | None = typer.Option(None, "--file", "-f", help="Read the brief from this file."),
+    top: int = typer.Option(6, help="Candidate paragraphs considered per citation."),
+    show_quote: bool = typer.Option(True, help="Print the verified quote for supported claims."),
+) -> None:
+    """Verify every citation in a passage: does the case exist, which paragraph, and does it support the claim."""
+    if file:
+        text = Path(file).read_text(encoding="utf-8")
+    if not text or not text.strip():
+        console.print("[red]give some text, or --file[/red]")
+        raise typer.Exit(1)
+
+    model = build_structured(ScopeAssessment)
+    if model is None:
+        console.print(
+            "[yellow]no language model configured[/yellow] so existence, pinpoint and retrieval are "
+            "checked but extent of support is not. Set a provider key; see .env.example."
+        )
+
+    with get_session() as session:
+        verdicts = verify_text(session, text, model, top_k=top)
+
+    if not verdicts:
+        console.print("[yellow]no citations found[/yellow]")
+        raise typer.Exit(1)
+
+    board = Table(show_header=True, header_style="bold", title="Verdict board")
+    board.add_column("grade", justify="center")
+    board.add_column("citation")
+    board.add_column("case")
+    board.add_column("support")
+    board.add_column("findings")
+    colours = {"A": "green", "B": "green", "C": "yellow", "D": "yellow", "E": "red", "F": "red"}
+    for v in verdicts:
+        colour = colours.get(v.grade, "white")
+        board.add_row(
+            f"[{colour}]{v.grade}[/{colour}]",
+            v.citation_raw,
+            (v.judgment_title or "-")[:40],
+            v.support,
+            str(len(v.findings)) if v.findings else "-",
+        )
+    console.print(board)
+
+    for v in verdicts:
+        if not v.findings and not v.needs_review:
+            continue
+        console.print(f"\n[bold]{v.citation_raw}[/bold] [dim]{(v.judgment_title or '')[:60]}[/dim]")
+        console.print(f"  claim: [italic]{v.proposition[:150]}[/italic]")
+        for finding in v.findings:
+            console.print(f"  [red]{finding}[/red]")
+        if v.needs_review:
+            console.print(f"  [yellow]needs review[/yellow]: {v.review_reason}")
+        if show_quote and v.quote_verified and v.quote:
+            console.print(f'  [green]verified quote[/green] (para {v.paragraph_label}): "{v.quote[:160]}"')
+        if v.scope and v.scope.narrowed_proposition:
+            console.print(f"  [cyan]supported instead[/cyan]: {v.scope.narrowed_proposition}")
+
+    graded = sum(1 for v in verdicts if v.grade in "DEF")
+    console.print(
+        f"\n{len(verdicts)} citations, {graded} graded D or worse, "
+        f"{sum(1 for v in verdicts if v.needs_review)} needing review"
+    )
 
 
 @cite_app.command("parse")

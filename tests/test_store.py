@@ -120,7 +120,10 @@ def test_replace_false_keeps_the_existing_version(session) -> None:
 
 
 def test_dissent_becomes_a_separate_opinion(session) -> None:
-    text = JUDGMENT_TEXT + "\n\nR. F. NARIMAN, J. (dissenting)\n\n5. I respectfully disagree with the majority.\n"
+    text = (
+        JUDGMENT_TEXT
+        + "\n\nR. F. NARIMAN, J. (dissenting)\n\n5. I respectfully disagree with the majority.\n"
+    )
     judgment = _judgment(session)
     store_extracted(session, judgment, _extracted(judgment_text=text))
     session.commit()

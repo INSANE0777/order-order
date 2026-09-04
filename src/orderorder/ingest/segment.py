@@ -75,9 +75,7 @@ def _join_lines(lines: list[str]) -> str:
     return "\n".join(out)
 
 
-def _emit(
-    paragraphs: list[SegParagraph], label: str | None, lines: list[str], start: int, end: int
-) -> None:
+def _emit(paragraphs: list[SegParagraph], label: str | None, lines: list[str], start: int, end: int) -> None:
     body = _join_lines(lines)
     if label:
         body = LABEL_RE.sub("", body, count=1).strip()
