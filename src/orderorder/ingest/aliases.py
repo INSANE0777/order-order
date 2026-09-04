@@ -118,6 +118,7 @@ class TitleIndex:
     """
 
     by_year: dict[int, dict[str, str]] = field(default_factory=lambda: defaultdict(dict))
+    _windows: dict[int, dict[str, str]] = field(default_factory=dict)
 
     @classmethod
     def build(cls, session: Session) -> TitleIndex:
@@ -130,10 +131,18 @@ class TitleIndex:
         return index
 
     def window(self, year: int) -> dict[str, str]:
-        """Titles from the year of the citation and the years either side of it."""
+        """Titles from the year of the citation and the years either side of it.
+
+        Cached per year. Merging three years of titles is a thousand dictionary inserts, and the corpus
+        makes ninety thousand citations; doing it afresh each time is most of the run.
+        """
+        cached = self._windows.get(year)
+        if cached is not None:
+            return cached
         titles: dict[str, str] = {}
         for candidate_year in (year - 1, year, year + 1):
             titles.update(self.by_year.get(candidate_year, {}))
+        self._windows[year] = titles
         return titles
 
 
