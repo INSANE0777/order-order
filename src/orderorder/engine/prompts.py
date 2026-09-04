@@ -98,6 +98,40 @@ answer whose quote cannot be found is recorded as unclear.
 """
 
 
+APPLICABILITY_VERSION = "applicability-v1"
+APPLICABILITY_PROMPT = """You are opposing counsel deciding whether a cited authority actually governs
+the matter before the court.
+
+The claim the brief makes, and the authority it cites for it:
+{claim}
+
+The facts of the matter now before the court:
+{facts}
+
+Paragraphs from the cited judgment. This is the ONLY text you may rely on for what that case decided,
+and anything you seem to remember about it must be ignored:
+
+{candidates}
+
+A case governs a later matter through its facts. Decide how far it governs these.
+
+- "strong" if the facts it turned on are present here.
+- "moderate" if it applies with adjustment.
+- "weak" if it is only analogous.
+- "inapplicable" if a fact the cited case turned on is materially absent here, or is different in a
+  way that mattered to the decision.
+
+If you answer "inapplicable", you must name that fact and quote the sentence of the judgment that
+states it, copied word for word from the paragraph you name, at least six words long. The quote is
+checked against the judgment automatically, and an answer whose quote cannot be found will not be
+recorded as inapplicable.
+
+Be exacting in both directions. Calling a good authority inapplicable costs an advocate a case they
+were entitled to win; calling a distinguishable one applicable is the mistake this check exists to
+catch.
+"""
+
+
 def format_candidates(candidates: list[tuple[str, str]], *, max_chars: int = 1800) -> str:
     """Render (label, body) pairs for a prompt, trimming very long paragraphs."""
     blocks = []

@@ -116,3 +116,34 @@ class WeightAssessment(BaseModel):
     )
     reason: str | None = Field(default=None, description="One sentence of justification.")
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class ApplicabilityAssessment(BaseModel):
+    """Whether the cited case governs the facts of the matter actually before the court.
+
+    `quote` must be copied verbatim from the judgment, and is required when the answer is
+    `inapplicable`. Declaring an authority inapplicable is the strong claim: an advocate who believes
+    it drops a good case, so the fact said to distinguish it has to be shown in the judgment's text.
+    """
+
+    status: Literal["strong", "moderate", "weak", "inapplicable"] = Field(
+        description="strong if the cited case governs these facts; moderate if it applies with "
+        "adjustment; weak if it is only analogous; inapplicable if the facts it turned on are "
+        "materially absent here."
+    )
+    distinguishing_facts: list[str] = Field(
+        default_factory=list,
+        description="Facts the cited case turned on that are absent from, or different in, this matter.",
+    )
+    shared_facts: list[str] = Field(
+        default_factory=list, description="Facts the two matters have in common that make it apply."
+    )
+    paragraph_label: str | None = Field(
+        default=None, description="Printed label of the paragraph stating the distinguishing fact."
+    )
+    quote: str | None = Field(
+        default=None,
+        description="A verbatim sentence from that paragraph stating the fact, at least six words.",
+    )
+    reason: str | None = Field(default=None, description="One sentence of justification.")
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)

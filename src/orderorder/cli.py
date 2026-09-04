@@ -30,7 +30,12 @@ from orderorder.engine import citator, search
 from orderorder.engine.graph import verify_text
 from orderorder.engine.locator import locate as locate_claim
 from orderorder.engine.providers import build_structured, describe_providers
-from orderorder.engine.schemas import ScopeAssessment, VoiceAssessment, WeightAssessment
+from orderorder.engine.schemas import (
+    ApplicabilityAssessment,
+    ScopeAssessment,
+    VoiceAssessment,
+    WeightAssessment,
+)
 from orderorder.ingest import aliases as alias_learning
 from orderorder.ingest import bulk
 from orderorder.ingest import corpus as corpus_mod
@@ -584,6 +589,9 @@ def verify_command(
     file: str | None = typer.Option(None, "--file", "-f", help="Read the brief from this file."),
     top: int = typer.Option(6, help="Candidate paragraphs considered per citation."),
     show_quote: bool = typer.Option(True, help="Print the verified quote for supported claims."),
+    facts: str | None = typer.Option(
+        None, "--facts", help="File of the present matter's facts, to test each authority against them."
+    ),
 ) -> None:
     """Verify every citation in a passage: does the case exist, which paragraph, and does it support the claim."""
     if file:
@@ -594,6 +602,7 @@ def verify_command(
 
     # One model per question, because each is bound to its own output schema. Whose words a passage
     # carries is decided from the judgment's structure, so that check survives having no key at all.
+    matter_facts = Path(facts).read_text(encoding="utf-8") if facts else ""
     model = build_structured(ScopeAssessment)
     if model is None:
         console.print(
@@ -609,6 +618,8 @@ def verify_command(
             top_k=top,
             voice_model=build_structured(VoiceAssessment),
             weight_model=build_structured(WeightAssessment),
+            facts_model=build_structured(ApplicabilityAssessment) if matter_facts else None,
+            matter_facts=matter_facts,
         )
 
     if not verdicts:
@@ -646,6 +657,10 @@ def verify_command(
             console.print(f"  [red]{finding}[/red]")
         if v.needs_review:
             console.print(f"  [yellow]needs review[/yellow]: {v.review_reason}")
+        if v.applicability is not None and v.applicability.is_problem:
+            console.print(f"  [magenta]distinguishable[/magenta]: {v.applicability.reason}")
+        if v.hierarchy is not None and v.hierarchy.is_problem:
+            console.print(f"  [red]wrong court[/red]: {v.hierarchy.note}")
         if v.treatment is not None and v.treatment.is_doubtful:
             console.print(f"  [red]dead law[/red]: {v.treatment.note}")
         if v.voice is not None and (v.voice.is_problem or v.voice.is_dissent):

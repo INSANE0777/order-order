@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from orderorder.engine.citator import TreatmentReport
+from orderorder.engine.facts import ApplicabilityVerdict
+from orderorder.engine.hierarchy import HierarchyCheck
 from orderorder.engine.locator import PinpointCheck
 from orderorder.engine.scope import ScopeVerdict
 from orderorder.engine.voice import VoiceVerdict
@@ -21,6 +23,7 @@ GRADES = ["A", "B", "C", "D", "E", "F"]
 # Failure modes from docs/PRD.md section 6.
 MODE_PHANTOM = 1
 MODE_MISCITE = 2
+MODE_WRONG_COURT = 3
 MODE_NOT_THERE = 4
 MODE_QUOTED = 5
 MODE_WRONG_VOICE = 5
@@ -28,6 +31,7 @@ MODE_MINORITY = 6
 MODE_OBITER = 7
 MODE_OVERSTATEMENT = 8
 MODE_DEAD_LAW = 10
+MODE_DISTINGUISHABLE = 11
 MODE_WRONG_PINPOINT = 12
 
 
@@ -59,6 +63,8 @@ class CitationVerdict:
     voice: VoiceVerdict | None = None
     weight: WeightVerdict | None = None
     treatment: TreatmentReport | None = None
+    hierarchy: HierarchyCheck | None = None
+    applicability: ApplicabilityVerdict | None = None
     findings: list[Finding] = field(default_factory=list)
     grade: str = "A"
     needs_review: bool = False
@@ -112,6 +118,8 @@ def build_verdict(
     voice: VoiceVerdict | None = None,
     weight: WeightVerdict | None = None,
     treatment: TreatmentReport | None = None,
+    hierarchy: HierarchyCheck | None = None,
+    applicability: ApplicabilityVerdict | None = None,
     claimed_pinpoint: str | None = None,
     likely_quoted: bool = False,
 ) -> CitationVerdict:
@@ -129,6 +137,8 @@ def build_verdict(
         voice=voice,
         weight=weight,
         treatment=treatment,
+        hierarchy=hierarchy,
+        applicability=applicability,
     )
 
     # Existence. A well-formed citation matching nothing is the phantom case and is terminal.
@@ -154,6 +164,15 @@ def build_verdict(
             )
         )
         verdict.grade = _drop(verdict.grade, 2)
+
+    # The court. A High Court decision passed off as the Supreme Court's, or two judges called a
+    # Constitution Bench, makes an authority binding that is not — and both are settled by the record
+    # rather than by reading the judgment.
+    if hierarchy is not None and hierarchy.is_problem:
+        verdict.findings.append(
+            Finding(MODE_WRONG_COURT, f"wrong court or bench ({hierarchy.status})", hierarchy.note or "")
+        )
+        verdict.grade = _floor(verdict.grade, "D")
 
     # Pinpoint.
     if pinpoint is not None and pinpoint.is_problem:
@@ -208,6 +227,18 @@ def build_verdict(
             Finding(MODE_DEAD_LAW, f"{treatment.status.replace('_', ' ')} by a later judgment", treatment.note or "")
         )
         verdict.grade = _floor(verdict.grade, "D")
+
+    # Applicability. The last question, and the only one the judgment cannot answer by itself: the
+    # facts of the matter now before the court are not in it.
+    if applicability is not None:
+        if applicability.is_problem:
+            detail = applicability.reason or "the facts the cited case turned on are absent here"
+            if applicability.distinguishing_facts:
+                detail += " Distinguishing facts: " + "; ".join(applicability.distinguishing_facts) + "."
+            verdict.findings.append(Finding(MODE_DISTINGUISHABLE, "distinguishable on the facts", detail))
+            verdict.grade = _drop(verdict.grade)
+        if applicability.needs_review:
+            verdict.ask_review(applicability.review_reason)
 
     # Weight. Only a grounded classification costs a grade; "unclear" is the honest default.
     if weight is not None and weight.is_obiter:

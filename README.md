@@ -39,6 +39,7 @@ uv run orderorder ingest text INSC:2019:770          # fetch the official PDF, c
 uv run orderorder locate INSC:2019:770 "the plaintiff is the dominus litis" --pinpoint 73
 
 uv run orderorder verify --file brief.txt            # every citation in a brief
+uv run orderorder verify --file brief.txt --facts matter.txt   # ... and whether each one applies
 
 uv run orderorder ingest bulk-text                   # text for the whole corpus; resumable
 uv run orderorder ingest aliases                     # learn the SCC citations the open data omits
@@ -68,8 +69,8 @@ only the verifier confirms.
 All three questions the product asks about a citation: **does the case exist**, **which paragraph is
 being relied on**, and **does that paragraph support the claim to the extent claimed** — and, once a
 paragraph is fixed, **whose words they are** and **whether they carried the decision**. Between them
-these detect failure modes 1, 2, 4, 5, 6, 7, 8, 9, 10 and 12 from the taxonomy in
-[docs/PRD.md](docs/PRD.md). Only extent of support and ratio-versus-obiter need a language model.
+these detect **all twelve** failure modes in the taxonomy in [docs/PRD.md](docs/PRD.md). Seven of the
+twelve are decided without a language model at all.
 
 And the same machinery run backwards: **given a proposition and no citation, which judgment backs it,
 and which line**. Search drops any passage that is not the court speaking before it ever reaches the
@@ -128,6 +129,8 @@ which the corpus does not yet hold.
 | Sentence boundaries that survive "Kasturi v. Iyyamperumal" and "[2019] 9 S.C.R. 593" | `engine/sentences.py` |
 | Corpus-wide authority search: which judgment backs a proposition, and which line | `engine/search.py` |
 | The citator: treatment of one judgment by later ones, and the bench-strength rule | `engine/citator.py` |
+| Court and bench attribution: what the brief claims against what the record says | `engine/hierarchy.py` |
+| Applicability: whether the cited case governs the facts of this matter | `engine/facts.py` |
 | Resumable bulk text ingestion for the whole corpus | `ingest/bulk.py` |
 | Learning the reporter citations the open data omits, from how judgments cite each other | `ingest/aliases.py` |
 | Model providers with fallbacks across free tiers | `engine/providers.py` |
@@ -169,6 +172,15 @@ Shailendra (2018) relied on Pune Municipal, which was overruled in 2020. Only re
 wound, only judgments decided before the overruling, and only one hop — and the report says in terms
 that this is an inference from the citation graph rather than a holding of any court.
 
+**The court, and the facts.** Two checks close the taxonomy. A brief that calls a two-judge decision
+"a Constitution Bench", or attributes a High Court judgment to the Supreme Court, is claiming an
+authority binds when it does not; the record settles that without reading the judgment, and only
+overstatement is a finding. And `verify --facts` compares the facts the cited case turned on with the
+facts of the matter now before the court — the one question the judgment cannot answer by itself,
+since the present matter is not in it. Calling an authority inapplicable is the strong claim there, so
+the model must quote the judgment's own statement of the fact said to distinguish it, and a fact that
+cannot be found in the text is not recorded as distinguishing.
+
 **What the citator cannot see.** A judgment the corpus does not hold, which is 56% of the citations
 these judgments make. And a judgment whose text arrived truncated: Vijay Latka (2016) is held as nine
 paragraphs, so the authority it rests on is not in the text at all and nothing can be inferred about
@@ -191,7 +203,7 @@ separately and never used as the text a pinpoint resolves against.
 
 ### Not built yet
 
-Embeddings and hybrid retrieval, the fact comparator, the drafting surface and the web app. See
+Embeddings and hybrid retrieval, the drafting surface (PRD Surface B) and the web app. See
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Status

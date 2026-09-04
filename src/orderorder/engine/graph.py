@@ -18,6 +18,8 @@ from sqlalchemy.orm import Session
 from orderorder.citations.grammar import Citation
 from orderorder.db.models import Judgment
 from orderorder.engine.citator import TreatmentReport, treatment_of
+from orderorder.engine.facts import ApplicabilityVerdict, assess_applicability
+from orderorder.engine.hierarchy import HierarchyCheck, check_hierarchy
 from orderorder.engine.locator import Candidate, LocationResult, locate
 from orderorder.engine.providers import StructuredModel
 from orderorder.engine.scope import ScopeVerdict, assess_scope
@@ -43,6 +45,8 @@ class VerifyState(TypedDict, total=False):
     voice: VoiceVerdict | None
     weight: WeightVerdict | None
     treatment: TreatmentReport | None
+    hierarchy: HierarchyCheck | None
+    applicability: ApplicabilityVerdict | None
     verdict: CitationVerdict
 
 
@@ -53,6 +57,8 @@ def build_verify_graph(
     top_k: int = 6,
     voice_model: StructuredModel | None = None,
     weight_model: StructuredModel | None = None,
+    facts_model: StructuredModel | None = None,
+    matter_facts: str = "",
 ):
     """Compile the per-citation graph against a database session and its models.
 
@@ -65,10 +71,15 @@ def build_verify_graph(
         citation = state["citation"]
         resolution = resolve(session, citation)
         title = None
+        hierarchy = None
         if resolution.judgment_id:
             judgment = session.get(Judgment, resolution.judgment_id)
             title = judgment.title if judgment else None
-        return {"resolution": resolution, "judgment_title": title}
+            if judgment is not None:
+                hierarchy = check_hierarchy(
+                    state["proposition"], judgment.court, judgment.bench_strength
+                )
+        return {"resolution": resolution, "judgment_title": title, "hierarchy": hierarchy}
 
     def load_node(state: VerifyState) -> dict:
         resolution = state["resolution"]
@@ -126,6 +137,20 @@ def build_verify_graph(
         )
         return {"voice": voice, "weight": weight}
 
+    def applicability_node(state: VerifyState) -> dict:
+        """Does the cited case govern the facts of this matter?
+
+        Skipped entirely when the user has supplied no facts: there is nothing to compare against, and
+        an engine that answered anyway would be answering a question nobody asked.
+        """
+        if not (matter_facts or "").strip():
+            return {"applicability": None}
+        return {
+            "applicability": assess_applicability(
+                state["proposition"], matter_facts, state.get("candidates") or [], facts_model
+            )
+        }
+
     def assemble_node(state: VerifyState) -> dict:
         citation = state["citation"]
         location = state.get("location")
@@ -140,6 +165,8 @@ def build_verify_graph(
             voice=state.get("voice"),
             weight=state.get("weight"),
             treatment=state.get("treatment"),
+            hierarchy=state.get("hierarchy"),
+            applicability=state.get("applicability"),
             claimed_pinpoint=citation.pinpoint.label if citation.pinpoint else None,
             likely_quoted=any(c.likely_quoted for c in candidates[:3]),
         )
@@ -159,6 +186,7 @@ def build_verify_graph(
     graph.add_node("locate", locate_node)
     graph.add_node("scope", scope_node)
     graph.add_node("attribute", attribute_node)
+    graph.add_node("applicability", applicability_node)
     graph.add_node("assemble", assemble_node)
 
     graph.set_entry_point("resolve")
@@ -169,7 +197,8 @@ def build_verify_graph(
     graph.add_conditional_edges("load", has_text, {"locate": "locate", "assemble": "assemble"})
     graph.add_edge("locate", "scope")
     graph.add_edge("scope", "attribute")
-    graph.add_edge("attribute", "assemble")
+    graph.add_edge("attribute", "applicability")
+    graph.add_edge("applicability", "assemble")
     graph.add_edge("assemble", END)
     return graph.compile()
 
@@ -183,10 +212,18 @@ def verify_citation(
     top_k: int = 6,
     voice_model: StructuredModel | None = None,
     weight_model: StructuredModel | None = None,
+    facts_model: StructuredModel | None = None,
+    matter_facts: str = "",
 ) -> CitationVerdict:
     """Run one citation through the engine."""
     compiled = build_verify_graph(
-        session, model, top_k=top_k, voice_model=voice_model, weight_model=weight_model
+        session,
+        model,
+        top_k=top_k,
+        voice_model=voice_model,
+        weight_model=weight_model,
+        facts_model=facts_model,
+        matter_facts=matter_facts,
     )
     final = compiled.invoke({"citation": citation, "proposition": proposition})
     return final["verdict"]
@@ -200,6 +237,8 @@ def verify_text(
     top_k: int = 6,
     voice_model: StructuredModel | None = None,
     weight_model: StructuredModel | None = None,
+    facts_model: StructuredModel | None = None,
+    matter_facts: str = "",
 ) -> list[CitationVerdict]:
     """Find every citation in a passage and verify each one.
 
@@ -211,7 +250,13 @@ def verify_text(
 
     verdicts: list[CitationVerdict] = []
     compiled = build_verify_graph(
-        session, model, top_k=top_k, voice_model=voice_model, weight_model=weight_model
+        session,
+        model,
+        top_k=top_k,
+        voice_model=voice_model,
+        weight_model=weight_model,
+        facts_model=facts_model,
+        matter_facts=matter_facts,
     )
     for citation in extract_citations(text):
         proposition = sentence_around(text, citation.span[0])
