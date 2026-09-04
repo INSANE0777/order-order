@@ -39,12 +39,24 @@ uv run orderorder ingest text INSC:2019:770          # fetch the official PDF, c
 uv run orderorder locate INSC:2019:770 "the plaintiff is the dominus litis" --pinpoint 73
 
 uv run orderorder verify --file brief.txt            # every citation in a brief
+
+uv run orderorder ingest bulk-text                   # text for the whole corpus; resumable
+uv run orderorder index                              # full-text index over every paragraph
+uv run orderorder find "a misrepresentation vitiates consent only where it induced the contract"
 ```
 
-`verify` is the whole engine: it finds each citation, resolves it, loads the judgment, ranks the
+The engine runs in two directions.
+
+`verify` starts from a citation the brief already gives. It resolves it, loads the judgment, ranks the
 paragraphs, asks how far they support the claim, works out whose words the relied-on paragraph carries
 and whether they decided anything, and grades the result. Extent of support and ratio-versus-obiter
 need a language model; the other checks do not, and the command says so rather than staying silent.
+
+`find` starts from a proposition and no citation, which is where a lawyer preparing arguments actually
+starts. It searches every paragraph of every judgment held, drops anything that is not the court
+speaking, weighs bench strength and recency beside relevance, and names the sentence to read. With a
+model configured it then runs each authority back through `verify`, because retrieval proposes and
+only the verifier confirms.
 
 `uv run pytest` runs the suite; it uses an in-memory database and never touches the network.
 
@@ -55,6 +67,10 @@ being relied on**, and **does that paragraph support the claim to the extent cla
 paragraph is fixed, **whose words they are** and **whether they carried the decision**. Between them
 these detect failure modes 1, 2, 4, 5, 6, 7, 8, 9 and 12 from the taxonomy in
 [docs/PRD.md](docs/PRD.md). Only extent of support and ratio-versus-obiter need a language model.
+
+And the same machinery run backwards: **given a proposition and no citation, which judgment backs it,
+and which line**. Search drops any passage that is not the court speaking before it ever reaches the
+lawyer, so the tool cannot suggest as authority the kind of passage the verifier exists to catch.
 
 **The model is never believed, only checked.** It is asked to name a paragraph and copy a sentence
 from it. That sentence is then string-matched against the stored judgment. A quote that does not match
@@ -94,6 +110,9 @@ passing remark is as damaging as the reverse, so the classifier abstains rather 
 | Scope comparator: extent of support, dropped conditions, a narrowed proposition | `engine/scope.py` |
 | Voice and opinion: counsel's argument, the court below, a quoted precedent, the headnote, the dissent | `engine/voice.py` |
 | Weight: ratio versus obiter, with abstention as the default | `engine/weight.py` |
+| Sentence boundaries that survive "Kasturi v. Iyyamperumal" and "[2019] 9 S.C.R. 593" | `engine/sentences.py` |
+| Corpus-wide authority search: which judgment backs a proposition, and which line | `engine/search.py` |
+| Resumable bulk text ingestion for the whole corpus | `ingest/bulk.py` |
 | Model providers with fallbacks across free tiers | `engine/providers.py` |
 | Verdict assembly and the grading rubric | `engine/verdict.py` |
 | The engine as a LangGraph state graph | `engine/graph.py` |

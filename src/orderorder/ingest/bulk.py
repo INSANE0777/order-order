@@ -22,6 +22,7 @@ from __future__ import annotations
 import os
 from collections.abc import Callable, Iterator
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -122,6 +123,34 @@ def _fetch_and_parse(
         return canonical_key, None, f"{type(exc).__name__}: {exc}"
 
 
+@contextmanager
+def _fetched(
+    judgments: list[Judgment], corpus_dir: Path, workers: int
+) -> Iterator[Iterator[tuple[str, ExtractedJudgment | None, str | None]]]:
+    """Fetched and parsed judgments, as they finish.
+
+    One worker runs in this process, which keeps a small run debuggable and lets tests exercise the
+    accounting with a stand-in fetcher — a process pool could not see one, since the work would have
+    to be pickled across to a fresh interpreter.
+    """
+    if workers <= 1:
+        yield (
+            _fetch_and_parse(j.canonical_key, j.source_id or "", _year_of(j), corpus_dir)
+            for j in judgments
+        )
+        return
+
+    # More processes than cores buys nothing once parsing saturates them, and each one costs a Python
+    # interpreter's memory.
+    pool_size = max(1, min(workers, (os.cpu_count() or 4)))
+    with ProcessPoolExecutor(max_workers=pool_size) as pool:
+        futures = [
+            pool.submit(_fetch_and_parse, j.canonical_key, j.source_id or "", _year_of(j), corpus_dir)
+            for j in judgments
+        ]
+        yield (future.result() for future in as_completed(futures))
+
+
 def ingest_text_bulk(
     session: Session,
     judgments: list[Judgment],
@@ -138,16 +167,8 @@ def ingest_text_bulk(
         return result
 
     by_key = {j.canonical_key: j for j in judgments}
-    # More processes than cores buys nothing once parsing saturates them, and each one costs a Python
-    # interpreter's memory.
-    pool_size = max(1, min(workers, (os.cpu_count() or 4)))
-    with ProcessPoolExecutor(max_workers=pool_size) as pool:
-        futures = [
-            pool.submit(_fetch_and_parse, j.canonical_key, j.source_id or "", _year_of(j), corpus_dir)
-            for j in judgments
-        ]
-        for done, future in enumerate(as_completed(futures), start=1):
-            canonical_key, extracted, error = future.result()
+    with _fetched(judgments, corpus_dir, workers) as stream:
+        for done, (canonical_key, extracted, error) in enumerate(stream, start=1):
             judgment = by_key[canonical_key]
 
             if error is not None:

@@ -32,7 +32,23 @@ machine with no provider key. The engine is real throughout — real judgment te
 verification, real grading. Four answers go in, two of them confident and wrong, and the engine
 catches both by string-matching the quote against the stored judgment.
 
-To run it with a real model instead, put any one of these in `.env` and use `orderorder verify`:
+### 3. Finding an authority, with no citation to start from
+
+```bash
+uv run orderorder ingest bulk-text     # text for the whole corpus; resumable, ~0.4s a judgment
+uv run orderorder index                # full-text index over every paragraph
+uv run orderorder find "a misrepresentation vitiates consent only where it induced the contract"
+```
+
+The other direction: a lawyer has a proposition and needs a judgment to put behind it. Search returns
+ranked authorities, each with the paragraph and the sentence to read, and refuses to offer a passage
+that is not the court speaking — an advocate's submission matches a proposition's words better than a
+holding does, because it is stated without the qualifications.
+
+Also no API key. With one configured, each authority is run back through the verifier, so a candidate
+whose words match is separated from one that supports the claim.
+
+To run the model-dependent checks for real, put any one of these in `.env`:
 
 ```
 GOOGLE_API_KEY=...      # or GROQ_API_KEY, or CEREBRAS_API_KEY — all have free tiers
