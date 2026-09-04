@@ -190,7 +190,10 @@ def normalize_citation_string(text: str) -> str | None:
 
 def _build(reporter: str, m: re.Match[str], text: str) -> Citation | None:
     g = m.groupdict()
-    raw = m.group(0).strip()
+    # A citation in a wrapped brief straddles a line break ("2019 INSC\n770"). The span keeps the
+    # true offsets, but the raw string is what gets quoted back to the reader in every finding, so it
+    # is collapsed to one line.
+    raw = " ".join(m.group(0).split())
     span = (m.start(), m.end())
     try:
         if reporter == "SCC":

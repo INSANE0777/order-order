@@ -199,3 +199,44 @@ def test_a_cue_broken_across_a_line_reads_as_one_cue() -> None:
     verdict = attribute_voice(_candidate(body))
     assert verdict.voice == "counsel_argument"
     assert verdict.cue == "learned Advocate"
+
+
+def test_a_case_referred_to_as_supra_is_still_a_quoted_precedent() -> None:
+    """Indian judgments refer back with "(supra)", which sits between the case name and the verb."""
+    body = (
+        "In Khet Singh vs. Union of India (supra) this Court held that even if there is any sort of "
+        "procedural illegality in conducting the search, the evidence collected will not become "
+        "inadmissible."
+    )
+    verdict = attribute_voice(_candidate(body))
+    assert verdict.voice == "quoted_precedent"
+
+
+def test_a_paragraph_carrying_two_voices_asks_for_review_when_nothing_pins_the_quote() -> None:
+    """The court answered the argument, so the voice is the court's — but which half was relied on?
+
+    With a verified quote the question is settled by where the quote sits. Without one, reporting a
+    clean "court" would hide that half the paragraph is somebody else's words.
+    """
+    verdict = attribute_voice(_candidate(ARGUMENT_THEN_ANSWER))
+    assert verdict.voice == "court_majority"
+    assert verdict.needs_review
+    assert verdict.cue == "on behalf of the appellant"
+    # With the quote located, the same paragraph is answered without hesitation.
+    settled = attribute_voice(
+        _candidate(ARGUMENT_THEN_ANSWER),
+        quote_start=ARGUMENT_THEN_ANSWER.index("A misrepresentation vitiates consent only"),
+    )
+    assert settled.voice == "court_majority"
+    assert not settled.needs_review
+
+
+def test_the_court_below_acting_at_a_distance_from_its_verb() -> None:
+    """"The High Court has vide the impugned judgement held ..." — real wording from 2024 INSC 1027."""
+    body = (
+        "The High Court has vide the impugned judgement held Articles 13 and 14 of the Concession "
+        "Agreement to be bad in law and directed NTBCL to cease the imposition of user fees."
+    )
+    verdict = attribute_voice(_candidate(body))
+    assert verdict.voice == "lower_court"
+    assert verdict.is_problem

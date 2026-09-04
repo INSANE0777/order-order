@@ -204,12 +204,26 @@ def verify_text(
 # A sentence ends at a full stop that follows a lower-case letter or digit and precedes a capital.
 # Requiring the lower-case or digit is what stops "[2019] 9 S.C.R. 593" and "No. 5522 of 2019" from
 # being split mid-citation, which would hand the scope check half a proposition.
-_SENTENCE_BREAK = re.compile(r"(?<=[a-z0-9\)\"'’”])\.\s+(?=[A-Z\"'“‘])|\n\s*\n")
+#
+# The lookbehinds are the abbreviations that end in a lower-case letter and are followed by a capital,
+# which is every case name a brief contains: "Kasturi v. Iyyamperumal" would otherwise be read as two
+# sentences and the claim would lose its verb. Each is written as its own lookbehind because Python
+# requires a fixed width for each.
+_ABBREVIATIONS = ["v", "vs", "No", "Nos", "Anr", "Ors", "Ltd", "Pvt", "Smt", "Sri", "Shri", "Mr", "Mrs", "Dr", "Hon"]
+_SENTENCE_BREAK = re.compile(
+    "".join(rf"(?<!\b{abbrev})" for abbrev in _ABBREVIATIONS)
+    + r"(?<=[a-z0-9\)\"'’”])\.\s+(?=[A-Z\"'“‘])|\n\s*\n"
+)
 
 
 def _sentence_around(text: str, position: int) -> str:
-    """The sentence containing a character position, with the citation itself left in place."""
+    """The sentence containing a character position, with the citation itself left in place.
+
+    Whitespace is collapsed, because a brief wrapped at seventy characters would otherwise hand the
+    scope check a proposition with line breaks through the middle of it, and quote every finding back
+    to the reader in the same broken shape.
+    """
     breaks = [m.end() for m in _SENTENCE_BREAK.finditer(text)]
     start = max((b for b in breaks if b <= position), default=0)
     end = min((b for b in breaks if b > position), default=len(text))
-    return text[start:end].strip()
+    return " ".join(text[start:end].split())

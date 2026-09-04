@@ -59,12 +59,15 @@ LOWER_COURT_CUES = re.compile(
     r"""(?ix)
     \b(?:
         the\s+(?:High\s+Court|Trial\s+Court|trial\s+court|District\s+Judge|Sessions\s+Judge|
-            learned\s+Single\s+Judge|Division\s+Bench|Tribunal|Commission|Appellate\s+Authority|
-            first\s+appellate\s+court|courts?\s+below)
-        \s+(?:has\s+|have\s+|had\s+)?
+            learned\s+Single\s+Judge|Division\s+Bench|Tribunal|National\s+Commission|Commission|
+            Appellate\s+Authority|first\s+appellate\s+court|courts?\s+below)
+            # "The High Court has vide the impugned judgement held ..." — the court and its verb are
+            # routinely separated by how and when it acted, so a bounded run is allowed between them.
+            # The class excludes a full stop, so the run cannot reach a verb in the next sentence.
+            [^.]{0,45}?\s+
         (?:held|observed|found|concluded|took\s+the\s+view|was\s+of\s+the\s+view|dismissed|allowed|
-            recorded|reasoned)
-      | (?:impugned\s+judgment\s+(?:holds|held|records|proceeds))
+            recorded|reasoned|directed)
+      | (?:impugned\s+(?:judgment|judgement|order)\s+(?:holds|held|records|proceeds))
     )\b
     """
 )
@@ -72,11 +75,22 @@ LOWER_COURT_CUES = re.compile(
 QUOTED_PRECEDENT_CUES = re.compile(
     r"""(?ix)
     \b(?:
-        (?:in|see)\s+[A-Z][\w.'-]*(?:\s+[\w.'-]+){0,6}\s+v[s]?\.?\s+[A-Z][\w.'-]*(?:\s+[\w.'-]+){0,6}
+        # "In Khet Singh vs. Union of India (supra) this Court, after considering a number of earlier
+        # decisions, held that ..." — the earlier bench is named, then words intervene before its verb.
+        # Naming the bench is what makes the loose run safe: without that subject the second branch
+        # below applies instead, which allows nothing between the citation and the verb.
+        (?:in|see)\s+(?P<case1>[A-Z][\w.'-]*(?:\s+[\w.'-]+){0,6}\s+v[s]?\.?\s+[A-Z][\w.'-]*(?:\s+[\w.'-]+){0,6})
+            (?:\s*\(supra\))?
+            [\s,()\[\]\d.A-Z-]{0,40}?
+            (?:this|the|a)\s+(?:Court|Constitution\s+Bench|coordinate\s+Bench|Bench|Division\s+Bench)
+            [^.]{0,60}?\s*
+            (?:has\s+|had\s+)?(?:observed|held|laid\s+down|stated|ruled|opined|explained)
+      | (?:in|see)\s+(?P<case2>[A-Z][\w.'-]*(?:\s+[\w.'-]+){0,6}\s+v[s]?\.?\s+[A-Z][\w.'-]*(?:\s+[\w.'-]+){0,6})
+            # "(supra)" for a case already cited, which is how Indian judgments refer back.
+            (?:\s*\(supra\))?
             # The reporter citation that usually follows a case name. The class admits digits, capitals
             # and brackets but no lower-case letter, so the run cannot cross into the next sentence.
-            [\s,()\[\]\d.A-Z-]{0,40}?
-            (?:this\s+Court|the\s+Constitution\s+Bench|a\s+coordinate\s+Bench|this\s+Bench)?\s*
+            [\s,()\[\]\d.A-Z-]{0,40}?\s*
             (?:has\s+|had\s+)?(?:observed|held|laid\s+down|stated|ruled|opined|explained)
       | (?:it\s+was\s+(?:held|observed|laid\s+down)\s+in\s+[A-Z])
       | (?:in\s+paragraph\s+\d{1,3}\s+of\s+the\s+(?:said\s+)?(?:judgment|decision|report))
@@ -251,14 +265,27 @@ def attribute_voice(
             reason="the judgment's opinion boundaries are not known for this text version",
             needs_review=True,
         )
+    # A paragraph that recites an argument and then answers it is the court's from the answer onward,
+    # but only a verified quote says which half the brief leaned on. Without one, the safe answer is
+    # the court's voice with the disagreement on the record, not a clean bill of health.
+    mixed = governing is not None and quote_start is None
     return VoiceVerdict(
         voice=voice,
         opinion_kind=opinion_kind,
         opinion_author=author,
+        cue=governing[1][0] if mixed else None,
         method="opinion",
+        needs_review=mixed,
         reason=(
-            f"no cue attributes the passage to anyone else, and it falls in the {opinion_kind} opinion"
-            + (f" of {author}" if author else "")
+            (
+                f"the paragraph carries more than one voice: it recites {governing[1][0]!r} before the "
+                "court answers it, and no verified quote fixes which the brief relied on"
+            )
+            if mixed
+            else (
+                f"no cue attributes the passage to anyone else, and it falls in the {opinion_kind} "
+                "opinion" + (f" of {author}" if author else "")
+            )
         ),
     )
 

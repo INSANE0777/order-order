@@ -59,13 +59,29 @@ class CitationVerdict:
     findings: list[Finding] = field(default_factory=list)
     grade: str = "A"
     needs_review: bool = False
-    review_reason: str | None = None
+    review_reasons: list[str] = field(default_factory=list)
     scope: ScopeVerdict | None = None
     pinpoint: PinpointCheck | None = None
 
     @property
     def is_sound(self) -> bool:
         return self.grade in {"A", "B"} and not self.findings
+
+    @property
+    def review_reason(self) -> str | None:
+        """Every reason review was asked for, joined.
+
+        A citation can want review twice over for different reasons: the paragraph carries more than
+        one voice, and no model was configured to read it. Keeping only the last one arriving would
+        hide whichever came first, and the two are not alternatives.
+        """
+        return "; ".join(self.review_reasons) or None
+
+    def ask_review(self, reason: str | None) -> None:
+        """Record that a human should look at this citation, and why."""
+        self.needs_review = True
+        if reason and reason not in self.review_reasons:
+            self.review_reasons.append(reason)
 
 
 def _drop(grade: str, steps: int = 1) -> str:
@@ -116,13 +132,11 @@ def build_verdict(
             Finding(MODE_PHANTOM, "no such case", resolution.note or "no judgment carries this citation")
         )
         verdict.grade = "F"
-        verdict.needs_review = True
-        verdict.review_reason = "the citation could not be resolved against the corpus"
+        verdict.ask_review("the citation could not be resolved against the corpus")
         return verdict
 
     if resolution.status == "ambiguous":
-        verdict.needs_review = True
-        verdict.review_reason = resolution.note or "several judgments match this citation"
+        verdict.ask_review(resolution.note or "several judgments match this citation")
         verdict.grade = "C"
         return verdict
 
@@ -179,9 +193,8 @@ def build_verdict(
                 Finding(MODE_WRONG_VOICE, f"not the court's words ({voice.voice})", voice.reason or "")
             )
             verdict.grade = _floor(verdict.grade, "D")
-        if voice.needs_review and not verdict.needs_review:
-            verdict.needs_review = True
-            verdict.review_reason = voice.reason
+        if voice.needs_review:
+            verdict.ask_review(voice.reason)
 
     # Weight. Only a grounded classification costs a grade; "unclear" is the honest default.
     if weight is not None and weight.is_obiter:
@@ -196,8 +209,7 @@ def build_verdict(
         # would be the same overclaiming this product exists to catch, so it only asks for review.
         if scope.model_support in {"not_assessed", "error", "malformed"}:
             verdict.support = "not_assessed"
-            verdict.needs_review = True
-            verdict.review_reason = scope.review_reason
+            verdict.ask_review(scope.review_reason)
             return verdict
 
         verdict.support = scope.support
@@ -229,7 +241,6 @@ def build_verdict(
             verdict.grade = _drop(verdict.grade)
 
         if scope.needs_review:
-            verdict.needs_review = True
-            verdict.review_reason = scope.review_reason
+            verdict.ask_review(scope.review_reason)
 
     return verdict

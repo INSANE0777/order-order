@@ -1,0 +1,44 @@
+WRITTEN SUBMISSIONS ON BEHALF OF THE APPELLANT
+
+(Demo brief for OrderOrder. Every citation points at a judgment held in the
+knowledge base. Six of the eight are wrong in a different way, and each way is a
+numbered failure mode from docs/PRD.md. The expected verdicts are recorded in
+demo/expected.md.)
+
+I. IMPLEADMENT IN A SUIT FOR SPECIFIC PERFORMANCE
+
+1. It is submitted at the outset that the appellant cannot be impleaded as a
+defendant in a suit for specific performance of a contract to which he is not a
+party, as held in 2019 INSC 770, para 7.
+
+2. A subsequent purchaser who holds a prior agreement to sell is a necessary
+party to the suit and must be impleaded to protect his interest, as this Court
+held in 2019 INSC 770, para 3.2.
+
+3. This Court has further held that the controversies between the parties to the
+litigation alone are to be gone into under Order 1 Rule 10 CPC: see 2019 INSC
+770, para 73.
+
+4. The proposition is settled beyond argument by the decision of this Court in
+Mohanlal Sharma v. State of Rajasthan, (2023) 7 SCC 4412.
+
+II. SEIZURE AND THE NARCOTIC DRUGS AND PSYCHOTROPIC SUBSTANCES ACT, 1985
+
+5. Procedural illegality in conducting a search and seizure does not render the
+evidence collected thereby inadmissible, as this Court held in 2025 INSC 1045,
+para 29.
+
+6. It is settled that non-compliance with Section 52A of the Act vitiates the
+trial in every case, as laid down in Narcotics Control Bureau v. Kashif, (2025) 3
+SCC 118.
+
+III. TOLLS AND CONCESSION AGREEMENTS
+
+7. Articles 13 and 14 of a concession agreement permitting the levy of user fees
+in perpetuity are bad in law, as this Court held in 2024 INSC 1027, para 3.
+
+IV. ABUSE OF PROCESS
+
+8. Repeated and frivolous litigation wastes the court's valuable time and
+resources, and this Court has condemned litigants who pollute the streams of
+justice: 2024 INSC 1051, para 18.

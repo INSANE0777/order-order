@@ -1,0 +1,38 @@
+# What the demo brief contains, and what the engine says
+
+Eight citations in [brief.txt](brief.txt). Two are sound. Six are wrong, each in a different way, and
+each way is a numbered failure mode from [../docs/PRD.md](../docs/PRD.md) §6. Every judgment cited is
+really in the knowledge base and the paragraphs quoted are really its paragraphs, so nothing here is
+staged: the errors are planted, the corpus is not.
+
+The grades below are from a run with **no language model configured**, which is why every row reads
+`not_assessed` for support. That column is the one thing a key would change; the findings are decided
+without one.
+
+| # | Citation | Planted | Mode | Engine's verdict |
+|---|---|---|---|---|
+| 1 | 2019 INSC 770, para 7 | nothing — this is sound | — | **A**, voice `court_majority` |
+| 2 | 2019 INSC 770, para 3.2 | counsel's submission cited as the holding | 5 | **D**, "not the court's words (counsel_argument): the passage follows 'learned Advocate'" |
+| 3 | 2019 INSC 770, para 73 | a paragraph the judgment does not have | 12 | **D**, "the brief cites paragraph 73, but this judgment's numbering stops at 16 (18 paragraphs)" |
+| 4 | (2023) 7 SCC 4412 | a case that does not exist | 1 | **F**, "no judgment carries the alias SCC:2023:7:4412" |
+| 5 | 2025 INSC 1045, para 29 | words quoted from an earlier judgment (Khet Singh), cited as this Court's | 5 | **D**, voice `quoted_precedent` |
+| 6 | Narcotics Control Bureau v. Kashif, (2025) 3 SCC 118 | real case, invented reporter citation | 2 | **D**, "citation string is wrong … matched on party names instead" |
+| 7 | 2024 INSC 1027, para 3 | the High Court's holding cited as the Supreme Court's | 5 | **D**, "the passage follows 'The High Court has vide the impugned judgement held'" |
+| 8 | 2024 INSC 1051, para 18 | nothing — this is sound | — | **A**, voice `court_majority` |
+
+Citation 3 draws a second finding: the paragraph the brief pinpointed cannot be located, and among the
+candidates is one whose printed number breaks the judgment's sequence, which is what a block quoted
+from another judgment looks like.
+
+Citation 6 resolves by party name because the reporter citation matches nothing, which is the honest
+answer: the case exists, the citation string does not.
+
+## What is not demonstrated here
+
+- **Mode 6 (dissent).** None of the eleven judgments ingested so far carries a dissent, so there is no
+  honest way to show it against real data. The path is covered end to end in `tests/test_graph.py`.
+- **Modes 8 and 9 (overstatement, selective quotation).** These need a model. Run
+  `demo/scripted_model.py` to see the comparator and the quote check working on real judgment text
+  with the model's answer supplied from a script.
+- **Modes 3, 10 and 11** (wrong court or bench, dead law, distinguishable) are not built yet. See
+  [../docs/ROADMAP.md](../docs/ROADMAP.md).

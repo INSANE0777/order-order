@@ -302,3 +302,18 @@ def test_a_paragraph_that_merely_ranked_well_is_not_attributed(divided) -> None:
     verdict = verify_text(divided, text, StubModel(fabricated))[0]
     assert verdict.voice is None
     assert not any(f.mode in {5, 6} for f in verdict.findings)
+
+
+def test_a_case_name_does_not_end_the_sentence() -> None:
+    """"Kasturi v. Iyyamperumal" reads as two sentences unless the abbreviation is known."""
+    text = "The rule was settled in Kasturi v. Iyyamperumal, (2005) 6 SCC 733, which binds this Court."
+    around = _sentence_around(text, text.index("SCC"))
+    assert around.startswith("The rule was settled")
+    assert "binds this Court" in around
+
+
+def test_a_wrapped_brief_yields_a_proposition_on_one_line() -> None:
+    text = "The plaintiff is the\ndominus litis and cannot be\ncompelled: (2019) 4 SCC 1."
+    assert _sentence_around(text, text.index("SCC")) == (
+        "The plaintiff is the dominus litis and cannot be compelled: (2019) 4 SCC 1."
+    )

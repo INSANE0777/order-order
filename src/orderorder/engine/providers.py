@@ -30,11 +30,12 @@ OLLAMA_PROBE_TIMEOUT = 1.0
 
 
 @lru_cache(maxsize=4)
-def ollama_running(host: str | None = None) -> bool:
-    """Whether a local Ollama server is actually listening.
+def ollama_models(host: str | None = None) -> tuple[str, ...]:
+    """The models a local Ollama server actually holds, or an empty tuple if it is not listening.
 
     Ollama needs no API key, so a key check would call it available even when nothing is running and
-    every request would fail at the point of use. Probe once and cache the answer.
+    every request would fail at the point of use. A running server with nothing pulled fails just as
+    surely, which is what an empty tuple records. Probe once and cache the answer.
     """
     import httpx
 
@@ -43,9 +44,22 @@ def ollama_running(host: str | None = None) -> bool:
         base = f"http://{base}"
     try:
         response = httpx.get(f"{base.rstrip('/')}/api/tags", timeout=OLLAMA_PROBE_TIMEOUT)
-        return response.status_code == 200
+        if response.status_code != 200:
+            return ()
+        return tuple(m.get("name", "") for m in response.json().get("models", []))
     except Exception:  # noqa: BLE001 - any failure means it is not usable
-        return False
+        return ()
+
+
+def ollama_running(host: str | None = None) -> bool:
+    """Whether a local Ollama server is listening at all, whatever it holds."""
+    return bool(ollama_models(host))
+
+
+def ollama_has_model(model: str, host: str | None = None) -> bool:
+    """Whether one particular model is pulled. Ollama tags default to ':latest' when unqualified."""
+    wanted = model if ":" in model else f"{model}:latest"
+    return any(name in (wanted, model) for name in ollama_models(host))
 
 # Which structured-output method each provider handles best.
 STRUCTURED_METHOD = {
@@ -90,7 +104,10 @@ class ProviderSpec:
     @property
     def is_available(self) -> bool:
         if self.provider == "ollama":
-            return ollama_running()
+            # A server that is up but has not pulled this model is not usable: the failure would
+            # otherwise arrive mid-run as a provider error, which reads as "checked and could not
+            # confirm" when the truth is that nothing was ever configured.
+            return ollama_has_model(self.model)
         env = self.env_var
         return True if env is None else bool(os.environ.get(env))
 
@@ -153,6 +170,6 @@ def describe_providers() -> list[tuple[str, str, bool]]:
         spec = parse_spec(text)
         if spec is None:
             continue
-        requirement = spec.env_var or ("server running" if spec.provider == "ollama" else "-")
+        requirement = spec.env_var or ("server + model pulled" if spec.provider == "ollama" else "-")
         rows.append((spec.as_string, requirement, spec.is_available))
     return rows
