@@ -142,7 +142,7 @@ Measured on the real corpus, which is now the whole of it:
 | Citation aliases | 20,778, of which 1,870 learned from the corpus itself |
 | Judgments with full text | 9,424 (99.95%) |
 | Paragraphs indexed | 409,499 |
-| Citation edges | 8,276 |
+| Citation edges | 8,716 |
 
 - Importing metadata takes about 15 seconds a year and parses every citation in the source.
 - Ingesting the text of the whole corpus takes about 0.4 seconds a judgment on a CPU-only laptop with
@@ -151,20 +151,28 @@ Measured on the real corpus, which is now the whole of it:
   have and three that yield no text after cleaning.
 - Building the full-text index over 409,499 paragraphs takes 87 seconds. A search across all of them
   answers in about 8 seconds.
-- The citator extracts 8,276 edges, of which 7 are negative. Every one of those seven was read against
-  the judgment that produced it, and the false positives that reading found are pinned as tests. The
-  precision bar here is asymmetric: a missed overruling costs an advocate nothing they did not already
-  lack, while a false one has them drop a binding authority.
-- `orderorder treatment INSC:2014:53` reports Pune Municipal Corporation as **doubted**, cited by 77
-  of the 9,424 judgments held, and notes that the 2022 bench whose words claim to overrule it was two
-  judges against three and so could not.
+- The citator extracts 8,716 edges. Negative treatment is rare, as it should be: 25 across the whole
+  corpus. Each was read against the judgment that produced it over four rounds of auditing, and every
+  false positive that reading found is pinned as a test. The precision bar is asymmetric: a missed
+  overruling costs an advocate nothing they did not already lack, while a false one has them drop a
+  binding authority.
+- `orderorder treatment INSC:2014:53` reports Pune Municipal Corporation as **overruled**, by Indore
+  Development Authority v Manoharlal (five judges, 2020) at its paragraph 362, among 118 judgments
+  citing it — and shows two later two-judge benches whose words claim to overrule it downgraded to
+  doubt, because they could not.
 
-**Known gap.** The citator sees negative treatment *of* a judgment, not of the line of authority it
-belongs to. A 2016 judgment faithfully applying a rule that a Constitution Bench discarded in 2020 is
-still reported as good law, because nothing has been said about that judgment itself. The edges to fix
-this are already stored — a judgment that `relied_on` an overruled one is wounded by it — and the
-Constitution Bench in Indore Development Authority said as much in terms: "all other decisions in
-which Pune Municipal Corpn. has been followed, are also overruled."
+A judgment is wounded not only by what was said about it but by what happened to the cases it stood
+on, and the Constitution Bench said exactly that: "all other decisions in which Pune Municipal Corpn.
+has been followed, are also overruled." So a judgment that relied on or followed a case since
+overruled is reported as **undermined**, with the chain named: Indore Development Authority v
+Shailendra (2018) relied on Pune Municipal, which was overruled in 2020. Only reliance carries the
+wound, only judgments decided before the overruling, and only one hop — and the report says in terms
+that this is an inference from the citation graph rather than a holding of any court.
+
+**What the citator cannot see.** A judgment the corpus does not hold, which is 56% of the citations
+these judgments make. And a judgment whose text arrived truncated: Vijay Latka (2016) is held as nine
+paragraphs, so the authority it rests on is not in the text at all and nothing can be inferred about
+it.
 - Fetching and parsing a judgment's official PDF takes two to three seconds; a 51-page judgment
   segments into 118 paragraphs.
 - A citation to a paragraph the judgment does not have is reported as such, which is the Delhi High
