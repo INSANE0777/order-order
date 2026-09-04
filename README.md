@@ -117,10 +117,22 @@ passing remark is as damaging as the reverse, so the classifier abstains rather 
 | Verdict assembly and the grading rubric | `engine/verdict.py` |
 | The engine as a LangGraph state graph | `engine/graph.py` |
 
-Measured on the real corpus:
+Measured on the real corpus, which is now the whole of it:
 
-- Importing 2019 to 2024 takes about 15 seconds and yields roughly 5,000 judgments and 9,900 citation
-  aliases, with every citation in the source parsed by the grammar.
+| | |
+|---|---|
+| Judgments (2013-2025) | 9,429 |
+| Citation aliases | 18,908 |
+| Judgments with full text | 9,424 (99.95%) |
+| Paragraphs indexed | 409,499 |
+
+- Importing metadata takes about 15 seconds a year and parses every citation in the source.
+- Ingesting the text of the whole corpus takes about 0.4 seconds a judgment on a CPU-only laptop with
+  eight worker processes. Of 9,381 judgments, 194 failed on the first pass; 189 of those were transient
+  network failures and recovered on the retry, leaving 5 genuine losses: two PDFs the bucket does not
+  have and three that yield no text after cleaning.
+- Building the full-text index over 409,499 paragraphs takes 87 seconds. A search across all of them
+  answers in about 8 seconds.
 - Fetching and parsing a judgment's official PDF takes two to three seconds; a 51-page judgment
   segments into 118 paragraphs.
 - A citation to a paragraph the judgment does not have is reported as such, which is the Delhi High

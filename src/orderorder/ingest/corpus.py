@@ -19,6 +19,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
+from tenacity import Retrying, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+# What is worth trying again: the connection failed, timed out, or the bucket returned a 5xx. An HTTP
+# 404 is the bucket answering that the object is not there, and no amount of retrying changes that.
+TRANSIENT_ERRORS = (httpx.TransportError, httpx.RemoteProtocolError)
+DOWNLOAD_ATTEMPTS = 4
 
 BUCKET = "indian-supreme-court-judgments"
 REGION = "ap-south-1"
@@ -90,20 +96,34 @@ def metadata_key(year: int) -> str:
 
 
 def download(key: str, destination: Path, *, timeout: float = 600.0, chunk_size: int = 1 << 20) -> Path:
-    """Stream one object to disk. Skips the download if the file already exists with a non-zero size."""
+    """Stream one object to disk. Skips the download if the file already exists with a non-zero size.
+
+    Transient network failures are retried. Fetching nine thousand judgments over a home connection
+    produces a steady drizzle of DNS failures and dropped TLS handshakes — they were 184 of the 194
+    losses in the first full corpus run — and each one would otherwise be recorded as a judgment whose
+    PDF does not exist, which is a different and much more alarming thing.
+    """
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists() and destination.stat().st_size > 0:
         return destination
     tmp = destination.with_suffix(destination.suffix + ".part")
     url = f"{BASE_URL}/{key}"
-    with (
-        httpx.Client(timeout=timeout, follow_redirects=True) as client,
-        client.stream("GET", url) as response,
+
+    for attempt in Retrying(
+        retry=retry_if_exception_type(TRANSIENT_ERRORS),
+        stop=stop_after_attempt(DOWNLOAD_ATTEMPTS),
+        wait=wait_exponential(multiplier=0.5, max=8),
+        reraise=True,
     ):
-        response.raise_for_status()
-        with tmp.open("wb") as handle:
-            for chunk in response.iter_bytes(chunk_size):
-                handle.write(chunk)
+        with (
+            attempt, httpx.Client(timeout=timeout, follow_redirects=True) as client,
+            client.stream("GET", url) as response,
+        ):
+            # A 404 is an answer, not a failure to reach the bucket, so it is not retried.
+            response.raise_for_status()
+            with tmp.open("wb") as handle:
+                for chunk in response.iter_bytes(chunk_size):
+                    handle.write(chunk)
     tmp.replace(destination)
     return destination
 
