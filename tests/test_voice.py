@@ -240,3 +240,27 @@ def test_the_court_below_acting_at_a_distance_from_its_verb() -> None:
     verdict = attribute_voice(_candidate(body))
     assert verdict.voice == "lower_court"
     assert verdict.is_problem
+
+
+def test_an_earlier_bench_named_before_the_case_is_still_a_quoted_precedent() -> None:
+    """The commonest form of all, and the one a brief most often passes off as the holding.
+
+    Taken from 2024 INSC: the reporter repeats the whole citation in brackets after the short name,
+    so the cue has to survive lower-case letters inside those brackets.
+    """
+    body = (
+        "A two-Judge Bench of this Court in Dolat Ram v. State of Haryana [Dolat Ram v. State of "
+        "Haryana, (1995) 1 SCC 349 : 1995 SCC (Cri) 237] laid down the grounds for cancellation of "
+        "bail which are: (i) interference with the due course of administration of justice."
+    )
+    verdict = attribute_voice(_candidate(body))
+    assert verdict.voice == "quoted_precedent"
+    assert verdict.is_problem
+
+
+def test_a_constitution_bench_quoted_by_a_later_court() -> None:
+    body = (
+        "The Constitution Bench of this Court in Kesavananda Bharati v. State of Kerala held that the "
+        "basic structure of the Constitution cannot be destroyed by an amendment."
+    )
+    assert attribute_voice(_candidate(body)).voice == "quoted_precedent"

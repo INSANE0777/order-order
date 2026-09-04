@@ -72,28 +72,49 @@ LOWER_COURT_CUES = re.compile(
     """
 )
 # "In X v. Y this Court observed:" introduces words that are an earlier bench's, not this one's.
+#
+# The pieces below are shared by the branches. A case name; "(supra)", which is how Indian judgments
+# refer back to a case already cited; the reporter's bracketed repetition of the whole citation, which
+# is why one bounded run has to admit lower-case letters while the other does not; and the verbs a
+# court uses when reporting what an earlier one said.
+_CASE_NAME = r"[A-Z][\w.'-]*(?:\s+[\w.'-]+){0,6}\s+v[s]?\.?\s+[A-Z][\w.'-]*(?:\s+[\w.'-]+){0,6}"
+# "[Dolat Ram v. State of Haryana, (1995) 1 SCC 349 : 1995 SCC (Cri) 237]" — SCC prints the full
+# citation in brackets after the short name, and it contains lower-case letters, so it is matched as a
+# bracketed unit rather than by a character class.
+_BRACKETED_CITATION = r"(?:\s*\[[^\]]{0,180}\])?"
+_REPORTER_RUN = r"[\s,():;\[\]\d.A-Z-]{0,40}?"
+_ATTRIBUTING_VERB = r"(?:has\s+|had\s+)?(?:observed|held|laid\s+down|stated|ruled|opined|explained)"
+_EARLIER_BENCH = (
+    r"(?:this|the|a)\s+"
+    r"(?:(?:two|three|five|seven|nine|eleven|thirteen)[-\s]?Judge\s+)?"
+    r"(?:Constitution\s+Bench|coordinate\s+Bench|larger\s+Bench|Division\s+Bench|Bench|Court)"
+)
+
 QUOTED_PRECEDENT_CUES = re.compile(
-    r"""(?ix)
+    rf"""(?ix)
     \b(?:
+        # "A two-Judge Bench of this Court in Dolat Ram v. State of Haryana [ ... ] laid down ..."
+        # The bench is named before the case rather than after it, which is the commonest form of all
+        # and the one a brief most often passes off as the deciding court's own holding.
+        {_EARLIER_BENCH}\s+of\s+this\s+Court\s+in\s+{_CASE_NAME}
+            (?:\s*\(supra\))? {_BRACKETED_CITATION} {_REPORTER_RUN}\s*
+            {_ATTRIBUTING_VERB}
+
         # "In Khet Singh vs. Union of India (supra) this Court, after considering a number of earlier
-        # decisions, held that ..." — the earlier bench is named, then words intervene before its verb.
-        # Naming the bench is what makes the loose run safe: without that subject the second branch
-        # below applies instead, which allows nothing between the citation and the verb.
-        (?:in|see)\s+(?P<case1>[A-Z][\w.'-]*(?:\s+[\w.'-]+){0,6}\s+v[s]?\.?\s+[A-Z][\w.'-]*(?:\s+[\w.'-]+){0,6})
-            (?:\s*\(supra\))?
-            [\s,()\[\]\d.A-Z-]{0,40}?
-            (?:this|the|a)\s+(?:Court|Constitution\s+Bench|coordinate\s+Bench|Bench|Division\s+Bench)
-            [^.]{0,60}?\s*
-            (?:has\s+|had\s+)?(?:observed|held|laid\s+down|stated|ruled|opined|explained)
-      | (?:in|see)\s+(?P<case2>[A-Z][\w.'-]*(?:\s+[\w.'-]+){0,6}\s+v[s]?\.?\s+[A-Z][\w.'-]*(?:\s+[\w.'-]+){0,6})
-            # "(supra)" for a case already cited, which is how Indian judgments refer back.
-            (?:\s*\(supra\))?
-            # The reporter citation that usually follows a case name. The class admits digits, capitals
-            # and brackets but no lower-case letter, so the run cannot cross into the next sentence.
-            [\s,()\[\]\d.A-Z-]{0,40}?\s*
-            (?:has\s+|had\s+)?(?:observed|held|laid\s+down|stated|ruled|opined|explained)
+        # decisions, held that ..." — the earlier bench is named after the case, then words intervene
+        # before its verb. Naming the bench is what makes that loose run safe; without the bench, the
+        # branch after this one applies instead and allows nothing between the citation and the verb.
+      | (?:in|see)\s+{_CASE_NAME}
+            (?:\s*\(supra\))? {_BRACKETED_CITATION} {_REPORTER_RUN}
+            {_EARLIER_BENCH}
+            [^.]{{0,60}}?\s*
+            {_ATTRIBUTING_VERB}
+
+      | (?:in|see)\s+{_CASE_NAME}
+            (?:\s*\(supra\))? {_BRACKETED_CITATION} {_REPORTER_RUN}\s*
+            {_ATTRIBUTING_VERB}
       | (?:it\s+was\s+(?:held|observed|laid\s+down)\s+in\s+[A-Z])
-      | (?:in\s+paragraph\s+\d{1,3}\s+of\s+the\s+(?:said\s+)?(?:judgment|decision|report))
+      | (?:in\s+paragraph\s+\d{{1,3}}\s+of\s+the\s+(?:said\s+)?(?:judgment|decision|report))
       | (?:the\s+following\s+(?:passage|observations?)\s+(?:from|in)\s+)
     )
     """
