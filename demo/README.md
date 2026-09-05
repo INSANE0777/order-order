@@ -80,7 +80,37 @@ holding does, because it is stated without the qualifications.
 Also no API key. With one configured, each authority is run back through the verifier, so a candidate
 whose words match is separated from one that supports the claim.
 
-### 6. The numbers
+### 6. Arguing forwards: a proposition, bound to authority or refused
+
+```bash
+uv run orderorder argue demo/propositions.txt
+```
+
+The drafting half. Four propositions someone intends to argue, with no citations. For each one the
+corpus is searched, the candidates are put through the same verifier that checks a brief, and a gate
+decides whether any of them may be cited: the court's own words, the majority, still good law, and a
+quote that verifies word for word.
+
+Three things come back for each proposition — the pinpoint, the quote, and, where the court put it
+more narrowly than the advocate did, **the proposition to argue instead**:
+
+```
+    NARROWED  The plaintiff is dominus litis and cannot be compelled to add a party
+              against whom he does not want to fight.
+    [2018] 1 S.C.R. 806, para 17
+    KANAKLATA DAS & ORS. versus NABA KUMAR DAS & ORS.
+    verified: "the plaintiff being a dominus litis cannot be compelled to make any third
+               person a party to the suit ... unless such person is able to prove that he
+               is a necessary party"
+    argue instead: The plaintiff cannot be compelled to add a third person against his wish
+                   unless that person proves he is a necessary party.
+```
+
+What was rejected is listed with the reason, which is where the next hour of research starts. Without
+a key nothing can be *bound* — the gate can still check voice, opinion and treatment, and offers the
+line to read, marked unchecked.
+
+### 7. The numbers
 
 Neither of the two directions is worth much unmeasured, and both are measured against ground truth
 the corpus supplies rather than labels anyone wrote:

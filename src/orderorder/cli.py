@@ -26,7 +26,7 @@ from orderorder.citations.grammar import extract_citations
 from orderorder.config import get_settings
 from orderorder.db.models import CitationAlias, Judgment, JudgmentTextVersion, Paragraph
 from orderorder.db.session import get_session, init_db
-from orderorder.engine import citator, search
+from orderorder.engine import authority, citator, search
 from orderorder.engine.graph import verify_text
 from orderorder.engine.locator import locate as locate_claim
 from orderorder.engine.memo import render_memo, write_memo
@@ -682,6 +682,58 @@ def treatment_command(
                     edge.paragraph_label or "-",
                 )
             console.print(table)
+
+
+@app.command("argue")
+def argue_command(
+    file: str = typer.Argument(..., help="A file of propositions, one per line or paragraph."),
+    checked: int = typer.Option(
+        authority.DEFAULT_CHECKED, help="How many candidate authorities to verify per proposition."
+    ),
+    report: str | None = typer.Option(None, help="Also write the result to this file."),
+) -> None:
+    """Bind each proposition you intend to argue to an authority, or refuse to.
+
+    The drafting half of the engine. For every proposition the corpus is searched for a judgment that
+    says it, the candidates are put through the same verifier that checks a brief, and a gate decides
+    whether any of them is fit to cite: the court's own words, the majority, still good law, and a
+    quote that verifies word for word. A proposition that passes comes back with its pinpoint and its
+    quote. One that does not comes back with what was considered and what is wrong with it.
+    """
+    init_db()
+    propositions = [
+        line.strip()
+        for line in Path(file).read_text(encoding="utf-8").split("\n")
+        if len(line.split()) >= 6
+    ]
+    if not propositions:
+        console.print(f"[red]no propositions in {file}[/red]; one per line, six words or more")
+        raise typer.Exit(1)
+
+    model = build_structured(ScopeAssessment)
+    if model is None:
+        console.print(
+            "[yellow]no language model configured[/yellow], so nothing can be *bound*: the gate can "
+            "check voice, opinion and treatment, but not whether the paragraph says what you claim. "
+            "Lines are offered to read, marked unchecked."
+        )
+
+    lines: list[str] = []
+    with get_session() as session:
+        if not search.index_exists(session):
+            console.print("[dim]building the full-text index (first run)...[/dim]")
+            search.build_index(session)
+        for index, proposition in enumerate(propositions, start=1):
+            console.print(f"[dim]{index}/{len(propositions)}[/dim]")
+            binding = authority.bind_proposition(session, proposition, model, checked=checked)
+            lines.extend(authority.render_binding(binding))
+            lines.append("")
+
+    console.print("\n".join(lines))
+    if report:
+        Path(report).parent.mkdir(parents=True, exist_ok=True)
+        Path(report).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        console.print(f"[dim]written to {report}[/dim]")
 
 
 @app.command("find")
