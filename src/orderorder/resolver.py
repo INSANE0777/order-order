@@ -29,6 +29,13 @@ NOT_FOUND = "not_found"
 
 PARTY_MATCH_THRESHOLD = 88.0
 AMBIGUOUS_MARGIN = 4.0
+# Below this, the party names a brief gives and the title of the judgment its citation resolves to are
+# not the same case. Deliberately far below the matching threshold above: a brief writes "Kasturi v.
+# Iyyamperumal" for "KASTURI versus IYYAMPERUMAL AND OTHERS", and abbreviations, initials and dropped
+# respondents must all still count as agreement. Only a plain disagreement should register.
+NAME_MISMATCH_FLOOR = 55.0
+# Shorter than this carries too little to disagree with ("State of U.P.").
+MIN_PARTY_CHARS_TO_CHECK = 12
 
 
 @dataclass
@@ -47,6 +54,8 @@ class Resolution:
     judgment_id: str | None = None
     canonical_key: str | None = None
     matched_alias: str | None = None
+    matched_title: str | None = None
+    name_mismatch: bool = False
     score: float = 0.0
     candidates: list[Candidate] = field(default_factory=list)
     note: str | None = None
@@ -72,6 +81,7 @@ def resolve_exact(session: Session, normalized: str) -> Resolution:
         judgment_id=judgment.id,
         canonical_key=judgment.canonical_key,
         matched_alias=alias.citation_string,
+        matched_title=judgment.title,
         score=100.0,
     )
 
@@ -138,11 +148,38 @@ def resolve_by_parties(
     )
 
 
+def check_party_names(resolution: Resolution, party_names: str | None) -> Resolution:
+    """Do the parties the brief names belong to the case its citation points at?
+
+    An exact alias match answers "this citation exists". It does not answer "this citation is the one
+    for that case", and the difference is failure mode 2: a real case name attached to a different
+    case's numbers. A brief that says "Kasturi v. Iyyamperumal, (2019) 4 SCC 1" gets a confident
+    resolution to whatever (2019) 4 SCC 1 happens to be, and nothing has looked at the name.
+
+    Only plain disagreement counts. Party names in briefs are abbreviated, respondents are dropped and
+    initials vary, so the floor sits far below the threshold used for matching *on* names.
+    """
+    parties = " ".join((party_names or "").split())
+    if not resolution.found or not resolution.matched_title or len(parties) < MIN_PARTY_CHARS_TO_CHECK:
+        return resolution
+
+    score = fuzz.token_set_ratio(parties, resolution.matched_title, processor=utils.default_process)
+    if score >= NAME_MISMATCH_FLOOR:
+        return resolution
+
+    resolution.name_mismatch = True
+    resolution.note = (
+        f"the citation resolves to {resolution.matched_title[:60]!r}, which is not the case the brief "
+        f"names ({parties[:60]!r})"
+    )
+    return resolution
+
+
 def resolve(session: Session, citation: Citation) -> Resolution:
     """Full resolution for one parsed citation."""
     exact = resolve_exact(session, citation.normalized)
     if exact.found:
-        return exact
+        return check_party_names(exact, citation.party_names)
 
     if citation.party_names:
         by_party = resolve_by_parties(session, citation.party_names, year=citation.year)

@@ -34,16 +34,32 @@ HIGH_COURT = "high_court"
 # What the brief says decided the case. "This Court" is deliberately absent: in a brief it means the
 # court being addressed, not the court that decided the authority, and reading it either way would
 # invent findings.
+# A court counts as *attributed* only where the brief says it decided something. Naming a court in a
+# narrative recital — "On 22.3.2007 the High Court passed an order making the notice absolute" — says
+# where the case came from, not whose holding is relied on, and reading that as an attribution turns
+# the commonest sentence in any statement of facts into a finding.
+HOLDING_VERB = (
+    r"(?:has\s+|have\s+|had\s+|was\s+|were\s+)?"
+    r"(?:held|observed|laid\s+down|ruled|settled|decided|declared|opined|reiterated|clarified|"
+    r"stated|concluded|expressed"
+    # "took a contrary view", "was of the view that" — a view is a holding by another name.
+    r"|took\s+(?:a|the)\s+[\w-]+\s+view|of\s+the\s+view)"
+)
 COURT_CLAIMS: list[tuple[str, re.Pattern[str]]] = [
     (
         SUPREME_COURT,
         re.compile(
-            r"(?i)\b(?:the\s+)?(?:Hon(?:'|’)?ble\s+)?(?:Supreme\s+Court(?:\s+of\s+India)?|Apex\s+Court)\b"
+            r"(?i)\b(?:the\s+)?(?:Hon(?:'|’)?ble\s+)?"
+            r"(?:Supreme\s+Court(?:\s+of\s+India)?|Apex\s+Court)"
+            r"[^.]{0,40}?\s+" + HOLDING_VERB + r"\b"
         ),
     ),
     (
         HIGH_COURT,
-        re.compile(r"(?i)\b(?:the\s+)?(?:Hon(?:'|’)?ble\s+)?(?:[A-Z][\w&.]+\s+)?High\s+Court\b"),
+        re.compile(
+            r"(?i)\b(?:the\s+)?(?:Hon(?:'|’)?ble\s+)?(?:[A-Z][\w&.]+\s+)?High\s+Court"
+            r"[^.]{0,40}?\s+" + HOLDING_VERB + r"\b"
+        ),
     ),
 ]
 

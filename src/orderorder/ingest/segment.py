@@ -33,6 +33,9 @@ LABEL_RE = re.compile(
     r")\s+(?=\S)"
 )
 MIN_LABELS_FOR_LABEL_MODE = 3
+# The largest step that still reads as the court numbering onwards. One clear paragraph ahead, plus
+# room for a sub-label; anything further is a leap that wants a second signal before it counts.
+MAX_STEP = 1.5
 
 HEADING_RE = re.compile(r"^\s*(?:JUDGMENT|ORDER|J U D G M E N T|O R D E R)\s*$", re.IGNORECASE)
 SIGNATURE_RE = re.compile(r"^\s*(?:\.{3,}|…)?\s*[A-Z][A-Za-z.\s]{2,60},?\s*(?:C\.?J\.?I?\.?|J\.?)\s*\.?\s*$")
@@ -189,10 +192,33 @@ def find_out_of_sequence(paragraphs: list[SegParagraph]) -> set[int]:
     if len(labelled) < 3:
         return set()
 
-    # A label is out of sequence if some later label is smaller than it.
-    suffix_min: list[float] = [0.0] * len(labelled)
-    running = float("inf")
-    for i in range(len(labelled) - 1, -1, -1):
-        suffix_min[i] = running
-        running = min(running, labelled[i][1])
-    return {seq for i, (seq, value) in enumerate(labelled) if value > suffix_min[i]}
+    # Walk forwards, tracking where the court's own numbering has reached. Two shapes betray quoted
+    # matter, and nothing else does:
+    #
+    #   * a **restart** — a label at or below the mark, which is a quoted judgment beginning again at
+    #     its own paragraph 1 while the citing court is at 13;
+    #   * a **spike** — a label above the mark that the very next label comes back down from, which is
+    #     a single quoted paragraph carrying a foreign number ("... 4. 12. 5. ...").
+    #
+    # A plain forward gap is neither. Judgments skip numbers, and extraction loses paragraphs, so a
+    # jump from 1 to 5 is ordinary; treating it as suspicious flagged the court's own holding.
+    #
+    # Comparing each label against the *following* ones instead — flagging any label that some later
+    # label undercuts — reads a quoted block near the end as evidence against everything before it. On
+    # a real judgment numbered 1 to 19 with quoted matter interleaved, that flagged 22 of 39
+    # paragraphs, and half of a set of sound citations were marked possibly-quoted on the strength of
+    # it. Measured, not guessed: see the eval harness.
+    quoted: set[int] = set()
+    reached = 0.0
+    for index, (seq, value) in enumerate(labelled):
+        following = labelled[index + 1][1] if index + 1 < len(labelled) else None
+        restart = value <= reached
+        # A spike both leaps ahead of the sequence and is immediately undercut. Either alone is
+        # ordinary: judgments skip numbers, and the label after the court's last paragraph is often a
+        # quoted block restarting low.
+        spike = value > reached + MAX_STEP and following is not None and following < value
+        if restart or spike:
+            quoted.add(seq)
+        else:
+            reached = value
+    return quoted

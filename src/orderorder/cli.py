@@ -38,6 +38,10 @@ from orderorder.engine.schemas import (
     VoiceAssessment,
     WeightAssessment,
 )
+from orderorder.evaluation.generate import generate as generate_gold
+from orderorder.evaluation.gold import read_gold, write_gold
+from orderorder.evaluation.gold import summarise as summarise_gold
+from orderorder.evaluation.run import format_report, run_gold
 from orderorder.ingest import aliases as alias_learning
 from orderorder.ingest import bulk
 from orderorder.ingest import corpus as corpus_mod
@@ -50,9 +54,11 @@ app = typer.Typer(help="Citation-integrity engine for Indian case law.", no_args
 corpus_app = typer.Typer(help="Download judgments from the AWS Open Data bucket.", no_args_is_help=True)
 ingest_app = typer.Typer(help="Import downloaded data into the knowledge base.", no_args_is_help=True)
 cite_app = typer.Typer(help="Citation grammar tools.", no_args_is_help=True)
+eval_app = typer.Typer(help="Measure the engine against a gold set.", no_args_is_help=True)
 app.add_typer(corpus_app, name="corpus")
 app.add_typer(ingest_app, name="ingest")
 app.add_typer(cite_app, name="cite")
+app.add_typer(eval_app, name="eval")
 
 console = Console()
 
@@ -458,6 +464,70 @@ def locate_command(
                 "[red]warning[/red] a candidate's paragraph number breaks the judgment's sequence, "
                 "so it is probably quoted from another judgment rather than this court's own words"
             )
+
+
+@eval_app.command("generate")
+def eval_generate(
+    out: str = typer.Option("evals/gold.jsonl", help="Where to write the gold set."),
+    seeds: int = typer.Option(8, help="How many judgments to plant errors in."),
+) -> None:
+    """Build a gold set by planting known failure modes in real judgments."""
+    init_db()
+    with get_session() as session:
+        items = generate_gold(session, seeds=seeds)
+    path = Path(out)
+    write_gold(items, path)
+    console.print(f"[green]{len(items)} items[/green] written to {path}")
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("planted")
+    table.add_column("items", justify="right")
+    for name, count in summarise_gold(items).items():
+        table.add_row(name, str(count))
+    console.print(table)
+
+
+@eval_app.command("run")
+def eval_run(
+    gold: str = typer.Option("evals/gold.jsonl", help="Gold set to score against."),
+    report: str | None = typer.Option(None, help="Also write the report to this file."),
+    limit: int | None = typer.Option(None, help="Score only the first N items."),
+) -> None:
+    """Run the engine over the gold set and report what it caught and what it invented."""
+    items = read_gold(Path(gold))
+    if not items:
+        console.print(f"[red]no gold set at {gold}[/red]; run [bold]orderorder eval generate[/bold]")
+        raise typer.Exit(1)
+    if limit:
+        items = items[:limit]
+
+    model = build_structured(ScopeAssessment)
+    if model is None:
+        console.print(
+            "[yellow]no language model configured[/yellow]: the modes that need one are reported as "
+            "unassessed rather than counted as misses."
+        )
+
+    def progress(result, done: int, total: int) -> None:
+        if done % 10 == 0 or done == total:
+            console.print(f"  [dim]{done}/{total}[/dim]")
+
+    with get_session() as session:
+        scored = run_gold(
+            session,
+            items,
+            model,
+            voice_model=build_structured(VoiceAssessment),
+            weight_model=build_structured(WeightAssessment),
+            facts_model=build_structured(ApplicabilityAssessment),
+            on_result=progress,
+        )
+
+    lines = format_report(scored)
+    console.print("\n".join(lines))
+    if report:
+        Path(report).parent.mkdir(parents=True, exist_ok=True)
+        Path(report).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        console.print(f"[dim]written to {report}[/dim]")
 
 
 @app.command("index")

@@ -147,12 +147,19 @@ def locate(
     quoted = find_out_of_sequence(paragraphs)
 
     chosen: dict[int, ScoredDocument] = {r.index: r for r in ranked}
+    # A judgment that quotes another carries that judgment's numbering too, so "paragraph 2" can name
+    # two paragraphs. The court's own comes first, and that is the one a pinpoint means: matching the
+    # label alone marked a quoted block as the cited paragraph and reported the court's own holding as
+    # somebody else's words.
+    pinpoint_position: int | None = None
     if claimed_pinpoint:
         wanted = str(claimed_pinpoint).strip()
         for position, paragraph in enumerate(paragraphs):
-            if paragraph.printed_label == wanted and position not in chosen:
-                chosen[position] = ScoredDocument(position, 0.0, [])
+            if paragraph.printed_label == wanted:
+                pinpoint_position = position
                 break
+        if pinpoint_position is not None and pinpoint_position not in chosen:
+            chosen[pinpoint_position] = ScoredDocument(pinpoint_position, 0.0, [])
 
     candidates: list[Candidate] = []
     for position, scored in chosen.items():
@@ -164,9 +171,7 @@ def locate(
                 score=round(scored.score, 3),
                 matched_terms=scored.matched_terms,
                 body=paragraph.body,
-                is_claimed_pinpoint=(
-                    claimed_pinpoint is not None and paragraph.printed_label == str(claimed_pinpoint).strip()
-                ),
+                is_claimed_pinpoint=(position == pinpoint_position),
                 likely_quoted=paragraph.seq in quoted,
                 opinion_kind=paragraph.opinion_kind,
                 opinion_author=paragraph.opinion_author,

@@ -155,6 +155,17 @@ def build_verdict(
         verdict.grade = "C"
         return verdict
 
+    # The citation exists, but not for the case the brief names.
+    if getattr(resolution, "name_mismatch", False):
+        verdict.findings.append(
+            Finding(
+                MODE_MISCITE,
+                "citation points at a different case",
+                resolution.note or "the party names do not match the judgment this citation resolves to",
+            )
+        )
+        verdict.grade = _drop(verdict.grade, 2)
+
     if resolution.method == "party_name":
         verdict.findings.append(
             Finding(
