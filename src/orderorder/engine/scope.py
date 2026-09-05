@@ -81,7 +81,13 @@ def decompose_claim(
     _ = prompt_version
     if model is None:
         return [AtomicClaim(text=proposition.strip())]
-    result = model.invoke(DECOMPOSE_PROMPT.format(proposition=proposition.strip()))
+    try:
+        result = model.invoke(DECOMPOSE_PROMPT.format(proposition=proposition.strip()))
+    except Exception:  # noqa: BLE001 - a provider outage must not lose the other detectors
+        # The same rule as every other model call in this engine: an outage degrades the check, it
+        # does not raise through it. Nothing calls this yet, and the guard is here so that whoever
+        # wires it in does not have to discover the rule from a traceback.
+        return [AtomicClaim(text=proposition.strip())]
     if isinstance(result, ClaimDecomposition) and result.claims:
         return result.claims
     return [AtomicClaim(text=proposition.strip())]
