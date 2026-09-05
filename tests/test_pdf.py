@@ -138,7 +138,11 @@ def test_pdf_key_and_url_follow_the_bucket_layout() -> None:
 # authority on bench strength: the open-data metadata names only the presiding judge, so a two-judge
 # bench arrives recorded as one, and bench strength decides which precedents bind which.
 
-from orderorder.ingest.pdf import find_author, find_coram, split_trailer  # noqa: E402
+from orderorder.ingest.pdf import (  # noqa: E402
+    find_author,
+    find_coram,
+    split_trailer,
+)
 
 MODERN_PAGE = """CIVIL APPELLATE JURISDICTION: Civil Appeal No. 14830 of 2024
 From the Judgment and Order dated 24.05.2022 of the High Court
@@ -356,3 +360,86 @@ def test_a_signoff_shaped_line_in_the_body_is_not_cut() -> None:
     judgment, trailer = split_trailer(text)
     assert trailer == ""
     assert "Rajendra Prasad Appeals allowed." in judgment
+
+
+# --- the separate opinion that only announces itself in a sentence ---------------------------------
+
+DIVIDED = """1. Leave granted in these appeals.
+
+2. The question is whether the fee may be revised unilaterally by the tribunal.
+
+3. In our view it may not, and the appeals are accordingly allowed.
+
+Sanjiv Khanna, J.
+
+1. I have had the advantage of reading the judgment of my learned Brother. However, I am unable to
+agree that the tribunal lacks the power in the absence of an agreement between the parties.
+
+2. In my respectful view the appeals ought to be dismissed.
+"""
+
+
+def test_a_judge_saying_they_cannot_agree_starts_a_separate_opinion() -> None:
+    """A printed "(dissenting)" appears five times in nine thousand judgments. This is what is written."""
+    found = find_separate_opinions(DIVIDED)
+    assert found
+    _offset, kind, judge = found[0]
+    assert kind == "dissenting"
+    assert judge == "Sanjiv Khanna"
+    assert len(found) == 1
+
+
+def test_a_judgment_discussing_someone_elses_dissent_is_not_divided() -> None:
+    """Third person. The first person is what makes the cue safe."""
+    text = (
+        "1. Leave granted.\n\n"
+        "2. Ashok Bhushan, J. in his dissenting opinion took a different view of the question, "
+        "and the High Court preferred that reasoning to the majority's.\n\n"
+        "3. The appeal is dismissed."
+    )
+    assert find_separate_opinions(text) == []
+
+
+def test_a_dissent_quoted_from_another_judgment_is_not_this_court_dividing() -> None:
+    """The cue is inside quotation marks, so the judge speaking is in the case being quoted."""
+    text = (
+        "1. Leave granted.\n\n"
+        "2. In Ajmera the learned judge said: “With utmost respect, I am unable to agree with "
+        "Conclusions (3) and (8) in the opinion of Brother Reddi, J.”\n\n"
+        "3. That reasoning does not assist the appellant."
+    )
+    assert find_separate_opinions(text) == []
+
+
+def test_a_span_the_caller_marks_as_quoted_is_skipped() -> None:
+    """A block quotation opens in one paragraph and closes in another, so the marks are nowhere near."""
+    assert find_separate_opinions(DIVIDED, skip=[(0, len(DIVIDED))]) == []
+
+
+def test_the_polite_opening_is_where_it_starts_and_the_disagreement_is_what_it_is() -> None:
+    """A dissent opens by thanking the author of the judgment it is about to take apart."""
+    found = find_separate_opinions(DIVIDED)
+    offset, kind, _judge = found[0]
+    assert kind == "dissenting"
+    assert DIVIDED[offset:].startswith("I have had the advantage of reading")
+
+
+AGREED = """1. Leave granted in these appeals.
+
+2. The appeal is allowed and the impugned order is set aside.
+
+Khanna, J.
+
+1. I have had the advantage of reading the judgment of my learned Brother, and I agree with the
+order proposed, for the reasons I set out separately below.
+"""
+
+
+def test_a_separate_opinion_that_never_disagrees_is_a_concurrence() -> None:
+    assert [kind for _o, kind, _j in find_separate_opinions(AGREED)] == ["concurring"]
+
+
+def test_the_printed_form_still_wins_where_it_is_there() -> None:
+    text = "1. Leave granted.\n\nKHANNA, J. (dissenting)\n\n1. I would dismiss these appeals.\n"
+    found = find_separate_opinions(text)
+    assert [kind for _offset, kind, _judge in found] == ["dissenting"]

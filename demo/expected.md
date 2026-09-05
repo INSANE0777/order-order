@@ -36,8 +36,10 @@ comparison against the sentence the words came from.
 
 ## What is not demonstrated here
 
-- **Mode 6 (dissent).** None of the eleven judgments ingested so far carries a dissent, so there is no
-  honest way to show it against real data. The path is covered end to end in `tests/test_graph.py`.
+- **Mode 6 (dissent).** None of the judgments *this brief cites* carries a dissent. The corpus does:
+  47 of them, including Article 370, the Maratha reservation case and ONGC v Afcons. A brief citing
+  paragraph 30.00 of the last is told "the passage is from a dissent: paragraph 30.00 falls in the
+  dissenting opinion of Per Sanjiv Khanna, which decided nothing and binds no one" — with no model.
 - **Modes 4, 7 and 8 (not there, obiter as ratio, overstatement).** These turn on what a passage
   *means* and need a model. Run `demo/scripted_model.py` to see the comparator and the quote check
   working on real judgment text with the model's answer supplied from a script.

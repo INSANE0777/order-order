@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from orderorder.db.models import Judgment, JudgmentTextVersion, Opinion, Paragraph
 from orderorder.ingest.pdf import ExtractedJudgment, find_separate_opinions
-from orderorder.ingest.segment import SegParagraph, segment
+from orderorder.ingest.segment import SegParagraph, quoted_within, segment
 
 
 @dataclass
@@ -92,7 +92,13 @@ def store_extracted(
     paragraphs: list[SegParagraph] = segment(body)
 
     # The court's own opinion spans the judgment unless a dissent or concurrence announces itself.
-    breaks = find_separate_opinions(body)
+    # Paragraphs the numbering says are quoted are excluded from that search: a block quotation runs
+    # over several paragraphs, so the quotation marks are nowhere near the cue, and a dissent quoted
+    # from an earlier judgment would be recorded as this court dividing.
+    quoted = quoted_within(paragraphs)
+    breaks = find_separate_opinions(
+        body, skip=[(p.char_start, p.char_end) for p in paragraphs if p.seq in quoted]
+    )
     opinions: list[Opinion] = []
     majority = Opinion(
         text_version_id=version.id,

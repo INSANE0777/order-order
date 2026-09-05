@@ -1,13 +1,41 @@
 """Command line for OrderOrder.
 
-orderorder doctor                       check the environment
-orderorder init-db                      create tables
-orderorder corpus years                 list years available in the open-data bucket
-orderorder corpus fetch 2019 2020       download parquet metadata for those years
-orderorder ingest metadata 2019         import a year into judgment + citation_alias
-orderorder cite parse "..."             show what the citation grammar finds in a string
-orderorder resolve "(2019) 4 SCC 1"     resolve a citation against the knowledge base
-orderorder stats                        row counts
+The engine runs in two directions and both are here, along with everything needed to fill the
+knowledge base they run against and to measure what they do.
+
+Setting up:
+
+    orderorder doctor [--probe]          check the environment, and that a model returns a schema
+    orderorder init-db                   create tables
+    orderorder corpus years|fetch        what the open-data bucket holds, and get it
+    orderorder ingest metadata 2019      import a year into judgment + citation_alias
+    orderorder ingest text KEY...        fetch, clean and segment a judgment's official PDF
+    orderorder ingest bulk-text          the same for the whole corpus; resumable
+    orderorder ingest aliases            learn the reporter citations the open data omits
+    orderorder ingest repair-trailers    cut the reporter's own words out of stored text
+    orderorder index                     full-text index over every paragraph
+    orderorder citator                   who cited whom, and what they did with it
+    orderorder stats                     row counts
+
+Checking a citation somebody wrote:
+
+    orderorder cite parse "..."          what the citation grammar finds in a string
+    orderorder resolve "(2019) 4 SCC 1"  which judgment a citation names
+    orderorder locate KEY "..."          which paragraph of one judgment carries a claim
+    orderorder treatment KEY             is this authority still good law
+    orderorder verify --file brief.txt   every citation in a brief, with --memo, --report, --annotate
+
+Finding one nobody wrote yet:
+
+    orderorder find "..."                which judgment backs a proposition, and which line
+    orderorder argue propositions.txt    bind each proposition to an authority, or refuse to
+
+Measuring both:
+
+    orderorder eval generate             plant known failures in real judgments
+    orderorder eval run [--no-model]     score the engine against them
+    orderorder eval paraphrase           build restated queries for the search evaluation
+    orderorder eval search               score the search direction
 """
 
 from __future__ import annotations
@@ -302,6 +330,23 @@ def ingest_repair_trailers(
     with get_session() as session:
         console.print(f"{prefix}: {repair.strip_publisher_trailers(session, dry_run=dry_run)}")
         console.print(f"{prefix}: {repair.strip_signoffs(session, dry_run=dry_run)}")
+
+
+@ingest_app.command("mark-opinions")
+def ingest_mark_opinions(
+    dry_run: bool = typer.Option(False, help="Report what would be marked without writing it."),
+) -> None:
+    """Find the dissents and concurrences that only announce themselves in a sentence.
+
+    A printed "(dissenting)" appears five times in nine thousand judgments. What a dissenting judge
+    actually writes is "I regret my inability to agree", and extraction now reads that; this applies
+    the corrected rule to text already stored.
+    """
+    init_db()
+    with get_session() as session:
+        result = repair.mark_separate_opinions(session, dry_run=dry_run)
+    prefix = "[yellow]would mark[/yellow]" if dry_run else "[green]marked[/green]"
+    console.print(f"{prefix}: {result}")
 
 
 @ingest_app.command("aliases")

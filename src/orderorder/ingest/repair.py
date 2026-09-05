@@ -11,13 +11,16 @@ repaired one agree.
 
 from __future__ import annotations
 
+from bisect import bisect_right
+from collections import Counter
 from dataclasses import dataclass
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from orderorder.db.models import JudgmentTextVersion, Paragraph
-from orderorder.ingest.pdf import TRAILER_START_PATTERNS, strip_signoff
+from orderorder.db.models import JudgmentTextVersion, Opinion, Paragraph
+from orderorder.ingest.pdf import TRAILER_START_PATTERNS, find_separate_opinions, strip_signoff
+from orderorder.ingest.segment import SegParagraph, quoted_within
 
 
 @dataclass
@@ -123,6 +126,102 @@ def strip_signoffs(session: Session, *, dry_run: bool = False) -> RepairResult:
 
     if doomed and not dry_run:
         session.execute(delete(Paragraph).where(Paragraph.id.in_(doomed)))
+    if not dry_run:
+        session.commit()
+    return result
+
+
+@dataclass
+class OpinionResult:
+    scanned: int
+    found: int
+    kinds: Counter
+
+    def __str__(self) -> str:
+        detail = ", ".join(f"{count} {kind}" for kind, count in sorted(self.kinds.items()))
+        return f"{self.found} separate opinions in {self.scanned} judgments ({detail or 'none'})"
+
+
+def mark_separate_opinions(session: Session, *, dry_run: bool = False) -> OpinionResult:
+    """Find the dissents and concurrences that only announce themselves in a sentence.
+
+    Extraction now reads a judge writing "I regret my inability to agree" as the start of a separate
+    opinion; before, only a printed "(dissenting)" counted, and across 9,424 judgments that appears
+    five times. This applies the corrected rule to text already stored, so failure mode 6 works on the
+    corpus without re-reading every PDF.
+
+    A judgment that already has a separate opinion is left alone: the printed form is the better
+    evidence, and re-running this must not add a second opinion beside one already recorded.
+    """
+    result = OpinionResult(0, 0, Counter())
+
+    version_ids = list(session.scalars(select(JudgmentTextVersion.id)).all())
+    for version_id in version_ids:
+        result.scanned += 1
+        opinions = session.scalars(select(Opinion).where(Opinion.text_version_id == version_id)).all()
+        majority = next((o for o in opinions if o.kind == "majority"), None)
+        if majority is None or any(o.kind in {"dissenting", "concurring"} for o in opinions):
+            continue
+
+        paragraphs = session.scalars(
+            select(Paragraph).where(Paragraph.text_version_id == version_id).order_by(Paragraph.seq)
+        ).all()
+        if not paragraphs:
+            continue
+
+        # The paragraph offsets belong to a text this store does not keep, so the search runs over the
+        # paragraphs joined back together and the cue is located by which paragraph it fell in. The
+        # blank line between them is not cosmetic: it is how the quotation guard finds the paragraph a
+        # cue sits in, and joining with a single newline left it counting quote marks from the first
+        # word of the judgment.
+        starts: list[int] = []
+        text_parts: list[str] = []
+        cursor = 0
+        quoted_spans: list[tuple[int, int]] = []
+        quoted = quoted_within(
+            [
+                SegParagraph(p.seq, p.printed_label, p.body, p.char_start, p.char_end)
+                for p in paragraphs
+            ]
+        )
+        for paragraph in paragraphs:
+            starts.append(cursor)
+            text_parts.append(paragraph.body)
+            if paragraph.seq in quoted:
+                quoted_spans.append((cursor, cursor + len(paragraph.body)))
+            cursor += len(paragraph.body) + 2
+        text = "\n\n".join(text_parts)
+
+        separate = find_separate_opinions(text, skip=quoted_spans)
+        if not separate:
+            continue
+        offset, kind, judge = separate[0]
+        position = bisect_right(starts, offset) - 1
+        first = paragraphs[max(position, 0)]
+        # A cue in the opening paragraphs is the sole author writing about the judgment below, not a
+        # second opinion; a separate opinion comes after the one it differs from.
+        if first.seq <= majority.seq_start:
+            continue
+
+        result.found += 1
+        result.kinds[kind] += 1
+        if dry_run:
+            continue
+
+        opinion = Opinion(
+            text_version_id=version_id,
+            kind=kind,
+            author=judge or None,
+            seq_start=first.seq,
+            seq_end=majority.seq_end,
+        )
+        session.add(opinion)
+        session.flush()
+        for paragraph in paragraphs:
+            if paragraph.seq >= first.seq:
+                paragraph.opinion_id = opinion.id
+        majority.seq_end = first.seq - 1
+
     if not dry_run:
         session.commit()
     return result

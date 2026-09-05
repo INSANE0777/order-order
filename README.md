@@ -199,6 +199,7 @@ Measured on the real corpus, which is now the whole of it:
 | Judgments with full text | 9,424 (99.95%) |
 | Paragraphs indexed | 409,499 |
 | Citation edges | 8,716 |
+| Separate opinions | 109: 47 dissents and 62 concurrences |
 
 - Importing metadata takes about 15 seconds a year and parses every citation in the source.
 - Ingesting the text of the whole corpus takes about 0.4 seconds a judgment on a CPU-only laptop with

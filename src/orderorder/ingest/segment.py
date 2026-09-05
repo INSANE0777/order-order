@@ -179,6 +179,25 @@ def label_value(label: str | None) -> float | None:
         return None
 
 
+def quoted_within(paragraphs: list[SegParagraph]) -> set[int]:
+    """The paragraphs whose numbering is not the court's own *and* that the court resumes after.
+
+    `find_out_of_sequence` cannot tell a quoted block from a separate opinion, and should not try:
+    both break the numbering, because a dissent restarts at its own paragraph 1 exactly as a quoted
+    judgment does. What separates them is what follows. A quotation is followed by the court picking
+    its numbering back up; a separate opinion runs to the end of the judgment, because there is
+    nothing after it to come back to.
+
+    So this is the set to use where the question is "is this quoted matter" — and the trailing run it
+    leaves out is where the question is "does this judgment carry a second opinion".
+    """
+    quoted = find_out_of_sequence(paragraphs)
+    resumes = [p.seq for p in paragraphs if p.printed_label and p.seq not in quoted]
+    if not resumes:
+        return set()
+    return {seq for seq in quoted if seq < max(resumes)}
+
+
 def _ascending_run(values: list[float]) -> set[int]:
     """Positions of a longest strictly ascending subsequence, by patience sorting."""
     tails: list[float] = []  # tails[k] = smallest possible tail of an ascending run of length k+1

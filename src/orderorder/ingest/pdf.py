@@ -22,6 +22,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from orderorder.engine.sentences import inside_quotation
 from orderorder.ingest.corpus import BASE_URL, download
 
 # A bare margin letter on its own line.
@@ -89,6 +90,35 @@ SIGNOFF_TAIL_LINES = 3
 DISSENT_RE = re.compile(
     r"^\s*(?P<judge>[A-Z][A-Za-z.\s]{2,60}),?\s*J\.?\s*\(\s*(?P<kind>dissenting|concurring)\s*\)",
     re.IGNORECASE | re.MULTILINE,
+)
+
+# But in this corpus it almost never does. Across 9,424 judgments the parenthetical above appears five
+# times, which is not the rate at which the Supreme Court of India divides. What a dissenting judge
+# actually writes is a sentence, in the first person, about a colleague's opinion:
+#
+#   "I regret my inability to agree with the same."          Nariman J, Sabarimala review
+#   "I am unable to agree with this view."                   Article 370
+#   "I am unable to persuade myself to agree with his conclusions."
+#
+# The first person is what makes these safe. A judgment *discussing* another court's dissent writes
+# "Bhushan J. in his dissenting opinion", third person, and is not caught. What is left is a judge
+# speaking about their own disagreement, which nobody else in a judgment does.
+DISAGREES_RE = re.compile(
+    r"(?i)\bI\s+(?:respectfully\s+)?dissent\b"
+    r"|\bI\s+(?:am|remain)\s+(?:respectfully\s+)?unable\s+to\s+(?:agree|concur|persuade|subscribe)"
+    r"|\bI\s+regret\s+my\s+inability\s+to\s+(?:agree|concur|subscribe)"
+    r"|\bI\s+am\s+unable\s+to\s+persuade\s+myself\s+to\s+(?:agree|concur|subscribe)"
+    r"|\bI\s+am\s+not\s+in\s+agreement\s+with\s+(?:the|my)\b"
+    r"|\bI\s+have\s+not\s+been\s+able\s+to\s+persuade\s+myself\b"
+)
+# A judge writing separately who does not disagree. Worth marking because a concurrence is not the
+# majority's reasoning either, and a brief citing one as the holding is overstating it — but it is not
+# a dissent, and calling it one would be worse than saying nothing.
+SEPARATELY_RE = re.compile(
+    r"(?i)\bI\s+(?:respectfully\s+)?concur\b"
+    r"|\bI\s+agree\s+with\s+the\s+(?:conclusion|order|opinion)[^.]{0,60}\bbut\b"
+    r"|\bI\s+(?:have|had)\s+(?:had\s+)?the\s+(?:advantage|benefit|privilege)\s+of\s+"
+    r"(?:reading|going\s+through|perusing)\b"
 )
 DELIVERED_BY_RE = re.compile(
     r"The Judgment of the Court was delivered by\s*\n?\s*(?P<judge>[A-Z][A-Za-z.\s]{2,60}?),?\s*J\.",
@@ -304,14 +334,78 @@ def strip_signoff(text: str) -> tuple[str, str]:
     return "\n".join(head + kept).rstrip(), "\n".join(cut)
 
 
-def find_separate_opinions(judgment_text: str) -> list[tuple[int, str, str]]:
-    """Offsets where a dissenting or concurring opinion announces itself: (offset, kind, judge)."""
+def find_separate_opinions(
+    judgment_text: str, *, skip: list[tuple[int, int]] | None = None
+) -> list[tuple[int, str, str]]:
+    """Offsets where a dissenting or concurring opinion announces itself: (offset, kind, judge).
+
+    The labelled form first, then the sentence a judge actually writes. Where the cues are what found
+    it, one separate opinion is reported and not several: a dissent argues its disagreement over many
+    paragraphs, and where it begins is the first time it says anything of the kind.
+
+    **Where it begins and what it is are two questions.** A dissent opens politely — "I have had the
+    advantage of reading the judgment of my learned Brother" — and only then says what it thinks. That
+    opening is where the opinion starts; whether it is a dissent is settled by whether a disagreement
+    follows it. Reading the polite sentence as a concurrence in its own right recorded the Mohd. Arif
+    dissent as a concurrence, on the strength of its first line.
+
+    A cue inside a quotation is ignored. Judgments quote other judgments at length, dissents included,
+    and "I am unable to agree with the conclusion of M. Sundar, J." inside quotation marks is a High
+    Court judge speaking in a passage this court is reproducing.
+
+    `skip` names character spans the caller already knows are quoted — the paragraphs whose printed
+    numbering is not the court's own *and that the court resumes after*. Quotation marks alone cannot
+    see those, because a block quotation running over several paragraphs opens in one and closes in
+    another, and the cue sits in between with no mark beside it. That is how a 2005 judgment's dissent,
+    quoted at length in a 2025 one, was recorded as the 2025 court dividing.
+    """
     found = []
     for match in DISSENT_RE.finditer(judgment_text):
         found.append(
             (match.start(), match.group("kind").lower(), re.sub(r"\s+", " ", match.group("judge")).strip())
         )
-    return found
+    if found:
+        found.sort()
+        return found
+
+    skipped = skip or []
+
+    def usable(match: re.Match[str]) -> bool:
+        return not _quoted_here(judgment_text, match.start()) and not any(
+            start <= match.start() < end for start, end in skipped
+        )
+
+    disagreement = next((m.start() for m in DISAGREES_RE.finditer(judgment_text) if usable(m)), None)
+    opens = next((m.start() for m in SEPARATELY_RE.finditer(judgment_text) if usable(m)), None)
+
+    starts = [s for s in (disagreement, opens) if s is not None]
+    if not starts:
+        return []
+    start = min(starts)
+    # A disagreement anywhere in the separate opinion makes it a dissent, wherever the opinion opened.
+    kind = "dissenting" if disagreement is not None else "concurring"
+    return [(start, kind, _author_before(judgment_text, start))]
+
+
+def _quoted_here(text: str, position: int) -> bool:
+    """Whether a cue sits inside a quotation, judged within its own paragraph.
+
+    `inside_quotation` counts quote depth from the beginning of the text it is given, which is right
+    over a paragraph and wrong over a judgment of three quarters of a million characters: one unpaired
+    opening mark anywhere near the front makes everything after it read as quoted. It did. The Article
+    370 dissent and the Maratha reservation dissent were both thrown away that way, which is as clear
+    a signal as one could ask for that the window was wrong rather than the rule.
+    """
+    start = text.rfind("\n\n", 0, position) + 2
+    return inside_quotation(text[start : position + 1], position - start)
+
+
+def _author_before(text: str, position: int) -> str:
+    """The judge whose name heads the opinion this position falls in, if one is printed above it."""
+    last = ""
+    for match in AUTHOR_LINE_RE.finditer(text, 0, position):
+        last = re.sub(r"\s+", " ", match.group("judge")).strip()
+    return last
 
 
 def extract(pdf_path: Path, source_path: str) -> ExtractedJudgment:
