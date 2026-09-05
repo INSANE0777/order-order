@@ -80,7 +80,19 @@ def test_offsets_point_at_the_quote_in_the_paragraph() -> None:
 
 
 def test_full_support_is_preserved() -> None:
-    verdict = assess_scope(CLAIM, CANDIDATES, StubModel(_assessment(support="full", dropped_conditions=[])))
+    """Full support means the paragraph states the claim as broadly as the brief does.
+
+    So the answer has to be coherent: no dropped condition, no gap, and nothing to narrow. An answer
+    that says `full` and offers a narrowing in the same breath contradicts itself, and
+    `test_scope_incoherence` covers what the engine does with that.
+    """
+    verdict = assess_scope(
+        CLAIM,
+        CANDIDATES,
+        StubModel(
+            _assessment(support="full", dropped_conditions=[], gap=None, narrowed_proposition=None)
+        ),
+    )
     assert verdict.support == "full"
     assert verdict.is_supported
     assert not verdict.overstated

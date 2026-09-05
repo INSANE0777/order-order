@@ -32,6 +32,12 @@ from orderorder.engine.quotes import MIN_QUOTE_WORDS, QuoteMatch, find_quote, wo
 from orderorder.engine.schemas import AtomicClaim, ClaimDecomposition, ScopeAssessment
 
 MIN_CONFIDENCE_FOR_SUPPORT = 0.35
+# A rewrite of the claim is a sentence. Past this many words it is not a rewrite, it is the model
+# thinking out loud into the wrong field, and putting that in a draft would put an essay where a
+# submission goes. Measured against the claim rather than fixed, because a long claim earns a long
+# rewrite; the constant is the slack.
+NARROWED_WORD_SLACK = 2.0
+NARROWED_WORD_FLOOR = 40
 
 
 @dataclass
@@ -53,7 +59,7 @@ class ScopeVerdict:
     court_scope: str | None = None
     gap: str | None = None
     narrowed_proposition: str | None = None
-    confidence: float = 0.0
+    confidence: float | None = None
     needs_review: bool = False
     review_reason: str | None = None
     wrong_pinpoint: bool = False
@@ -91,6 +97,49 @@ def decompose_claim(
     if isinstance(result, ClaimDecomposition) and result.claims:
         return result.claims
     return [AtomicClaim(text=proposition.strip())]
+
+
+def _check_narrowing(verdict: ScopeVerdict, assessment: ScopeAssessment) -> None:
+    """Two things the model can say that cannot both be true, checked rather than believed.
+
+    `narrowed_proposition` is specified as "a rewrite of the claim that the paragraph does support".
+    Two failures showed up the first time the drafting surface ran against a live model, on a claim
+    whose quote plainly did not support it:
+
+    **An essay in the field.** The model wrote four hundred words of analysis there -- correct
+    analysis, saying repeatedly that the claim was *not* fully supported -- instead of a sentence. Had
+    the verdict been narrowed, `drafting.render` would have set that essay in the submission as the
+    proposition to argue. A rewrite is a sentence, so anything long enough not to be one is not a
+    rewrite and is dropped, with the citation sent for review.
+
+    **A rewrite offered for a claim said to be fully supported.** If the paragraph states the claim as
+    broadly as the brief does, there is nothing to narrow. Offering a narrowing anyway contradicts the
+    answer, and between the two the narrowing is the one with the reasoning attached -- so support
+    drops to partial and a person is asked to look. This is the same rule as everywhere else in the
+    engine: the model is not believed, it is checked, and where it contradicts itself the reading that
+    claims less is the one that stands.
+    """
+    narrowed = (assessment.narrowed_proposition or "").strip()
+    if not narrowed:
+        return
+
+    limit = max(NARROWED_WORD_FLOOR, int(word_count(verdict.claim) * NARROWED_WORD_SLACK))
+    if word_count(narrowed) > limit:
+        verdict.narrowed_proposition = None
+        verdict.needs_review = True
+        verdict.review_reason = (
+            f"the model returned {word_count(narrowed)} words where a rewritten claim belongs, which "
+            "is reasoning rather than a proposition, so it was discarded"
+        )
+        return
+
+    if assessment.support == "full":
+        verdict.support = "partial"
+        verdict.needs_review = True
+        verdict.review_reason = (
+            "the model answered 'full' and then offered a narrower version of the claim, which it "
+            "would not do if the paragraph stated the claim as broadly; recorded as partial"
+        )
 
 
 def _verify(
@@ -190,6 +239,8 @@ def assess_scope(
         confidence=assessment.confidence,
     )
 
+    _check_narrowing(verdict, assessment)
+
     if assessment.support not in {"full", "partial"}:
         # Nothing to ground: "none" and "contradicted" stand on the model's reading of the text it saw.
         verdict.quote_match_type = "not_required"
@@ -234,7 +285,10 @@ def assess_scope(
     if assessment.paragraph_label and candidate.printed_label != assessment.paragraph_label:
         verdict.wrong_pinpoint = True
 
-    if assessment.confidence and assessment.confidence < MIN_CONFIDENCE_FOR_SUPPORT:
+    # `is not None`, not a truth test. 0.0 is the least confident answer there is and the falsy
+    # check let it through as though it were the most confident: a run against Gemini returned
+    # confidence 0.0 on every citation and none of them was ever sent for review.
+    if assessment.confidence is not None and assessment.confidence < MIN_CONFIDENCE_FOR_SUPPORT:
         verdict.needs_review = True
         verdict.review_reason = (
             f"the model's own confidence was {assessment.confidence:.2f}, below the threshold for "

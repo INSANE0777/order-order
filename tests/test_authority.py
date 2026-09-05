@@ -197,6 +197,40 @@ def test_a_provider_outage_is_unchecked_and_never_a_refusal() -> None:
     assert "provider failed" in reason
 
 
+def test_a_verdict_the_engine_flagged_is_never_bound() -> None:
+    """The gate was the last place `needs_review` could be ignored, and it was ignoring it.
+
+    Found by running the drafting demo against a live model: the verifier recorded that a person
+    should look at a citation, and the gate bound it as settled authority anyway with a pinpoint that
+    made it look checked. A flagged citation in somebody else's brief is one you can still catch. A
+    flagged citation in your own draft has already been written in your name.
+    """
+    verdict = _verdict(support="full")
+    verdict.ask_review("the model's own confidence was 0.00")
+    status, reason = _gate(_authority(), verdict)
+    assert status == UNCHECKED
+    assert "confidence" in reason
+
+
+def test_a_flagged_narrowing_is_not_offered_as_authority_either() -> None:
+    scope = ScopeVerdict(
+        claim=CLAIM,
+        support="partial",
+        model_support="partial",
+        narrowed_proposition="a misrepresentation that induced the contract vitiates consent",
+    )
+    verdict = _verdict(support="partial", scope=scope)
+    verdict.ask_review("the quote matched a paragraph other than the one named")
+    status, _reason = _gate(_authority(), verdict)
+    assert status == UNCHECKED
+
+
+def test_an_unflagged_verdict_still_binds() -> None:
+    """The rule must not swallow the case the gate exists to allow."""
+    status, _reason = _gate(_authority(), _verdict(support="full"))
+    assert status == BOUND
+
+
 def test_with_no_model_nothing_can_be_bound() -> None:
     status, reason = _gate(_authority(), None)
     assert status == UNCHECKED

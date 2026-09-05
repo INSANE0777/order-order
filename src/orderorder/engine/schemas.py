@@ -77,7 +77,15 @@ class ScopeAssessment(BaseModel):
     narrowed_proposition: str | None = Field(
         default=None, description="A rewrite of the claim that the paragraph does support."
     )
-    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    # Nullable, and not defaulted to zero. A model that omits the field has made no claim about its
+    # confidence; one that answers 0.0 has claimed none. Collapsing the two into 0.0 means either
+    # treating silence as certainty or treating it as doubt, and both are wrong. Gemini omits it.
+    confidence: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="How sure you are, 0 to 1. Omit only if you genuinely cannot say.",
+    )
 
 
 class VoiceAssessment(BaseModel):

@@ -120,6 +120,15 @@ def _gate(authority: Authority, verdict: CitationVerdict | None) -> tuple[str, s
         # overclaiming this engine exists to catch, committed in the direction where it is invisible,
         # because a refusal looks like the tool being careful.
         return UNCHECKED, verdict.review_reason or "extent of support was not assessed"
+    if verdict.needs_review:
+        # The last place this can be ignored, and it was being ignored. `engine.verdict` records that
+        # a person should look at a citation -- the model gave no confidence, the paragraph carries
+        # more than one voice, the quote matched somewhere unexpected -- and the drafting gate bound
+        # it as settled authority anyway, with a pinpoint that made it look checked. A brief carrying
+        # a flagged citation is a citation somebody can still catch before filing; a *draft* carrying
+        # one has already been written in your name. So a verdict wanting review is offered as a line
+        # to read and never as authority, which is the same three-state honesty the board uses.
+        return UNCHECKED, verdict.review_reason or "the engine asked for a person to look at this"
     if not verdict.quote_verified:
         if verdict.support in {"full", "partial"}:
             # The verifier already refuses to record support without a verified quote; saying so here
