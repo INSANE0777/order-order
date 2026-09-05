@@ -47,6 +47,44 @@ JUDGMENT_START_PATTERNS = [
     re.compile(r"^\s*Leave granted", re.MULTILINE | re.IGNORECASE),
 ]
 
+# Where the court stops and the reporter starts again. The SCR volumes close a judgment with the
+# editors' own matter — the disposition restated, and the name of whoever wrote the headnote — and it
+# runs on from the court's last paragraph with no break the segmenter can see. It is the same
+# publisher's voice as the headnote at the front, which `split_headnote` already keeps out of the
+# judgment text, and it has to be kept out for the same reason: a quote verified against it would be
+# reported as the court's words, and this engine's whole promise is that a verified quote is the
+# court's. No judge writes either phrase.
+TRAILER_START_PATTERNS = [
+    re.compile(r"^[ \t]*Result of the [Cc]ase\s*:", re.MULTILINE),
+    re.compile(r"^[ \t]*Headnotes?\s+prepared\s+by\s*:", re.MULTILINE | re.IGNORECASE),
+]
+
+# The volume's own sign-off, printed across the foot of the last page: the headnote editor's name in
+# one column and the result in the other, which extraction runs together into a single line —
+# "Divya Pandey Appeal allowed." Two thirds of the corpus ends this way, so it is not an oddity to be
+# tolerated; it is publisher's text sitting at the end of the court's last paragraph in six thousand
+# judgments.
+#
+# What makes it safe to cut is that the disposition is a bare noun phrase. The court writes "The
+# appeal is allowed"; the footer says "Appeal allowed", with no verb and no article, preceded by a
+# person's name. Checked against the corpus, the rule matched 6,229 judgments and every one of the 145
+# distinct names it found was one of six SCR editors or an OCR misreading of one — "Kalpana K.
+# Tripatby", "Ocvika Ciujral", "NidhiJain". Not one was the court's own text.
+SIGNOFF_RE = re.compile(
+    r"^[A-Z][A-Za-z.'’-]{1,20}(?:\s+[A-Z][A-Za-z.'’-]{0,20}){0,4}"
+    r"(?:\s+and\s+[A-Z][A-Za-z.'’-]{1,20}(?:\s+[A-Z][A-Za-z.'’-]{0,20}){0,3})?\s+"
+    r"(?:Suo\s+Motu\s+|Special\s+Leave\s+)?"
+    r"(?:Petitions?|Appeals?|Writ\s+Petitions?|Matters?|Applications?|Contempt\s+Petitions?|"
+    r"Transfer\s+Petitions?|Arbitration\s+Petitions?|Review\s+Petitions?|SLPs?|References?)"
+    r"(?:\s+and\s+(?:Writ\s+|Transfer\s+)?Petitions?)?\s+"
+    r"(?:partly\s+|part\s+|partially\s+)?"
+    r"(?:allowed|dismissed|disposed\s+of|withdrawn|answered).{0,20}$"
+)
+# "(Assisted by : Deepak Panwar, LCRA)" — the law clerk credited beneath the sign-off.
+ASSISTED_BY_RE = re.compile(r"^\(\s*Assisted\s+by\s*:", re.IGNORECASE)
+# How far back from the end the sign-off can sit. It is the last line, or the last but a credit line.
+SIGNOFF_TAIL_LINES = 3
+
 # A dissent or concurrence usually announces itself.
 DISSENT_RE = re.compile(
     r"^\s*(?P<judge>[A-Z][A-Za-z.\s]{2,60}),?\s*J\.?\s*\(\s*(?P<kind>dissenting|concurring)\s*\)",
@@ -104,6 +142,7 @@ class ExtractedJudgment:
     page_count: int
     headnote: str
     judgment: str
+    trailer: str = ""
     author: str | None = None
     coram: list[str] = field(default_factory=list)
     removed_lines: int = 0
@@ -217,6 +256,54 @@ def split_headnote(text: str) -> tuple[str, str, str | None, list[str]]:
     return "", text.strip(), None, notes
 
 
+def split_trailer(text: str) -> tuple[str, str]:
+    """Separate the court's judgment from the reporter's closing matter. Returns (judgment, trailer).
+
+    The earliest marker wins, because the trailer's parts appear in either order and everything from
+    the first of them on belongs to the publisher. A marker in the opening third of the document is
+    ignored: at that point it is far more likely to be the headnote's own summary of the disposition
+    than the end of the judgment, and cutting there would throw away the judgment.
+    """
+    floor = len(text) // 3
+    starts = [
+        match.start()
+        for pattern in TRAILER_START_PATTERNS
+        for match in [pattern.search(text, floor)]
+        if match
+    ]
+    if starts:
+        cut = min(starts)
+        judgment, trailer = text[:cut].rstrip(), text[cut:].strip()
+    else:
+        judgment, trailer = text, ""
+
+    judgment, signoff = strip_signoff(judgment)
+    if signoff:
+        trailer = "\n".join([signoff, trailer]).strip()
+    return judgment, trailer
+
+
+def strip_signoff(text: str) -> tuple[str, str]:
+    """Remove the volume's sign-off from the foot of the last page. Returns (judgment, what was cut).
+
+    Only the closing lines are considered, and only whole lines are removed, so a footnote printed
+    below the sign-off survives — those are the court's.
+    """
+    lines = text.rstrip().split("\n")
+    head, tail = lines[:-SIGNOFF_TAIL_LINES], lines[-SIGNOFF_TAIL_LINES:]
+    kept: list[str] = []
+    cut: list[str] = []
+    for line in tail:
+        stripped = line.strip()
+        if SIGNOFF_RE.match(stripped) or ASSISTED_BY_RE.match(stripped):
+            cut.append(stripped)
+        else:
+            kept.append(line)
+    if not cut:
+        return text, ""
+    return "\n".join(head + kept).rstrip(), "\n".join(cut)
+
+
 def find_separate_opinions(judgment_text: str) -> list[tuple[int, str, str]]:
     """Offsets where a dissenting or concurring opinion announces itself: (offset, kind, judge)."""
     found = []
@@ -228,10 +315,13 @@ def find_separate_opinions(judgment_text: str) -> list[tuple[int, str, str]]:
 
 
 def extract(pdf_path: Path, source_path: str) -> ExtractedJudgment:
-    """Full pipeline for one PDF: pages, cleaning, headnote split."""
+    """Full pipeline for one PDF: pages, cleaning, and the two boundaries of the court's own text."""
     pages = extract_pages(pdf_path)
     cleaned, removed = clean_pages(pages)
     headnote, judgment, author, notes = split_headnote(cleaned)
+    judgment, trailer = split_trailer(judgment)
+    if trailer:
+        notes.append(f"publisher trailer of {len(trailer)} characters removed from the judgment text")
     # The coram sits above the headnote, so search the whole cleaned document.
     coram = find_coram(cleaned)
     return ExtractedJudgment(
@@ -239,6 +329,7 @@ def extract(pdf_path: Path, source_path: str) -> ExtractedJudgment:
         page_count=len(pages),
         headnote=headnote,
         judgment=judgment,
+        trailer=trailer,
         author=author,
         coram=coram,
         removed_lines=removed,

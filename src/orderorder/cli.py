@@ -43,7 +43,7 @@ from orderorder.evaluation.gold import read_gold, write_gold
 from orderorder.evaluation.gold import summarise as summarise_gold
 from orderorder.evaluation.run import format_disagreements, format_report, run_gold
 from orderorder.ingest import aliases as alias_learning
-from orderorder.ingest import bulk
+from orderorder.ingest import bulk, repair
 from orderorder.ingest import corpus as corpus_mod
 from orderorder.ingest import pdf as pdf_mod
 from orderorder.ingest.metadata import import_parquet
@@ -280,6 +280,23 @@ def ingest_bulk_text(
             f"[yellow]{written} failures[/yellow] written to {failures_path}; "
             "retry them with [bold]orderorder ingest bulk-text --retry[/bold]"
         )
+
+
+@ingest_app.command("repair-trailers")
+def ingest_repair_trailers(
+    dry_run: bool = typer.Option(False, help="Report what would be removed without writing it."),
+) -> None:
+    """Cut the reporter's closing matter out of judgments ingested before extraction knew to.
+
+    The SCR volumes end a judgment with the editors' own words, running on from the court's last
+    paragraph. Extraction now stops at them; this removes them from what was stored earlier, without
+    re-reading nine thousand PDFs.
+    """
+    init_db()
+    prefix = "[yellow]would remove[/yellow]" if dry_run else "[green]removed[/green]"
+    with get_session() as session:
+        console.print(f"{prefix}: {repair.strip_publisher_trailers(session, dry_run=dry_run)}")
+        console.print(f"{prefix}: {repair.strip_signoffs(session, dry_run=dry_run)}")
 
 
 @ingest_app.command("aliases")
