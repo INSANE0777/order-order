@@ -11,13 +11,14 @@ uv run orderorder ingest text INSC:2019:770 INSC:2024:1027 INSC:2024:1051 INSC:2
 ### 1. A brief, verified
 
 ```bash
-uv run orderorder verify --file demo/brief.txt
+uv run orderorder verify --file demo/brief.txt --no-model
 ```
 
 Ten citations, eight of them wrong in eight different ways. See [expected.md](expected.md) for what
 each one is and what the engine should say about it.
 
-This run needs **no API key**. Eight of the twelve failure modes are settled by the record and by the
+`--no-model` holds the engine to the checks that need none, so the claim below is testable even on
+a machine that has a key configured. This run needs **no API key**. Eight of the twelve failure modes are settled by the record and by the
 structure of the judgment — whether the case exists, whether the citation names it, who decided it
 and how many judges sat, whose words a paragraph carries, what later courts did with it, whether the
 pinpointed paragraph is where the words are, and whether a quotation was stopped before its

@@ -40,13 +40,21 @@ uv run orderorder locate INSC:2019:770 "the plaintiff is the dominus litis" --pi
 
 uv run orderorder verify --file brief.txt            # every citation in a brief
 uv run orderorder verify --file brief.txt --facts matter.txt   # ... and whether each one applies
+uv run orderorder verify --file brief.txt --memo     # ... and what the other side will say
+uv run orderorder verify --file brief.txt --annotate flagged.txt --report report.md
 
 uv run orderorder ingest bulk-text                   # text for the whole corpus; resumable
 uv run orderorder ingest aliases                     # learn the SCC citations the open data omits
+uv run orderorder ingest repair-trailers             # cut the reporter's own words out of stored text
 uv run orderorder index                              # full-text index over every paragraph
 uv run orderorder citator                            # who cited whom, and what they did with it
 uv run orderorder find "a misrepresentation vitiates consent only where it induced the contract"
+uv run orderorder argue propositions.txt             # bind each proposition to an authority, or refuse
 uv run orderorder treatment INSC:2019:770            # is this authority still good law?
+
+uv run orderorder eval generate --seeds 40 --rng-seed 1729   # plant known failures in real judgments
+uv run orderorder eval run --no-model --detail               # score every check that needs no model
+uv run orderorder eval search --judgments 40                 # score the other direction
 ```
 
 The engine runs in two directions.
@@ -62,15 +70,54 @@ speaking, weighs bench strength and recency beside relevance, and names the sent
 model configured it then runs each authority back through `verify`, because retrieval proposes and
 only the verifier confirms.
 
+`argue` is the two of them composed, and is the drafting surface's gate. For each proposition a
+lawyer intends to advance it searches, verifies, and then refuses everything that is not the court's
+own words, from the majority, still good law, and quoted verbatim. Where the court put the point more
+narrowly than the advocate did, it returns the authority *and the proposition to argue instead*.
+
 `uv run pytest` runs the suite; it uses an in-memory database and never touches the network.
+
+### What it scores
+
+The engine is measured in both directions, against ground truth the corpus supplies rather than labels
+anyone wrote, on **forty judgments the detectors were not developed against**. The set they were fixed
+on cannot measure them, so every number here is from a held-out draw.
+
+Verification, 270 planted items, **no model configured**:
+
+| mode | | recall |
+|---|---|---|
+| 1 | phantom | 40/40 |
+| 2 | mis-cite | 40/40 |
+| 3 | wrong court or bench | 39/39 |
+| 5 | wrong voice | 34/34 |
+| 9 | selective quotation | 20/20 |
+| 10 | dead or wounded law | 14/14 |
+| 12 | wrong pinpoint | 40/40 |
+| | **false positives on clean citations** | **0/40** |
+
+With a model, over the modes that need one and 25 clean citations: obiter as ratio 3/3, false
+positives 0/25, **quote grounding 100%**, abstention 68%, six seconds a citation.
+
+Search, 148 queries over all 409,499 paragraphs:
+
+| query | case@1 | case@5 | para@5 | line |
+|---|---|---|---|---|
+| the line, verbatim | 91% | 99% | 99% | 100% |
+| a remembered fragment | 81% | 91% | 85% | 100% |
+
+Once the right paragraph is found, the sentence named as the line is the one the proposition came from
+every time. What these numbers do not say — and the limits matter more than the figures — is set out
+in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §11.4.
 
 ### What works today
 
 All three questions the product asks about a citation: **does the case exist**, **which paragraph is
 being relied on**, and **does that paragraph support the claim to the extent claimed** — and, once a
 paragraph is fixed, **whose words they are** and **whether they carried the decision**. Between them
-these detect **all twelve** failure modes in the taxonomy in [docs/PRD.md](docs/PRD.md). Seven of the
-twelve are decided without a language model at all.
+these detect **all twelve** failure modes in the taxonomy in [docs/PRD.md](docs/PRD.md). Eight of the
+twelve are decided without a language model at all, which is why the whole of the demo above runs on a
+laptop with no key configured.
 
 And the same machinery run backwards: **given a proposition and no citation, which judgment backs it,
 and which line**. Search drops any passage that is not the court speaking before it ever reaches the
@@ -134,8 +181,14 @@ which the corpus does not yet hold.
 | Resumable bulk text ingestion for the whole corpus | `ingest/bulk.py` |
 | Learning the reporter citations the open data omits, from how judgments cite each other | `ingest/aliases.py` |
 | Model providers with fallbacks across free tiers | `engine/providers.py` |
+| Selective quotation: the sentence cut before its qualification, by string comparison | `engine/truncation.py` |
+| The opposing-counsel memo, written from the verdict object and nothing else | `engine/memo.py` |
+| The annotated brief and the verification report | `engine/report.py` |
+| The drafting gate: bind a proposition to an authority, or refuse to | `engine/authority.py` |
 | Verdict assembly and the grading rubric | `engine/verdict.py` |
 | The engine as a LangGraph state graph | `engine/graph.py` |
+| The evaluation harness: plant known failures, score both directions | `evaluation/` |
+| Repairs to stored text when extraction is corrected after the fact | `ingest/repair.py` |
 
 Measured on the real corpus, which is now the whole of it:
 
@@ -201,15 +254,24 @@ read instead, because bench strength decides which precedents bind which. And th
 **editorial headnote**, which is the publisher's summary rather than the court's words; it is stored
 separately and never used as the text a pinpoint resolves against.
 
+**The reporter's own words are not the court's.** The Reports open with an editorial headnote and
+close with the editors' sign-off — the disposition restated, the name of whoever wrote the headnote —
+which extraction ran together with the court's last paragraph in two thirds of the corpus. A quote
+verified against that would be reported as the court's, so both ends are now cut, and 424,000
+characters of publisher's text came out of judgments already stored.
+
 ### Not built yet
 
-Embeddings and hybrid retrieval, the drafting surface (PRD Surface B) and the web app. See
+Embeddings and hybrid retrieval, so search is lexical and finds a quoted line far better than a
+paraphrase. Document assembly for the drafting surface (PRD B7) and its DOCX export (B9) — the gate
+that decides what may enter a draft is built, and `argue` is it. The web app. See
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Status
 
-Documents complete; the data spine, the resolver and the verification engine through voice, opinion
-and weight are working. Started 4 September 2026.
+Documents complete. Both directions of the engine work end to end on the whole corpus, all twelve
+failure modes are implemented, and both directions are measured on a held-out set. Started
+4 September 2026.
 
 ## Attribution
 

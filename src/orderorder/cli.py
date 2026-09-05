@@ -855,6 +855,11 @@ def verify_command(
     annotate: str | None = typer.Option(
         None, "--annotate", help="Write a copy of the brief with a flag beside every citation."
     ),
+    no_model: bool = typer.Option(
+        False,
+        "--no-model",
+        help="Run only the checks that need no model, even where one is configured.",
+    ),
 ) -> None:
     """Verify every citation in a passage: does the case exist, which paragraph, and does it support the claim."""
     if file:
@@ -866,7 +871,9 @@ def verify_command(
     # One model per question, because each is bound to its own output schema. Whose words a passage
     # carries is decided from the judgment's structure, so that check survives having no key at all.
     matter_facts = Path(facts).read_text(encoding="utf-8") if facts else ""
-    model = build_structured(ScopeAssessment)
+    # Eight of the twelve failure modes need no model, and being able to say so is only worth
+    # anything if it can be demonstrated on a machine that does have one configured.
+    model = None if no_model else build_structured(ScopeAssessment)
     if model is None:
         console.print(
             "[yellow]no language model configured[/yellow] so existence, pinpoint, voice and opinion "
@@ -879,9 +886,11 @@ def verify_command(
             text,
             model,
             top_k=top,
-            voice_model=build_structured(VoiceAssessment),
-            weight_model=build_structured(WeightAssessment),
-            facts_model=build_structured(ApplicabilityAssessment) if matter_facts else None,
+            voice_model=None if no_model else build_structured(VoiceAssessment),
+            weight_model=None if no_model else build_structured(WeightAssessment),
+            facts_model=(
+                None if no_model or not matter_facts else build_structured(ApplicabilityAssessment)
+            ),
             matter_facts=matter_facts,
         )
 
