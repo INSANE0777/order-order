@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     llm_fallbacks: str = "groq:openai/gpt-oss-120b,cerebras:gpt-oss-120b,ollama:qwen3.5:4b"
     llm_long_context: str = "google_genai:gemini-2.5-flash"
     llm_sensitive: str = "groq:openai/gpt-oss-120b"
+    # An OpenAI-compatible endpoint to send `openai:` provider strings to, instead of OpenAI itself.
+    # This is one setting for three cases the project actually has: a router or gateway, a self-hosted
+    # SGLang or vLLM server (the production plan in docs/TECH_STACK.md section 5), and any of the
+    # providers that speak the OpenAI protocol. Empty means talk to OpenAI.
+    llm_base_url: str = ""
 
     # Indian Kanoon API.
     indiankanoon_token: str | None = None

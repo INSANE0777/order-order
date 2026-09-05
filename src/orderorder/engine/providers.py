@@ -144,6 +144,13 @@ def available_specs() -> list[ProviderSpec]:
 def _build_one(spec: ProviderSpec, schema: type[BaseModel], **kwargs: Any):
     from langchain.chat_models import init_chat_model
 
+    # An OpenAI-compatible endpoint — a router, a gateway, or the self-hosted SGLang box the
+    # production profile calls for — is reached by pointing the `openai` provider somewhere else.
+    # Nothing above this line changes: the engine still asks for something that returns a schema.
+    base_url = get_settings().llm_base_url
+    if spec.provider == "openai" and base_url and "base_url" not in kwargs:
+        kwargs["base_url"] = base_url
+
     model = init_chat_model(spec.model, model_provider=spec.provider, temperature=0, **kwargs)
     return model.with_structured_output(schema, method=spec.structured_method)
 
