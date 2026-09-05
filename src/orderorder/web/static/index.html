@@ -230,7 +230,9 @@ let job = null, verdicts = [], chosen = null;
 // ---------- status ----------
 fetch("/api/health").then(r => r.json()).then(h => {
   const bits = [`${h.judgments_with_text.toLocaleString()} judgments`];
-  bits.push(h.model_configured ? "model reachable" : "no model configured");
+  // "configured", not "reachable": the health route reads a key, it does not make a call, and a
+  // key for a provider that is down reads exactly the same as one that works.
+  bits.push(h.model_configured ? "model configured" : "no model configured");
   $("status").textContent = bits.join(" · ");
   if (!h.model_configured) $("usemodel").checked = false;
 }).catch(() => $("status").textContent = "the server is not answering");

@@ -190,6 +190,6 @@ or run a local model with no key at all:
 ```bash
 OLLAMA_MODELS=data/ollama ollama serve
 ollama pull qwen3.5:4b
-uv run orderorder doctor          # should now show ollama usable
-uv run orderorder doctor --probe  # and that it returns a filled schema, not prose
+uv run orderorder doctor          # should now show ollama configured
+uv run orderorder doctor --probe  # and that something answers, with a filled schema not prose
 ```

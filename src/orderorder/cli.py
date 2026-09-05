@@ -137,7 +137,11 @@ def doctor(
     providers = Table(title="Language models", show_header=True, header_style="bold")
     providers.add_column("provider:model")
     providers.add_column("key")
-    providers.add_column("usable")
+    # "configured", not "usable". The column is read from environment variables and says nothing
+    # about whether anything answers: a key for a proxy that is not running reads exactly the same as
+    # a working provider. A night was spent on that, so the word is the honest one and the line below
+    # says where to find out.
+    providers.add_column("configured")
     usable = 0
     for spec, env, ok in describe_providers():
         providers.add_row(spec, env, "[green]yes[/green]" if ok else "[dim]no key[/dim]")
@@ -149,7 +153,12 @@ def doctor(
             "extent of support does not. Add a free key, see .env.example."
         )
     else:
-        console.print(f"[green]{usable} provider(s) usable[/green]")
+        console.print(f"[green]{usable} provider(s) configured[/green]")
+        if not probe:
+            console.print(
+                "[dim]configured means a key is set, not that anything answered. "
+                "Run [bold]--probe[/bold] to make one real call and find out.[/dim]"
+            )
 
     if probe:
         _probe_structured_output()
