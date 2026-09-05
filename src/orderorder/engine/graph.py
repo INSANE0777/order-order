@@ -249,12 +249,19 @@ def verify_text(
     weight_model: StructuredModel | None = None,
     facts_model: StructuredModel | None = None,
     matter_facts: str = "",
+    on_found=None,
+    on_verdict=None,
 ) -> list[CitationVerdict]:
     """Find every citation in a passage and verify each one.
 
     The proposition attributed to a citation is the sentence containing it. That is a first
     approximation: a citation often supports the sentence before it, and resolving that properly is
     the span-tagging step the architecture assigns to the model.
+
+    `on_found` is told how many citations there are before any of them is checked, and `on_verdict`
+    is told about each one as it finishes. A brief of thirty citations takes minutes with a model
+    configured, and a caller that can only wait for the list has nothing to show until the last one
+    is done — including the phantom that was settled in milliseconds.
     """
     from orderorder.citations.grammar import extract_citations
 
@@ -268,8 +275,13 @@ def verify_text(
         facts_model=facts_model,
         matter_facts=matter_facts,
     )
-    for citation in extract_citations(text):
+    citations = extract_citations(text)
+    if on_found is not None:
+        on_found(len(citations))
+    for citation in citations:
         proposition = sentence_around(text, citation.span[0])
         final = compiled.invoke({"citation": citation, "proposition": proposition})
         verdicts.append(final["verdict"])
+        if on_verdict is not None:
+            on_verdict(final["verdict"])
     return verdicts

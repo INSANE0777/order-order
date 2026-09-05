@@ -704,6 +704,27 @@ def eval_search(
         console.print(f"[dim]written to {report}[/dim]")
 
 
+@app.command("serve")
+def serve_command(
+    host: str = typer.Option("127.0.0.1", help="Interface to listen on. Local only by default."),
+    port: int = typer.Option(8000, help="Port to listen on."),
+    reload: bool = typer.Option(False, help="Restart on source changes, for development."),
+) -> None:
+    """Open the engine in a browser: verdict board, annotated brief, judgment viewer.
+
+    The three things a stress-test produces are worth reading together rather than one at a time,
+    which is what a page adds over this command line: click a flag, see the paragraph the engine read,
+    see the verified sentence highlighted inside it.
+
+    It binds to localhost, because the corpus and any brief you paste into it stay on this machine.
+    """
+    import uvicorn
+
+    init_db()
+    console.print(f"[green]OrderOrder[/green] on [bold]http://{host}:{port}[/bold]  (ctrl-c to stop)")
+    uvicorn.run("orderorder.web.api:app", host=host, port=port, reload=reload, log_level="warning")
+
+
 @app.command("index")
 def index_command(
     rebuild: bool = typer.Option(False, help="Drop and rebuild, after ingesting more judgments."),

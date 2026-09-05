@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OrderOrder</title>
+<style>
+  :root {
+    --ink: #1a1a18;
+    --muted: #6b6a65;
+    --faint: #94938d;
+    --rule: #dedbd2;
+    --paper: #faf9f5;
+    --card: #ffffff;
+    --good: #2f6f4f;
+    --warn: #9a6b1f;
+    --bad: #a8342a;
+    --accent: #2f5d8a;
+    --mark: #fff3bf;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 15px/1.55 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  }
+  header {
+    padding: 18px 24px; border-bottom: 1px solid var(--rule); background: var(--card);
+    display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+  }
+  h1 { font-size: 19px; margin: 0; letter-spacing: -0.01em; }
+  h1 span { color: var(--faint); font-weight: normal; }
+  #status { margin-left: auto; font-size: 12.5px; color: var(--muted); }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 900px) { .row { grid-template-columns: 1fr; } }
+
+  .card { background: var(--card); border: 1px solid var(--rule); border-radius: 4px; padding: 18px; }
+  .card h2 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
+             color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+
+  textarea {
+    width: 100%; min-height: 190px; padding: 12px; border: 1px solid var(--rule); border-radius: 3px;
+    font: 13.5px/1.5 ui-monospace, "SF Mono", Consolas, monospace; resize: vertical; background: #fff;
+    color: var(--ink);
+  }
+  .controls { display: flex; gap: 12px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  button {
+    font: inherit; font-size: 14px; padding: 8px 18px; border-radius: 3px; cursor: pointer;
+    border: 1px solid var(--ink); background: var(--ink); color: #fff;
+  }
+  button.quiet { background: transparent; color: var(--ink); border-color: var(--rule); }
+  button:disabled { opacity: .45; cursor: default; }
+  label.check { font-size: 13.5px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase;
+       color: var(--faint); font-weight: 600; padding: 0 8px 8px; border-bottom: 1px solid var(--rule); }
+  td { padding: 9px 8px; border-bottom: 1px solid #f0eee6; vertical-align: top; }
+  tr.pick { cursor: pointer; }
+  tr.pick:hover td { background: #f6f4ec; }
+  tr.on td { background: #f1f5f9; }
+
+  .g { display: inline-block; width: 20px; height: 20px; line-height: 20px; text-align: center;
+       border-radius: 3px; font-weight: 700; font-size: 12px; color: #fff; }
+  .g.A, .g.B { background: var(--good); }
+  .g.C, .g.D { background: var(--warn); }
+  .g.E, .g.F { background: var(--bad); }
+  /* Nothing was found against it, but not everything was asked. A solid green badge would say the
+     first and imply the second, which is the overclaiming this whole engine exists to refuse. */
+  .g.part { background: #fff; color: var(--good); box-shadow: inset 0 0 0 1.5px var(--good); }
+  .mode { display: inline-block; padding: 1px 6px; margin: 0 3px 3px 0; border-radius: 3px;
+          background: #f3ece9; color: var(--bad); font-size: 11.5px; font-weight: 600; }
+  .review { color: var(--warn); font-size: 11.5px; }
+
+  .finding { margin: 10px 0; padding-left: 12px; border-left: 2px solid var(--bad); }
+  .finding b { display: block; font-size: 13px; }
+  .finding span { color: var(--muted); font-size: 13px; }
+  blockquote { margin: 10px 0; padding: 10px 14px; background: #f6f8f5; border-left: 3px solid var(--good);
+               font-size: 13.5px; }
+  .claim { color: var(--muted); font-style: italic; font-size: 13.5px; margin: 4px 0 12px; }
+
+  #para { max-height: 60vh; overflow-y: auto; }
+  .p { padding: 9px 0; border-bottom: 1px solid #f2f0e8; font-size: 13.5px; }
+  .p b { color: var(--faint); font-size: 11.5px; margin-right: 8px; }
+  .p.here { background: #fffdf2; }
+  .p .op { font-size: 11px; color: var(--bad); margin-left: 6px; }
+  mark { background: var(--mark); padding: 1px 0; }
+
+  pre { white-space: pre-wrap; font: 12.5px/1.5 ui-monospace, Consolas, monospace;
+        background: #f7f6f1; padding: 12px; border-radius: 3px; overflow-x: auto; max-height: 55vh; }
+  .none { color: var(--faint); font-size: 13.5px; font-style: italic; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 14px; }
+  .tabs button { background: transparent; color: var(--muted); border: 1px solid transparent;
+                 padding: 5px 12px; font-size: 13px; }
+  .tabs button.on { color: var(--ink); border-color: var(--rule); background: #fff; }
+  .hint { font-size: 12.5px; color: var(--faint); margin-top: 10px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>OrderOrder <span>— citation integrity for Indian case law</span></h1>
+  <div id="status">checking…</div>
+</header>
+
+<main>
+  <div class="tabs">
+    <button id="tab-check" class="on">Check a brief</button>
+    <button id="tab-find">Find an authority</button>
+  </div>
+
+  <!-- ============ check a brief ============ -->
+  <section id="view-check">
+    <div class="card" id="input-card">
+      <h2>The brief</h2>
+      <textarea id="brief" spellcheck="false" placeholder="Paste a brief, memorial or written submission. Every case-law citation in it will be checked."></textarea>
+      <div class="controls">
+        <button id="go">Check every citation</button>
+        <button id="demo" class="quiet">Load the demo brief</button>
+        <label class="check"><input type="checkbox" id="usemodel" checked> use a language model</label>
+        <span id="prog" class="hint"></span>
+      </div>
+      <p class="hint">Eight of the twelve failure modes need no model. With the box unticked, those still run and
+        the rest are reported <em>not checked</em> rather than guessed.</p>
+    </div>
+
+    <div class="row" style="margin-top:24px">
+      <div class="card">
+        <h2>Verdict board</h2>
+        <div id="board"><p class="none">Nothing checked yet.</p></div>
+        <div class="controls" id="exports" hidden>
+          <button class="quiet" id="dl-report">Download report</button>
+          <button class="quiet" id="dl-annotated">Download annotated brief</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="tabs">
+          <button id="t-detail" class="on">Verdict</button>
+          <button id="t-judgment">Judgment</button>
+          <button id="t-memo">Memo</button>
+        </div>
+        <div id="detail"><p class="none">Choose a citation on the left.</p></div>
+        <div id="judgment" hidden><p class="none">Choose a citation on the left.</p></div>
+        <div id="memo" hidden><p class="none">Choose a citation on the left.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ find an authority ============ -->
+  <section id="view-find" hidden>
+    <div class="card">
+      <h2>The proposition</h2>
+      <textarea id="query" style="min-height:80px" spellcheck="false"
+        placeholder="A proposition you want an authority for. No citation needed — that is what this finds."></textarea>
+      <div class="controls">
+        <button id="search">Search every judgment</button>
+        <span id="sprog" class="hint"></span>
+      </div>
+      <p class="hint">A passage that is not the court speaking is dropped before it reaches you: an advocate's
+        submission matches a proposition's words better than a holding does, because it is stated without the
+        qualifications.</p>
+    </div>
+    <div class="card" style="margin-top:24px">
+      <h2>Authorities</h2>
+      <div id="results"><p class="none">Nothing searched yet.</p></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let job = null, verdicts = [], chosen = null;
+
+// ---------- status ----------
+fetch("/api/health").then(r => r.json()).then(h => {
+  const bits = [`${h.judgments_with_text.toLocaleString()} judgments`];
+  bits.push(h.model_configured ? "model reachable" : "no model configured");
+  $("status").textContent = bits.join(" · ");
+  if (!h.model_configured) $("usemodel").checked = false;
+}).catch(() => $("status").textContent = "the server is not answering");
+
+// ---------- tabs ----------
+function showTab(which) {
+  $("view-check").hidden = which !== "check";
+  $("view-find").hidden = which !== "find";
+  $("tab-check").classList.toggle("on", which === "check");
+  $("tab-find").classList.toggle("on", which === "find");
+}
+$("tab-check").onclick = () => showTab("check");
+$("tab-find").onclick = () => showTab("find");
+
+function showPanel(which) {
+  for (const [tab, panel] of [["t-detail","detail"],["t-judgment","judgment"],["t-memo","memo"]]) {
+    const on = panel === which;
+    $(tab).classList.toggle("on", on);
+    $(panel).hidden = !on;
+  }
+}
+$("t-detail").onclick = () => showPanel("detail");
+$("t-judgment").onclick = () => { showPanel("judgment"); loadJudgment(); };
+$("t-memo").onclick = () => { showPanel("memo"); loadMemo(); };
+
+// ---------- checking ----------
+$("demo").onclick = async () => {
+  $("brief").value = DEMO;
+};
+
+$("go").onclick = async () => {
+  const text = $("brief").value.trim();
+  if (!text) return;
+  $("go").disabled = true;
+  verdicts = []; chosen = null;
+  $("board").innerHTML = '<p class="none">Reading the brief…</p>';
+  $("detail").innerHTML = '<p class="none">Choose a citation on the left.</p>';
+  $("exports").hidden = true;
+
+  try {
+    const started = await post("/api/verify", { text, use_model: $("usemodel").checked });
+    job = started.job;
+    listen(job);
+  } catch (e) {
+    $("board").innerHTML = `<p class="none">${escape(String(e.message || e))}</p>`;
+    $("go").disabled = false;
+  }
+};
+
+function listen(id) {
+  const stream = new EventSource(`/api/jobs/${id}/events`);
+  stream.addEventListener("progress", (e) => {
+    const d = JSON.parse(e.data);
+    $("prog").textContent = d.total ? `${d.done} of ${d.total} checked` : "finding citations…";
+  });
+  stream.addEventListener("verdict", (e) => {
+    const d = JSON.parse(e.data);
+    verdicts[d.index] = d.verdict;
+    drawBoard();
+  });
+  stream.addEventListener("done", (e) => {
+    const d = JSON.parse(e.data);
+    stream.close();
+    $("go").disabled = false;
+    $("prog").textContent = d.error ? d.error : `${d.checked} citation${d.checked === 1 ? "" : "s"} checked`;
+    if (verdicts.length) $("exports").hidden = false;
+    else $("board").innerHTML = '<p class="none">No case-law citations found in that text.</p>';
+  });
+  stream.onerror = () => { stream.close(); $("go").disabled = false; };
+}
+
+function drawBoard() {
+  const rows = verdicts.map((v, i) => {
+    const modes = [...new Set(v.findings.map(f => f.mode))]
+      .map(m => `<span class="mode">${m}</span>`).join("");
+    const review = !modes && v.needs_review ? '<span class="review">needs review</span>' : "";
+    // A grade earned with checks that could not run is not the same as one earned with all of them,
+    // and on a board that is read at a glance the badge has to say so.
+    const partial = !modes && v.needs_review ? " part" : "";
+    return `<tr class="pick ${i === chosen ? "on" : ""}" data-i="${i}">
+      <td><span class="g ${v.grade}${partial}" title="${partial ? "not everything was checked" : ""}">${v.grade}</span></td>
+      <td><b>${escape(v.citation)}</b><br><span style="color:var(--faint);font-size:12.5px">${escape(v.case || "—")}</span></td>
+      <td>${modes || review || '<span style="color:var(--faint)">—</span>'}</td>
+    </tr>`;
+  }).join("");
+  $("board").innerHTML = `<table><thead><tr><th></th><th>Citation</th><th>Findings</th></tr></thead><tbody>${rows}</tbody></table>`;
+  for (const tr of $("board").querySelectorAll("tr.pick")) {
+    tr.onclick = () => { chosen = +tr.dataset.i; drawBoard(); drawDetail(); };
+  }
+}
+
+function drawDetail() {
+  const v = verdicts[chosen];
+  if (!v) return;
+  const findings = v.findings.map(f =>
+    `<div class="finding"><b>[${f.mode}] ${escape(f.label)}</b><span>${escape(f.detail)}</span></div>`).join("");
+  const quote = v.quote
+    ? `<blockquote>“${escape(v.quote)}”<br><span style="color:var(--muted);font-size:12px">verified word for word against paragraph ${escape(v.paragraph || "?")}</span></blockquote>`
+    : "";
+  const narrowed = v.narrowed
+    ? `<p style="font-size:13.5px"><b>Argue instead:</b> ${escape(v.narrowed)}</p>` : "";
+  const review = v.needs_review
+    ? `<p class="review">Needs review: ${escape(v.review_reason || "")}</p>` : "";
+  const treatment = v.treatment && v.treatment.doubtful
+    ? `<div class="finding"><b>${escape(v.treatment.status.replace(/_/g, " "))}</b><span>${escape(v.treatment.note || "")}</span></div>` : "";
+
+  const partial = !v.findings.length && v.needs_review ? " part" : "";
+  $("detail").innerHTML = `
+    <p><span class="g ${v.grade}${partial}">${v.grade}</span> <b>${escape(v.citation)}</b></p>
+    <p style="font-size:13.5px;color:var(--muted)">${escape(v.case || "not resolved")}</p>
+    <p class="claim">“${escape(v.proposition)}”</p>
+    ${quote}${narrowed}${findings}${treatment}${review}
+    ${!findings && !review ? '<p class="none">Nothing found against it in what was checked.</p>' : ""}`;
+  // The memo says in full what was checked and what was not; the panel says which of the two this is.
+  showPanel("detail");
+  $("judgment").innerHTML = '<p class="none">Open the Judgment tab to read the paragraph.</p>';
+  $("memo").innerHTML = '<p class="none">Open the Memo tab.</p>';
+}
+
+async function loadJudgment() {
+  const v = verdicts[chosen];
+  if (!v) return;
+  if (!v.key) { $("judgment").innerHTML = '<p class="none">This citation resolves to no judgment, so there is nothing to read.</p>'; return; }
+  $("judgment").innerHTML = '<p class="none">Loading the judgment…</p>';
+  const url = `/api/judgment/${encodeURIComponent(v.key)}` + (v.quote ? `?highlight=${encodeURIComponent(v.quote)}` : "");
+  try {
+    const j = await (await fetch(url)).json();
+    const want = v.paragraph || v.claimed_pinpoint;
+    const paras = j.paragraphs.map(p => {
+      // The server cut the paragraph where the quote begins and ends, so there is no offset to get
+      // wrong here: Python counts characters and JavaScript counts UTF-16 units.
+      const body = p.quoted
+        ? escape(p.body) + "<mark>" + escape(p.quoted) + "</mark>" + escape(p.rest)
+        : escape(p.body);
+      const here = p.label && want && String(p.label) === String(want);
+      const op = p.opinion && p.opinion !== "majority"
+        ? `<span class="op">${escape(p.opinion)}${p.author ? " · " + escape(p.author) : ""}</span>` : "";
+      return `<div class="p ${here ? "here" : ""}" ${here ? 'id="anchor"' : ""}><b>${escape(p.label || "—")}</b>${op}${body}</div>`;
+    }).join("");
+    $("judgment").innerHTML = `
+      <p style="font-size:13.5px"><b>${escape(j.title)}</b><br>
+      <span style="color:var(--faint);font-size:12.5px">${escape(j.citation || j.key)} · ${escape(j.court || "")} ·
+      ${escape(j.decided_on || "")} · bench ${j.bench_strength ?? "?"}</span></p>
+      <div id="para">${paras}</div>`;
+    const anchor = document.getElementById("anchor");
+    if (anchor) anchor.scrollIntoView({ block: "center" });
+  } catch {
+    $("judgment").innerHTML = '<p class="none">The judgment could not be loaded.</p>';
+  }
+}
+
+async function loadMemo() {
+  if (chosen === null || !job) return;
+  $("memo").innerHTML = '<p class="none">Writing the memo…</p>';
+  const text = await (await fetch(`/api/jobs/${job}/memo/${chosen}`)).text();
+  $("memo").innerHTML = `<pre>${escape(text)}</pre>`;
+}
+
+$("dl-report").onclick = () => download(`/api/jobs/${job}/report`, "verification-report.md");
+$("dl-annotated").onclick = () => download(`/api/jobs/${job}/annotated`, "annotated-brief.txt");
+
+async function download(url, name) {
+  const text = await (await fetch(url)).text();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ---------- searching ----------
+$("search").onclick = async () => {
+  const q = $("query").value.trim();
+  if (!q) return;
+  $("search").disabled = true;
+  $("sprog").textContent = "searching every paragraph…";
+  try {
+    const r = await (await fetch(`/api/search?q=${encodeURIComponent(q)}`)).json();
+    if (r.detail) throw new Error(r.detail);
+    $("results").innerHTML = r.authorities.length ? r.authorities.map(a => `
+      <div class="p">
+        <b>${escape(a.pinpoint)}</b>
+        ${a.doubtful ? `<span class="mode">no longer good law</span>` : ""}
+        <div style="font-size:13.5px"><b>${escape(a.title)}</b></div>
+        <div style="color:var(--faint);font-size:12.5px">${escape(a.decided_on || "")} · bench ${a.bench_strength ?? "?"} · score ${a.score}</div>
+        ${a.line ? `<blockquote>${escape(a.line)}</blockquote>` : ""}
+        ${a.doubtful ? `<div class="finding"><span>${escape(a.treatment_note || "")}</span></div>` : ""}
+      </div>`).join("") : '<p class="none">Nothing in the corpus carries those words.</p>';
+    $("sprog").textContent = `${r.authorities.length} found`;
+  } catch (e) {
+    $("results").innerHTML = `<p class="none">${escape(String(e.message || e))}</p>`;
+    $("sprog").textContent = "";
+  }
+  $("search").disabled = false;
+};
+
+// ---------- helpers ----------
+async function post(url, body) {
+  const r = await fetch(url, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `HTTP ${r.status}`);
+  return r.json();
+}
+function escape(s) {
+  return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+const DEMO = `WRITTEN SUBMISSIONS ON BEHALF OF THE APPELLANT
+
+1. It is submitted at the outset that the appellant cannot be impleaded as a defendant in a suit for specific performance of a contract to which he is not a party, as held in 2019 INSC 770, para 7.
+
+2. A subsequent purchaser who holds a prior agreement to sell is a necessary party to the suit and must be impleaded to protect his interest, as this Court held in 2019 INSC 770, para 3.2.
+
+3. This Court has further held that the controversies between the parties to the litigation alone are to be gone into under Order 1 Rule 10 CPC: see 2019 INSC 770, para 73.
+
+4. The proposition is settled beyond argument by the decision of this Court in Mohanlal Sharma v. State of Rajasthan, (2023) 7 SCC 4412.
+
+5. The doctrine of delay and laches cannot be applied stricto senso to writ petitions invoking public interest jurisdiction, as this Court held in 2024 INSC 1027, para 17.
+
+6. A Constitution Bench of this Court has settled that the plaintiff cannot be compelled to implead a stranger to the contract: 2019 INSC 770, para 7.`;
+</script>
+</body>
+</html>

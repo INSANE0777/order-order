@@ -111,7 +111,23 @@ What was rejected is listed with the reason, which is where the next hour of res
 a key nothing can be *bound* — the gate can still check voice, opinion and treatment, and offers the
 line to read, marked unchecked.
 
-### 7. The numbers
+### 7. All of it, in a browser
+
+```bash
+uv run orderorder serve
+```
+
+The verdict board, the annotated brief and the judgment viewer on one page — which is the point of
+having a page at all, since each exists as text already. Click a citation, read the paragraph the
+engine actually read, and see the verified sentence highlighted inside it. The other tab is the search
+direction.
+
+Two details worth watching. The board fills as each citation is decided rather than all at once, so a
+phantom citation is on screen while the ones that need a model are still running. And a grade earned
+with checks that could not run gets a hollow badge rather than a solid one: nothing was found against
+it, but not everything was asked, and on a board read at a glance the badge has to say so.
+
+### 8. The numbers
 
 Neither of the two directions is worth much unmeasured, and both are measured against ground truth
 the corpus supplies rather than labels anyone wrote:
