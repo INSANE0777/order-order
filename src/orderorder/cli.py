@@ -29,7 +29,9 @@ from orderorder.db.session import get_session, init_db
 from orderorder.engine import citator, search
 from orderorder.engine.graph import verify_text
 from orderorder.engine.locator import locate as locate_claim
+from orderorder.engine.prompts import SCOPE_PROMPT, format_candidates
 from orderorder.engine.providers import build_structured, describe_providers
+from orderorder.engine.quotes import find_quote
 from orderorder.engine.schemas import (
     ApplicabilityAssessment,
     ScopeAssessment,
@@ -63,7 +65,11 @@ def _root(version: bool = typer.Option(False, "--version", help="Print the versi
 
 
 @app.command()
-def doctor() -> None:
+def doctor(
+    probe: bool = typer.Option(
+        False, "--probe", help="Make one real call to check the model returns a filled schema."
+    ),
+) -> None:
     """Check Python, the data directory, the database and which model providers have keys."""
     settings = get_settings()
     table = Table(title="OrderOrder environment", show_header=True, header_style="bold")
@@ -98,6 +104,9 @@ def doctor() -> None:
     else:
         console.print(f"[green]{usable} provider(s) usable[/green]")
 
+    if probe:
+        _probe_structured_output()
+
     try:
         with get_session() as session:
             judgments = session.scalar(select(func.count()).select_from(Judgment)) or 0
@@ -105,6 +114,50 @@ def doctor() -> None:
     except Exception as exc:  # noqa: BLE001 - the point is to report any failure
         console.print(f"[yellow]database not ready:[/yellow] {exc}")
         console.print("run [bold]orderorder init-db[/bold]")
+
+
+def _probe_structured_output() -> None:
+    """Ask the configured provider one question whose answer is checkable, and report what came back.
+
+    Every model call in this engine is schema-bound, and an endpoint that accepts the request but
+    answers in prose is the failure that matters: nothing crashes, and every extent-of-support check
+    quietly becomes "not assessed". A gateway or a self-hosted server may or may not pass schema
+    decoding through to whichever model it routed to, and the only way to know is to ask it.
+    """
+    model = build_structured(ScopeAssessment)
+    if model is None:
+        console.print("[yellow]nothing to probe[/yellow]: no provider is usable")
+        return
+
+    paragraph = (
+        "A misrepresentation vitiates consent only where it induced the contract, and the burden of "
+        "proving inducement lies upon the party alleging it."
+    )
+    prompt = SCOPE_PROMPT.format(
+        claim="A misrepresentation vitiates consent where it induced the contract.",
+        candidates=format_candidates([("3", paragraph)]),
+    )
+    try:
+        answer = model.invoke(prompt)
+    except Exception as exc:  # noqa: BLE001 - the point is to report whatever went wrong
+        console.print(f"[red]probe failed[/red]: {type(exc).__name__}: {exc}")
+        return
+
+    if not isinstance(answer, ScopeAssessment):
+        console.print(
+            f"[red]probe returned {type(answer).__name__}[/red], not a filled schema. This endpoint "
+            "accepts the request but does not constrain the answer, so extent of support, weight and "
+            "applicability would all report 'not assessed'."
+        )
+        return
+
+    console.print(f"[green]schema returned[/green]: support={answer.support!r} para={answer.paragraph_label!r}")
+    if answer.quote:
+        verified = find_quote(answer.quote, paragraph).found
+        colour = "green" if verified else "yellow"
+        console.print(f"  [{colour}]quote verifies against the text: {verified}[/{colour}]")
+    else:
+        console.print("  [yellow]no quote returned[/yellow]; a claim of support could not be grounded")
 
 
 @app.command("init-db")
