@@ -1,0 +1,7 @@
+148 queries over the corpus
+
+            case @1  case @5 case @10  para @5     line
+verbatim       89%     96%     99%     94%    100%
+fragment       53%     75%     82%     68%    100%
+
+seconds per query: 0.67

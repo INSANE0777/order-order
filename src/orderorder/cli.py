@@ -38,6 +38,7 @@ from orderorder.engine.schemas import (
     VoiceAssessment,
     WeightAssessment,
 )
+from orderorder.evaluation import retrieval
 from orderorder.evaluation.generate import generate as generate_gold
 from orderorder.evaluation.gold import read_gold, write_gold
 from orderorder.evaluation.gold import summarise as summarise_gold
@@ -556,6 +557,46 @@ def eval_run(
     lines = format_report(scored)
     if detail:
         lines += ["", *format_disagreements(scored)]
+    console.print("\n".join(lines))
+    if report:
+        Path(report).parent.mkdir(parents=True, exist_ok=True)
+        Path(report).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        console.print(f"[dim]written to {report}[/dim]")
+
+
+@eval_app.command("search")
+def eval_search(
+    judgments: int = typer.Option(40, help="How many judgments to draw propositions from."),
+    per_judgment: int = typer.Option(2, help="Propositions per judgment."),
+    top: int = typer.Option(10, help="How deep in the ranking to look for the right answer."),
+    rng_seed: int = typer.Option(20260904, help="Which judgments get drawn."),
+    report: str | None = typer.Option(None, help="Also write the report to this file."),
+    misses: bool = typer.Option(False, "--misses", help="Print the searches that found nothing."),
+) -> None:
+    """Measure the search direction: a proposition in, the judgment and the line out.
+
+    Ground truth is known by construction — every proposition is a sentence the court wrote, in a
+    paragraph the corpus can name — so this needs no labelling and no model.
+    """
+    init_db()
+    with get_session() as session:
+        if not search.index_exists(session):
+            console.print("[red]no search index[/red]; run [bold]orderorder index[/bold] first")
+            raise typer.Exit(1)
+        items = retrieval.build_items(
+            session, judgments=judgments, per_judgment=per_judgment, seed_value=rng_seed
+        )
+        console.print(f"[dim]{len(items)} queries from {judgments} judgments[/dim]")
+
+        def progress(_outcome, done: int, total: int) -> None:
+            if done % 25 == 0 or done == total:
+                console.print(f"  [dim]{done}/{total}[/dim]")
+
+        scored = retrieval.run_retrieval(session, items, top=top, on_result=progress)
+
+    lines = retrieval.format_retrieval(scored, top=top)
+    if misses:
+        lines += ["", *retrieval.format_misses(scored)]
     console.print("\n".join(lines))
     if report:
         Path(report).parent.mkdir(parents=True, exist_ok=True)
