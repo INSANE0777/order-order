@@ -24,6 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from orderorder.drafting.assemble import MARKS, Draft, Point
+from orderorder.drafting.attack import NOT_CHECKED, Attack
 from orderorder.engine.authority import BOUND, NARROWED, REFUSED, UNCHECKED
 
 # The kinds of block a submission is made of. `word.py` has a style for each.
@@ -57,7 +58,7 @@ class Block:
     text: str
 
 
-def blocks(draft: Draft) -> list[Block]:
+def blocks(draft: Draft, attacks: list[Attack] | None = None) -> list[Block]:
     """The whole document, in filing order."""
     out: list[Block] = []
     out.extend(_cause_title(draft))
@@ -68,6 +69,33 @@ def blocks(draft: Draft) -> list[Block]:
     out.extend(_prayer(draft))
     out.extend(_authorities(draft))
     out.extend(_appendix(draft))
+    if attacks is not None:
+        out.extend(_self_attack(attacks))
+    return out
+
+
+def _self_attack(attacks: list[Attack]) -> list[Block]:
+    """What the other side will say. `docs/PRD.md` B8.
+
+    The closing line matters as much as the list. A self-attack section that stops at what it found
+    reads as a statement that this is all there is, and the two largest questions about any draft --
+    whether these authorities govern these facts, and whether something in the corpus says the
+    opposite -- are not on it.
+    """
+    out = [
+        Block(HEADING, "APPENDIX: WHAT THE OTHER SIDE WILL SAY"),
+        Block(NOTE, "Not part of the submission. Remove before filing."),
+    ]
+    if not attacks:
+        out.append(Block(BODY, "Nothing found in the citation graph against the authorities cited."))
+    for index, attack in enumerate(attacks, start=1):
+        head = f"{index}. {attack.says}"
+        lines = [head, f"   on: {attack.proposition.strip()}"]
+        if attack.citation:
+            lines.append(f"   cited: {attack.citation}")
+        lines.append(f"   fix: {attack.fix}")
+        out.append(Block(BODY, "\n".join(lines)))
+    out.append(Block(NOTE, NOT_CHECKED))
     return out
 
 
@@ -228,10 +256,10 @@ def _roman(number: int) -> str:
     return out or "I"
 
 
-def to_markdown(draft: Draft) -> str:
+def to_markdown(draft: Draft, attacks: list[Attack] | None = None) -> str:
     """The document as Markdown, for a terminal, an email or any converter."""
     lines: list[str] = []
-    for block in blocks(draft):
+    for block in blocks(draft, attacks):
         if block.kind == TITLE:
             lines += ["", f"# {block.text}", ""]
         elif block.kind == HEADING:

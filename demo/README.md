@@ -130,6 +130,13 @@ cannot drift apart. The appendix gives the paragraph, the subsequent history and
 behind every citation, plus what was considered and rejected for the ones that failed — which is where
 the next hour of research starts.
 
+The last section is the draft attacking itself. Everything in the document passed the gate, so what
+is left is what the gate cannot check: a case a later court held inapplicable on its facts, a larger
+or later bench on the same words that the draft does not cite, an authority nobody has cited since.
+All of it from the citation graph, so it needs no key, and the section ends by saying what it did not
+look at — whether any of these authorities governs *these* facts, which no amount of retrieval can
+answer.
+
 ### 8. All of it, in a browser
 
 ```bash

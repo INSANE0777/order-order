@@ -27,6 +27,7 @@ from docx.shared import Inches, Pt, RGBColor
 
 from orderorder.drafting import render
 from orderorder.drafting.assemble import Draft
+from orderorder.drafting.attack import Attack
 
 FONT = "Times New Roman"
 SIZE = Pt(14)
@@ -38,13 +39,13 @@ MARGIN = Inches(1.0)
 WARNING = RGBColor(0x99, 0x00, 0x00)
 
 
-def write_docx(draft: Draft, path: str | Path) -> Path:
+def write_docx(draft: Draft, path: str | Path, attacks: list[Attack] | None = None) -> Path:
     """Write the submission, and return where it went."""
     document = Document()
     _page(document)
     _base_style(document)
 
-    for block in render.blocks(draft):
+    for block in render.blocks(draft, attacks):
         _add(document, block)
 
     destination = Path(path)

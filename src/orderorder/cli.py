@@ -56,6 +56,7 @@ from orderorder.config import get_settings
 from orderorder.db.models import CitationAlias, Judgment, JudgmentTextVersion, Paragraph
 from orderorder.db.session import get_session, init_db
 from orderorder.drafting.assemble import assemble
+from orderorder.drafting.attack import attack_draft
 from orderorder.drafting.plan import PlanError, read_plan
 from orderorder.drafting.render import to_markdown
 from orderorder.drafting.word import write_docx
@@ -902,6 +903,9 @@ def draft_command(
         authority.DEFAULT_CHECKED, help="How many candidate authorities to verify per proposition."
     ),
     show: bool = typer.Option(True, help="Print the submission. --no-show for files only."),
+    attack: bool = typer.Option(
+        True, help="Add what the other side will say. --no-attack to leave it out."
+    ),
 ) -> None:
     """Assemble a written submission from a case plan, with every citation checked.
 
@@ -945,7 +949,11 @@ def draft_command(
             )
 
     draft = assemble(plan, bindings)
-    text = to_markdown(draft)
+    attacks = None
+    if attack:
+        with get_session() as session:
+            attacks = attack_draft(session, draft)
+    text = to_markdown(draft, attacks)
     if show:
         console.print(text)
 
@@ -959,13 +967,15 @@ def draft_command(
             f"[yellow]{len(draft.unsupported)} propositions carry no verified authority[/yellow] "
             "and are marked in the draft. Read them before filing."
         )
+    if attacks:
+        console.print(f"[yellow]{len(attacks)} things the other side will say[/yellow], in the appendix")
 
     if markdown:
         Path(markdown).parent.mkdir(parents=True, exist_ok=True)
         Path(markdown).write_text(text, encoding="utf-8")
         console.print(f"[dim]written to {markdown}[/dim]")
     if docx:
-        written = write_docx(draft, docx)
+        written = write_docx(draft, docx, attacks)
         console.print(f"[dim]written to {written}[/dim]")
 
 

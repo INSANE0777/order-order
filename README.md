@@ -88,6 +88,15 @@ and can contain nothing else, and an appendix gives the paragraph and the verifi
 citation in the document, so a supervisor can check the whole thing against the reports without
 running any of this. It writes Markdown and a .docx that opens in Word.
 
+It then attacks its own draft. Everything in the document has already passed the gate, so the useful
+attacks are the ones the gate cannot make: a case a later court held inapplicable on its facts is
+still good law and still the argument you will meet; a larger or later bench sitting on the same words
+that the draft does not cite is the first thing the other side's junior will find; an authority no
+later judgment has cited at all is something they will say out loud. All of it comes from the citation
+graph and the bench strengths, so no model is called and nothing in the section can be an invention.
+It also says what it did **not** look at, because a self-attack that stops at what it found reads as
+an assurance.
+
 `serve` puts the three outputs of a stress-test on one page, which is the point of having a page.
 A brief can be pasted or opened from a PDF or DOCX; what is read is shown before it is checked, so a
 mangled extraction is obvious in a second rather than arriving as nine inexplicable phantoms. Then:
@@ -214,6 +223,7 @@ which the corpus does not yet hold.
 | The annotated brief and the verification report | `engine/report.py` |
 | The drafting gate: bind a proposition to an authority, or refuse to | `engine/authority.py` |
 | Draft assembly in Indian written-submission format, with a DOCX export and a verification appendix | `drafting/` |
+| Self-attack on the assembled draft, from the citation graph and bench strengths, with no model | `drafting/attack.py` |
 | Verdict assembly and the grading rubric | `engine/verdict.py` |
 | The engine as a LangGraph state graph | `engine/graph.py` |
 | The evaluation harness: plant known failures, score both directions | `evaluation/` |
@@ -294,9 +304,11 @@ characters of publisher's text came out of judgments already stored.
 
 A strong encoder on a GPU. The hybrid retrieval seam is built and measured; what is missing is a
 model good enough to use it, and BGE-M3 on a borrowed GPU session is the experiment the numbers point
-at. Self-attack on a generated draft (PRD B8): the memo is built for a brief that somebody else
-wrote, and turning it on the draft this tool just assembled is the same code and a different input.
-OCR, so a brief filed as a scan is read rather than reported as having no text layer. See
+at. Counter-authorities in the strong sense (PRD B8, P1): the draft is checked against the citation
+graph and against what else the same words retrieve, but nothing yet searches the corpus for a
+judgment stating the *opposite* of what it argues, which needs the model and a way to score a
+contradiction. OCR, so a brief filed as a scan is read rather than reported as having no text layer.
+See
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Status
