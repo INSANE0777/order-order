@@ -24,6 +24,7 @@ silently talks to the real nine-thousand-judgment corpus is worse than one that 
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import threading
 from collections.abc import Iterator
@@ -56,6 +57,7 @@ from orderorder.engine.schemas import (
 )
 from orderorder.ingest.brief import read_brief
 from orderorder.ingest.store import load_paragraphs
+from orderorder.web.auth import TOKEN_ENV, token_required
 from orderorder.web.jobs import (
     DraftJob,
     Job,
@@ -97,8 +99,25 @@ class VerifyRequest(BaseModel):
     )
 
 
-def create_app(*, store: JobStore | None = None, session_factory=get_session) -> FastAPI:
+def create_app(
+    *, store: JobStore | None = None, session_factory=get_session, token: str | None = None
+) -> FastAPI:
     app = FastAPI(title="OrderOrder", version=__version__, docs_url="/api/docs")
+
+    # One place, checked before anything else runs. A token configured per-route is a token somebody
+    # forgets on the route added next week, and the route added next week is the upload endpoint.
+    @app.middleware("http")
+    async def _require_token(request, call_next):
+        from fastapi.responses import JSONResponse
+        from starlette.exceptions import HTTPException as StarletteHTTPException
+
+        try:
+            token_required(request, token)
+        except StarletteHTTPException as refused:
+            return JSONResponse(
+                {"detail": refused.detail}, status_code=refused.status_code, headers=refused.headers
+            )
+        return await call_next(request)
     # `is not None`, not `or`: a JobStore defines __len__, so an empty one is falsy and `or` would
     # quietly hand back a different store than the caller passed in.
     jobs = store if store is not None else JobStore()
@@ -467,5 +486,6 @@ def _run(job: Job, request: VerifyRequest, open_session) -> None:
         job.finish(error=f"{type(exc).__name__}: {exc}")
 
 
-# The module-level application uvicorn imports by name, so `--reload` can re-import it.
-app = create_app()
+# The module-level application uvicorn imports by name, so `--reload` can re-import it. The token
+# comes from the environment here because uvicorn constructs this one itself.
+app = create_app(token=os.environ.get(TOKEN_ENV) or None)

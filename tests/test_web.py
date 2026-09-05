@@ -13,17 +13,10 @@ same answer the command line gives. Two properties carry the weight:
 
 from __future__ import annotations
 
-import datetime as dt
 import io
-from contextlib import contextmanager
 
-import pytest
 from fastapi.testclient import TestClient
 
-from orderorder.db.models import CitationAlias, Judgment
-from orderorder.engine.search import build_index
-from orderorder.ingest.pdf import ExtractedJudgment
-from orderorder.ingest.store import store_extracted
 from orderorder.web.api import create_app
 from orderorder.web.jobs import Job, JobStore, watch
 
@@ -37,74 +30,6 @@ it induced the contract, and the burden of proving that inducement lies upon the
 
 4. In view of the above, the appeals are dismissed with no order as to costs whatsoever.
 """
-
-
-@pytest.fixture
-def corpus(tmp_path):
-    """A one-judgment knowledge base, and the way to open a session onto it.
-
-    The app is handed this rather than reaching for the global session, and the difference is not
-    cosmetic. Pointing `DATABASE_URL` at a temporary file and clearing the caches behind `get_session`
-    looks equivalent and is not: anything that reloads the config module — `test_config` does, to
-    prove `.env` is read from the working directory — leaves `db.session` holding a stale reference,
-    and the fixture then clears a cache nobody reads. These tests passed alone and talked to whatever
-    database the previous test had left behind when the suite ran together.
-    """
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-
-    from orderorder.db.models import Base
-
-    engine = create_engine(f"sqlite:///{(tmp_path / 'kb.sqlite').as_posix()}", future=True)
-    Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, expire_on_commit=False)
-
-    @contextmanager
-    def open_session():
-        session = factory()
-        try:
-            yield session
-            session.commit()
-        finally:
-            session.close()
-
-    with open_session() as session:
-        judgment = Judgment(
-            canonical_key="TEST:0001:1",
-            court="Supreme Court of India",
-            title="ALPHA versus BETA",
-            source="aws_open_data",
-            source_id="TEST:0001:1",
-            bench_strength=2,
-            decided_on=dt.date(2019, 6, 1),
-        )
-        session.add(judgment)
-        session.flush()
-        session.add(
-            CitationAlias(
-                judgment_id=judgment.id,
-                reporter="SCC",
-                citation_string="(2019) 4 SCC 118",
-                normalized="SCC:2019:4:118",
-            )
-        )
-        store_extracted(
-            session,
-            judgment,
-            ExtractedJudgment(source_path="x", page_count=4, headnote="", judgment=JUDGMENT),
-        )
-        session.commit()
-        build_index(session)
-        session.commit()
-    yield open_session
-    engine.dispose()
-
-
-@pytest.fixture
-def client(corpus):
-    with TestClient(create_app(session_factory=corpus)) as c:
-        yield c
-
 
 
 BRIEF = (

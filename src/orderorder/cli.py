@@ -793,8 +793,18 @@ def serve_command(
     see the verified sentence highlighted inside it.
 
     It binds to localhost, because the corpus and any brief you paste into it stay on this machine.
+    Bind it anywhere else and a token is required: everything served would otherwise be reachable by
+    anything that can route here, including the upload endpoint and a model key that costs money.
     """
     import uvicorn
+
+    from orderorder.web.auth import TOKEN_ENV, BindingRefused, check_binding
+
+    try:
+        check_binding(host, os.environ.get(TOKEN_ENV) or None)
+    except BindingRefused as refused:
+        console.print(f"[red]{refused}[/red]")
+        raise typer.Exit(2) from refused
 
     init_db()
     console.print(f"[green]OrderOrder[/green] on [bold]http://{host}:{port}[/bold]  (ctrl-c to stop)")
