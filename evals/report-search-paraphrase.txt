@@ -3,4 +3,4 @@
             case @1  case @5 case @10  para @5     line
 paraphrase     33%     44%     51%     36%     94%
 
-seconds per query: 0.95
+seconds per query: 2.21

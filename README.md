@@ -48,6 +48,7 @@ uv run orderorder ingest aliases                     # learn the SCC citations t
 uv run orderorder ingest repair-trailers             # cut the reporter's own words out of stored text
 uv run orderorder index                              # full-text index over every paragraph
 uv run orderorder citator                            # who cited whom, and what they did with it
+uv run orderorder embed                              # vectors for every paragraph (see the numbers first)
 uv run orderorder find "a misrepresentation vitiates consent only where it induced the contract"
 uv run orderorder argue propositions.txt             # bind each proposition to an authority, or refuse
 uv run orderorder treatment INSC:2019:770            # is this authority still good law?
@@ -118,8 +119,13 @@ Search, 148 queries over all 409,499 paragraphs:
 
 Once the right paragraph is found, the sentence named as the line is the one the proposition came from
 almost every time. Getting to the right paragraph is another matter, and the third row says why:
-retrieval is lexical, so it finds the judgment's own words and not an idea restated in someone
-else's. That row is the case for embeddings, in numbers rather than in principle. What these numbers do not say — and the limits matter more than the figures — is set out
+retrieval is lexical, so it finds the judgment's own words and not an idea restated in someone else's.
+
+Embeddings were the obvious answer and they did not work. `orderorder embed` builds the vectors and
+the search fuses them, but over 391,356 paragraphs a CPU-feasible encoder makes paragraph recall on
+that third row *worse*, not better — 36% down to 30%, and further the more weight it is given. It is
+off by default, the numbers are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §11.4, and what the
+testing rules out is a night spent on a bigger CPU model rather than the idea itself. What these numbers do not say — and the limits matter more than the figures — is set out
 in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §11.4.
 
 ### What works today
@@ -275,8 +281,9 @@ characters of publisher's text came out of judgments already stored.
 
 ### Not built yet
 
-Embeddings and hybrid retrieval. Search is lexical, and the measured cost of that is the paraphrase
-row above: 33% against 91%. Document assembly for the drafting surface (PRD B7) and its DOCX export (B9) — the gate
+A strong encoder on a GPU. The hybrid retrieval seam is built and measured; what is missing is a
+model good enough to use it, and BGE-M3 on a borrowed GPU session is the experiment the numbers point
+at. Document assembly for the drafting surface (PRD B7) and its DOCX export (B9) — the gate
 that decides what may enter a draft is built, and `argue` is it. OCR, so a brief filed as a scan is
 read rather than reported as having no text layer. See
 [docs/ROADMAP.md](docs/ROADMAP.md).

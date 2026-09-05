@@ -37,6 +37,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from orderorder.db.models import Judgment
+from orderorder.engine import embeddings
 from orderorder.engine.citator import TreatmentReport, treatment_of
 from orderorder.engine.lexical import reciprocal_rank_fusion, tokenize
 from orderorder.engine.locator import Candidate
@@ -55,6 +56,15 @@ NEAR_TERMS = 5
 NEAR_WINDOW = 12
 MAX_NEAR_QUERIES = 6
 NEAR_LIMIT = 40
+# How many votes the dense ranking carries in the fusion. The lexical rankings agree with each
+# other by construction, so counting them one apiece against a single dense vote is not neutrality.
+DENSE_VOTES = 4
+# Measured on the paraphrase query set, fusing the dense ranking at one vote and at several:
+#   lexical only            case@1 33%   para@5 36%
+#   + dense, one vote       case@1 34%   para@5 30%
+#   + dense, three votes    case@1 33%   para@5 27%
+#   + dense, eight votes    case@1 33%   para@5 25%
+# Which is why `dense` defaults to off. See the note in `search_paragraphs`.
 # Reciprocal rank fusion scores are around 0.016 at the top and fall slowly. Multiplied up, the
 # spread across the first twenty results is a few points, which is where the standing bonus below
 # was already pitched against BM25: enough to move an authority a place or two, never enough to
@@ -208,14 +218,31 @@ def _match(session: Session, query: str, limit: int) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def search_paragraphs(session: Session, proposition: str, *, limit: int = DEFAULT_CANDIDATES) -> list[dict]:
+def _paragraph_rows(session: Session, paragraph_ids: list[str]) -> list[dict]:
+    """Bodies for paragraphs the dense ranking found and the lexical ones never saw."""
+    if not paragraph_ids:
+        return []
+    statement = sql_text(
+        """
+        SELECT p.id AS paragraph_id, v.judgment_id AS judgment_id, p.body AS body, 0.0 AS rank
+        FROM paragraph p
+        JOIN judgment_text_version v ON v.id = p.text_version_id
+        WHERE p.id IN :ids
+        """
+    ).bindparams(bindparam("ids", expanding=True))
+    return [dict(r) for r in session.execute(statement, {"ids": paragraph_ids}).mappings().all()]
+
+
+def search_paragraphs(
+    session: Session, proposition: str, *, limit: int = DEFAULT_CANDIDATES, dense: bool = False
+) -> list[dict]:
     """Rank paragraphs across the corpus, fusing how many of the words match with how close they sit.
 
-    Raw retrieval, before authority is weighed. Two rankers, fused: BM25 over the OR of the terms,
-    which finds paragraphs about the same subject, and proximity, which finds the paragraph the words
-    came from. Neither is reliable alone — proximity finds nothing for a paraphrase, and BM25 buries
-    a short holding under long paragraphs that mention more of the vocabulary — and reciprocal rank
-    fusion needs no calibration between them.
+    Raw retrieval, before authority is weighed. Three rankers, fused: BM25 over the OR of the terms,
+    which finds paragraphs about the same subject; proximity, which finds the paragraph the words came
+    from; and, where a vector store has been built, nearest neighbours in meaning, which is the only
+    one of the three that can answer a paraphrase. None is reliable alone, they fail in different
+    directions, and reciprocal rank fusion needs no calibration between them.
     """
     query = fts_query(proposition)
     if not query:
@@ -235,6 +262,31 @@ def search_paragraphs(session: Session, proposition: str, *, limit: int = DEFAUL
         rankings.append([row["paragraph_id"] for row in close])
         for row in close:
             rows.setdefault(row["paragraph_id"], row)
+
+    # And meaning, if asked for — but it is off by default, and the measurement is why.
+    #
+    # A dense ranking is the only one of the three that could answer a paraphrase, since the other two
+    # match words and a paraphrase shares none. Over this corpus, with the encoders that will run on a
+    # CPU, it does not. Fused at one vote it takes paragraph recall on the paraphrase set from 36% to
+    # 30%, and weighting it up makes that monotonically worse: 27% at three votes, 25% at eight. It is
+    # adding noise to rankings that were carrying signal.
+    #
+    # The reason is scale rather than the fusion. Asked to pick the right paragraph out of a field of
+    # 400, the static encoder gets it first 24 times in 40 — and a small sentence transformer, which
+    # would cost 8.3 hours to run over this corpus against 4 minutes, gets it 23. Both are useless at
+    # 391,356, because a thousand times more candidates means a thousand more chances to be nearer by
+    # accident, and neither is discriminating enough to survive that.
+    #
+    # So the seam stays, off, and `orderorder embed --model ...` with a strong encoder on a GPU is the
+    # experiment worth running next. What is *not* worth running is the same experiment with a bigger
+    # CPU model, and that is the thing the discrimination test tells you before you spend the night.
+    if dense:
+        nearest = embeddings.search(proposition, top=limit)
+        if nearest:
+            ranked = [paragraph_id for paragraph_id, _score in nearest]
+            rankings.extend([ranked] * DENSE_VOTES)
+            for row in _paragraph_rows(session, [pid for pid in ranked if pid not in rows]):
+                rows.setdefault(row["paragraph_id"], row)
 
     # The fused position is the ranking, so it has to be what `relevance` reports: leaving the BM25
     # score on the row would have the caller sort by the ranker the fusion was meant to correct, and
@@ -297,6 +349,7 @@ def find_authorities(
     court_voice_only: bool = True,
     one_per_judgment: bool = True,
     check_treatment: bool = True,
+    dense: bool = False,
 ) -> list[Authority]:
     """Search the corpus for paragraphs that could back a proposition, best first.
 
@@ -305,7 +358,7 @@ def find_authorities(
     an advocate states a rule more baldly than a court will. Offering one as authority would be
     handing a lawyer the very mistake the verifier exists to catch, so those are dropped here.
     """
-    rows = search_paragraphs(session, proposition, limit=candidates)
+    rows = search_paragraphs(session, proposition, limit=candidates, dense=dense)
     if not rows:
         return []
 

@@ -151,12 +151,14 @@ def build_items(
     return items
 
 
-def run_item(session: Session, item: RetrievalItem, *, top: int = 10) -> Outcome:
+def run_item(session: Session, item: RetrievalItem, *, top: int = 10, dense: bool = False) -> Outcome:
     """Search for one proposition and record where its own paragraph came in the ranking."""
     started = time.monotonic()
     # `one_per_judgment` is off: paragraph recall cannot be measured when the search returns one
     # paragraph per case, and the pinpoint is the part that matters.
-    found = find_authorities(session, item.query, top=top, one_per_judgment=False, check_treatment=False)
+    found = find_authorities(
+        session, item.query, top=top, one_per_judgment=False, check_treatment=False, dense=dense
+    )
     seconds = time.monotonic() - started
 
     judgment_rank = next(
@@ -219,11 +221,11 @@ class RetrievalReport:
 
 
 def run_retrieval(
-    session: Session, items: list[RetrievalItem], *, top: int = 10, on_result=None
+    session: Session, items: list[RetrievalItem], *, top: int = 10, dense: bool = False, on_result=None
 ) -> RetrievalReport:
     report = RetrievalReport()
     for index, item in enumerate(items, start=1):
-        outcome = run_item(session, item, top=top)
+        outcome = run_item(session, item, top=top, dense=dense)
         report.outcomes.append(outcome)
         if on_result is not None:
             on_result(outcome, index, len(items))

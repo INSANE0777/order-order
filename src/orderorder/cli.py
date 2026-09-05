@@ -54,7 +54,7 @@ from orderorder.citations.grammar import extract_citations
 from orderorder.config import get_settings
 from orderorder.db.models import CitationAlias, Judgment, JudgmentTextVersion, Paragraph
 from orderorder.db.session import get_session, init_db
-from orderorder.engine import authority, citator, search
+from orderorder.engine import authority, citator, embeddings, search
 from orderorder.engine.graph import verify_text
 from orderorder.engine.locator import locate as locate_claim
 from orderorder.engine.memo import render_memo, write_memo
@@ -662,6 +662,9 @@ def eval_search(
     rng_seed: int = typer.Option(20260904, help="Which judgments get drawn."),
     report: str | None = typer.Option(None, help="Also write the report to this file."),
     misses: bool = typer.Option(False, "--misses", help="Print the searches that found nothing."),
+    dense: bool = typer.Option(
+        False, "--dense", help="Fuse the vector ranking in too. Off because it measures worse."
+    ),
     queries: str | None = typer.Option(
         None, "--queries", help="A query set built earlier, such as one from `eval paraphrase`."
     ),
@@ -692,7 +695,7 @@ def eval_search(
             if done % 25 == 0 or done == total:
                 console.print(f"  [dim]{done}/{total}[/dim]")
 
-        scored = retrieval.run_retrieval(session, items, top=top, on_result=progress)
+        scored = retrieval.run_retrieval(session, items, top=top, dense=dense, on_result=progress)
 
     lines = retrieval.format_retrieval(scored, top=top)
     if misses:
@@ -734,6 +737,37 @@ def index_command(
     with get_session() as session:
         rows = search.build_index(session, rebuild=rebuild)
     console.print(f"[green]index ready[/green]: {rows:,} paragraphs")
+
+
+@app.command("embed")
+def embed_command(
+    model: str = typer.Option(
+        embeddings.DEFAULT_MODEL,
+        help="Which encoder to use. The default is static and does the corpus in minutes.",
+    ),
+    limit: int | None = typer.Option(None, help="Embed only the first N paragraphs, to try it out."),
+) -> None:
+    """Give every paragraph a vector, so search can match meaning and not only words.
+
+    The lexical search finds a line it has been handed word for word. Given the same proposition in an
+    advocate's own words it finds the right judgment first a third of the time, because BM25 matches
+    words and a paraphrase shares none. This is the other half; the two are fused, not swapped.
+    """
+    init_db()
+    console.print(f"[dim]encoder: {model}[/dim]")
+
+    def progress(done: int, total: int) -> None:
+        if done % 40_000 < embeddings.BATCH or done == total:
+            console.print(f"  [dim]{done:,}/{total:,}[/dim]")
+
+    with get_session() as session:
+        written = embeddings.build(session, model_name=model, limit=limit, on_progress=progress)
+    store = embeddings.default_store()
+    if not written:
+        console.print("[yellow]nothing to embed[/yellow]; ingest some judgment text first")
+        raise typer.Exit(1)
+    size = store.vectors_path.stat().st_size / 1e6
+    console.print(f"[green]{written:,} paragraphs embedded[/green] into {store.vectors_path} ({size:.0f} MB)")
 
 
 @app.command("citator")
@@ -865,6 +899,9 @@ def find_command(
         False, "--any-voice", help="Keep passages that are not the court speaking. Off by default."
     ),
     check: bool = typer.Option(True, help="Run the verifier over each authority found."),
+    dense: bool = typer.Option(
+        False, "--dense", help="Fuse the vector ranking in too, if a store has been built."
+    ),
 ) -> None:
     """Search every judgment for an authority backing a proposition, and name the line.
 
@@ -877,7 +914,8 @@ def find_command(
             search.build_index(session)
 
         authorities = search.find_authorities(
-            session, proposition, top=top, candidates=candidates, court_voice_only=not any_voice
+            session, proposition, top=top, candidates=candidates, court_voice_only=not any_voice,
+            dense=dense,
         )
         if not authorities:
             console.print(
