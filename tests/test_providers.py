@@ -7,12 +7,12 @@ self-hosted server the production profile calls for — is a setting, not a code
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import langchain.chat_models as chat_models
 import pytest
 
-from orderorder.config import get_settings
 from orderorder.engine import providers
 from orderorder.engine.providers import ProviderSpec, parse_spec
 from orderorder.engine.schemas import ScopeAssessment
@@ -20,7 +20,11 @@ from orderorder.engine.schemas import ScopeAssessment
 
 @pytest.fixture
 def captured(monkeypatch):
-    """Record what would have been handed to LangChain, without building anything."""
+    """Record what would have been handed to LangChain, without building anything.
+
+    Settings are stubbed rather than read, so the developer's own `.env` — which may well point at a
+    local gateway — cannot decide whether these tests pass.
+    """
     seen: dict = {}
 
     def fake_init(model, model_provider=None, **kwargs):
@@ -34,44 +38,38 @@ def captured(monkeypatch):
         return Built()
 
     monkeypatch.setattr(chat_models, "init_chat_model", fake_init)
-    get_settings.cache_clear()
+
+    def with_base_url(url: str) -> None:
+        monkeypatch.setattr(providers, "get_settings", lambda: SimpleNamespace(llm_base_url=url))
+
+    seen["_set_base_url"] = with_base_url
+    with_base_url("")
     yield seen
-    get_settings.cache_clear()
 
 
-def test_an_openai_compatible_endpoint_is_a_setting(captured, monkeypatch) -> None:
+def test_an_openai_compatible_endpoint_is_a_setting(captured) -> None:
     """A router, a gateway, or an SGLang box: same seam, no code change."""
-    monkeypatch.setenv("LLM_BASE_URL", "https://gateway.example/api/v1")
-    get_settings.cache_clear()
-
+    captured["_set_base_url"]("https://gateway.example/api/v1")
     providers._build_one(ProviderSpec("openai", "qwen/qwen3-32b"), ScopeAssessment)
     assert captured["provider"] == "openai"
     assert captured["model"] == "qwen/qwen3-32b"
     assert captured["base_url"] == "https://gateway.example/api/v1"
 
 
-def test_the_endpoint_is_not_forced_on_other_providers(captured, monkeypatch) -> None:
+def test_the_endpoint_is_not_forced_on_other_providers(captured) -> None:
     """Gemini and Groq have their own hosts; pointing them at a gateway would break them."""
-    monkeypatch.setenv("LLM_BASE_URL", "https://gateway.example/api/v1")
-    get_settings.cache_clear()
-
+    captured["_set_base_url"]("https://gateway.example/api/v1")
     providers._build_one(ProviderSpec("groq", "openai/gpt-oss-120b"), ScopeAssessment)
     assert "base_url" not in captured
 
 
-def test_without_the_setting_openai_means_openai(captured, monkeypatch) -> None:
-    monkeypatch.delenv("LLM_BASE_URL", raising=False)
-    get_settings.cache_clear()
-
+def test_without_the_setting_openai_means_openai(captured) -> None:
     providers._build_one(ProviderSpec("openai", "gpt-4o-mini"), ScopeAssessment)
     assert "base_url" not in captured
 
 
-def test_the_structured_output_method_travels_with_the_provider(captured, monkeypatch) -> None:
+def test_the_structured_output_method_travels_with_the_provider(captured) -> None:
     """The engine's answers are schema-constrained; how that is asked for differs by endpoint."""
-    monkeypatch.delenv("LLM_BASE_URL", raising=False)
-    get_settings.cache_clear()
-
     providers._build_one(ProviderSpec("openai", "gpt-4o-mini"), ScopeAssessment)
     assert captured["method"] == "json_schema"
 
