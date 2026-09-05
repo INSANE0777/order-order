@@ -193,3 +193,8 @@ ollama pull qwen3.5:4b
 uv run orderorder doctor          # should now show ollama configured
 uv run orderorder doctor --probe  # and that something answers, with a filled schema not prose
 ```
+
+`qwen3:4b` answers correctly on a CPU-only laptop — filled schema, quote verifies — but it answers
+slowly: 247 seconds a call on four cores with 16 GB of RAM, two thirds of which is the model reading
+the prompt while the machine pages. Use it to prove the wiring works. Use a hosted key, or a rented
+GPU, to run a brief.

@@ -132,6 +132,14 @@ Verification, 270 planted items, **no model configured**:
 With a model, over the modes that need one and 25 clean citations: obiter as ratio 3/3, false
 positives 0/25, **quote grounding 100%**, abstention 68%, six seconds a citation.
 
+Six seconds is a hosted model. The same checks against `qwen3:4b` run locally on four
+CPU cores, no usable GPU — take **247 seconds a call**, measured. The model is not the problem: every
+answer came back as a filled schema and every quote verified. The machine is. Prompt processing runs
+at 8-9 tokens a second cold against 5 for generation, which is backwards, and the cause is memory:
+once the weights are loaded there is too little memory left to hold the prompt, so the OS pages it. Two thirds of
+each call is the model reading the prompt off disk. A local model is therefore good for `doctor
+--probe` and a handful of propositions, and not for a brief.
+
 Search, 148 queries over all 409,499 paragraphs:
 
 | query | case@1 | case@5 | para@5 | line |
