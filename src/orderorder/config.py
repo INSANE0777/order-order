@@ -5,8 +5,26 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+from dotenv import find_dotenv, load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Put .env into the process environment, not only into Settings below.
+#
+# Provider keys are read from os.environ — by `providers.is_available`, and by the LangChain client
+# itself, which never sees this class. Without this line a key written into .env exactly as
+# .env.example instructs is invisible: `doctor` reports "no key", the engine skips the model, and
+# every extent-of-support check reports "not assessed" as though nothing were configured. Silent, and
+# indistinguishable from having no key at all.
+#
+# Real environment variables win: `override=False` means an exported key beats the file, which is what
+# a shell session and a container both expect.
+#
+# The search starts at the working directory, not at this file. Searching from the module would find
+# the repository's own .env when running from a source checkout and nothing at all once the package is
+# installed elsewhere — so it would work during development and quietly stop working for a user who
+# installed it, which is the worst of both.
+load_dotenv(find_dotenv(usecwd=True), override=False)
 
 
 class Settings(BaseSettings):
