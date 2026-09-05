@@ -160,3 +160,42 @@ def test_the_wrong_pinpoint_reaches_the_candidate_ranking() -> None:
     result = locate(PARAGRAPHS, CLAIM_FROM_THREE, claimed_pinpoint="1")
     assert result.pinpoint.status == "wrong_paragraph"
     assert result.best is not None and result.best.printed_label == "3"
+
+
+REPEATED = """1. Leave granted in these appeals arising out of a suit for specific performance.
+
+2. It is vehemently submitted by counsel for the plaintiffs that the appellant cannot be impleaded
+as a defendant in a suit for specific performance to which he was never a party at all.
+
+3. We have heard learned counsel for the parties at some length on this question.
+
+4. In view of the above, we agree with the High Court. The appellant cannot be impleaded as a
+defendant in the suit for specific performance of the contract between the original parties.
+"""
+
+REPEATED_PARAGRAPHS = segment(REPEATED)
+
+
+def test_a_phrase_the_judgment_repeats_does_not_convict_a_sound_pinpoint() -> None:
+    """The real false positive this rule was written badly enough to produce.
+
+    The brief cites paragraph 4, which is the holding, and writes "in a suit" where the court wrote
+    "in the suit". That matches nine words at the pinpoint and eleven in paragraph 2, where counsel
+    had put the same point. Two words are not evidence that a citation is wrong.
+    """
+    claim = (
+        "It is submitted that the appellant cannot be impleaded as a defendant in a suit for "
+        "specific performance of a contract to which he is not a party."
+    )
+    assert check_pinpoint(REPEATED_PARAGRAPHS, "4", claim).status == "ok"
+
+
+def test_the_words_being_decisively_elsewhere_is_still_caught() -> None:
+    """Where the pinpoint is wrong the margin is not two words, it is the whole sentence."""
+    claim = (
+        "We have heard learned counsel for the parties at some length on this question, and the "
+        "matter now stands concluded."
+    )
+    check = check_pinpoint(REPEATED_PARAGRAPHS, "1", claim)
+    assert check.status == "wrong_paragraph"
+    assert check.found_at == "3"

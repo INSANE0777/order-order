@@ -23,6 +23,9 @@ from orderorder.engine.quotes import NO_SHARED_RUN, QuoteMatch, SharedRun, find_
 from orderorder.ingest.segment import SegParagraph, find_out_of_sequence
 
 DEFAULT_TOP_K = 8
+# How much longer a run of the brief's own words has to be somewhere else than at the paragraph it
+# cited, before that is evidence the pinpoint is wrong rather than a coincidence of phrasing.
+DECISIVE_MARGIN = 2
 
 
 @dataclass
@@ -119,14 +122,20 @@ def _words_are_elsewhere(
 ) -> tuple[str, SharedRun] | None:
     """Where in the judgment the brief's own words actually are, if not where it said.
 
-    Only a verbatim run decides this, and only a long one. A brief that paraphrases shares nothing
-    with the judgment but stock phrasing, so a short overlap proves nothing either way; ten
-    consecutive words does not happen by accident. And the finding needs both halves — the words
-    somewhere else *and* not at the pinpoint — because a phrase the judgment repeats would otherwise
-    convict a citation that was right.
+    Only a verbatim run decides this, and only a long one: ten consecutive words do not coincide by
+    accident. But the length elsewhere is not enough on its own, because a judgment says the same
+    thing more than once. Cited for its holding at paragraph 7 — "The appellant cannot be impleaded as
+    a defendant in the suit for specific performance" — a brief writing "in a suit" instead of "in the
+    suit" matches nine words there and eleven in paragraph 4, where counsel had put the same point.
+    Two words decided that the citation was wrong, and it was not.
+
+    So the run elsewhere has to be *decisively* longer than the run at the pinpoint, not merely past a
+    threshold the pinpoint fell short of. Where the words really are in another paragraph the margin
+    is enormous — the whole sentence against nothing — and a rule that needs twice as much keeps every
+    one of those while refusing to convict on a coincidence of phrasing.
 
     This is the same discipline as the rest of the engine: a string match, not a similarity score, and
-    silence where there is no match.
+    silence where the evidence is thin.
     """
     at_pinpoint = NO_SHARED_RUN
     best_label: str | None = None
@@ -145,7 +154,9 @@ def _words_are_elsewhere(
         elif run.words > best_run.words:
             best_label, best_run = label, run
 
-    if at_pinpoint.is_distinctive or not best_run.is_distinctive or best_label is None:
+    if best_label is None or not best_run.is_distinctive:
+        return None
+    if best_run.words < at_pinpoint.words * DECISIVE_MARGIN:
         return None
     return best_label, best_run
 
