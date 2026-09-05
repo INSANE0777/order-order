@@ -183,6 +183,31 @@ def collect_seed(session: Session, judgment: Judgment) -> Seed | None:
     return seed if seed.court_sentences else None
 
 
+# A sentence reciting the facts of somebody else's case: parties, dates, sums, procedural history.
+# Real court text and useless as a planted proposition, because "this judgment does not say that" is
+# obvious from the party names alone and the item would score a detector that never read the
+# paragraph.
+RECITAL = re.compile(
+    r"\((?:[Aa]ppellant|[Rr]espondent|[Pp]etitioner|[Dd]efendant|[Pp]laintiff)s?\)"
+    # Capitalised, a party word names *this case's* parties; in lower case it states a general rule
+    # about parties, which is exactly the kind of sentence this item wants.
+    r"|\b(?:Appellant|Respondent|Petitioner|Corporation|Board|Tribunal|Commission)s?\b"
+    r"|\bM/s\b|\b\d{2}[-./]\d{2}[-./]\d{4}\b"
+    r"|(?i:\bRs\.?\s*\d|\bin\s+the\s+(?:present|instant)\b|\bfactual\s+(?:set-?up|matrix)\b)"
+    r"|(?i:\b(?:appellant|respondent|petitioner)\s+(?:herein|no\.?\s*\d))"
+)
+
+
+def _is_proposition(sentence: str) -> bool:
+    """Whether a sentence states a rule rather than recounting what happened to somebody.
+
+    Only used to pick the foreign sentence for the mode 4 item. A recital fails that item for the
+    wrong reason -- no reader needs to check the paragraph to know this judgment is not about M/s
+    somebody's contract of 2002 -- and an item that is failed for the wrong reason measures nothing.
+    """
+    return not RECITAL.search(sentence)
+
+
 def _shifted(labels: list[str], label: str, by: int = 7) -> str:
     """A pinpoint several paragraphs away from the right one, or past the end of the judgment."""
     numeric = [x for x in labels if x.isdigit()]
@@ -205,6 +230,7 @@ def plant(
     rng: random.Random,
     overruled: list[tuple[str, str]],
     decoy: str | None = None,
+    foreign: str | None = None,
 ) -> list[GoldItem]:
     """Derive one item per failure mode the seed can support, plus a clean one."""
     key = seed.judgment.canonical_key
@@ -220,6 +246,7 @@ def plant(
         paragraph: str | None = None,
         voice: str | None = None,
         treatment: str | None = None,
+        support: str | None = None,
     ) -> None:
         items.append(
             GoldItem(
@@ -234,6 +261,7 @@ def plant(
                     paragraph_label=paragraph,
                     voice=voice,
                     treatment=treatment,
+                    support=support,
                 ),
             )
         )
@@ -294,6 +322,23 @@ def plant(
             truncated = q_sentence[: match.start()].rstrip(" ,;")
             add("m9", truncated + ".", f"{seed.citation}, para {q_label}", 9,
                 f"truncated before the qualifier {match.group(0)!r}", paragraph=q_label)
+
+    # 4 — not there. A proposition another court stated, cited to this judgment at a paragraph this
+    # judgment really has. Everything the model-free checks can see is correct: the case exists, the
+    # citation resolves to it, the pinpoint is a real paragraph, the words in that paragraph are the
+    # court's own and the judgment is good law. The only thing wrong is that the paragraph does not
+    # say it, which cannot be established without reading the claim against the text.
+    #
+    # This mode and mode 8 are the two the gold set never planted, and they are the two a live run
+    # of the drafting gate got wrong: a paragraph about what must be *decided* was bound to a claim
+    # about who must be *joined*. Mode 8 is covered in substance by the m9 items, whose claim is the
+    # court's sentence cut before its qualifier and which the verdict path reports as mode 8. Mode 4
+    # had nothing at all, so a detector that never fired would have scored the same as one that
+    # always did.
+    if foreign:
+        add("m4", foreign, pinpoint, 4,
+            "a proposition from a different judgment, cited to this one at a real paragraph",
+            paragraph=label, voice="court_majority", treatment="good_law", support="none")
 
     # 12 — wrong pinpoint. Right case, right proposition, paragraph several away.
     add("m12", sentence, f"{seed.citation}, para {_shifted(seed.labels, label)}", 12,
@@ -356,6 +401,7 @@ def generate(session: Session, *, seeds: int = 8, seed_value: int = 20260904) ->
 
     items: list[GoldItem] = []
     used = 0
+    previous: Seed | None = None
     for judgment in judgments:
         if used >= seeds:
             break
@@ -373,7 +419,17 @@ def generate(session: Session, *, seeds: int = 8, seed_value: int = 20260904) ->
             ),
             None,
         )
-        items.extend(plant(collected, session, rng, dead, decoy))
+        # A sentence from a judgment that is not this one, for the mode 4 item. Drawn from the seed
+        # built for the previous judgment, so it costs no extra reading and is guaranteed to be a
+        # real court's real holding rather than something invented.
+        foreign = None
+        if previous is not None:
+            stated = [x for _label, x in previous.court_sentences if _is_proposition(x)]
+            if stated:
+                foreign = rng.choice(stated)
+
+        items.extend(plant(collected, session, rng, dead, decoy, foreign))
+        previous = collected
         used += 1
 
     # The same overruled judgment is drawn repeatedly; one item for it is enough.
