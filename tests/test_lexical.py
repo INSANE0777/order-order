@@ -68,11 +68,29 @@ def test_scores_are_never_negative() -> None:
 
 
 def test_reciprocal_rank_fusion_rewards_agreement() -> None:
-    """An item ranked well by both rankers must beat one ranked first by only a single ranker."""
+    """An item both rankers rate highly must beat one only a single ranker saw at all."""
+    fused = dict(reciprocal_rank_fusion([[7, 1, 2], [1, 7, 3]]))
+    assert fused[1] > fused[2]
+    assert fused[7] > fused[3]
+
+
+def test_a_tie_goes_to_the_first_ranking() -> None:
+    """Items 7 and 1 are first and second in one ranking and second and first in the other.
+
+    Nothing separates them by score, so something has to. The first ranker's order is a real
+    preference; the item's own value is not, and once the items are paragraph ids rather than
+    positions it amounts to preferring the alphabetically earlier identifier.
+    """
     fused = reciprocal_rank_fusion([[7, 1, 2], [1, 7, 3]])
-    assert fused[0][0] == 1
-    assert dict(fused)[1] > dict(fused)[2]
+    assert dict(fused)[7] == dict(fused)[1]
+    assert fused[0][0] == 7
 
 
 def test_fusion_of_one_ranking_preserves_order() -> None:
     assert [item for item, _ in reciprocal_rank_fusion([[5, 3, 9]])] == [5, 3, 9]
+
+
+def test_fusion_ranks_whatever_the_rankers_ranked() -> None:
+    """Corpus-wide search fuses rankings of paragraph ids, not of positions in a list."""
+    fused = reciprocal_rank_fusion([["p-a", "p-b"], ["p-b", "p-c"]])
+    assert fused[0][0] == "p-b"

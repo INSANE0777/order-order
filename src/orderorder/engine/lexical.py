@@ -103,14 +103,21 @@ class BM25Index:
         return results[:top_k] if top_k else results
 
 
-def reciprocal_rank_fusion(rankings: list[list[int]], *, k: int = RRF_K) -> list[tuple[int, float]]:
+def reciprocal_rank_fusion[T](rankings: list[list[T]], *, k: int = RRF_K) -> list[tuple[T, float]]:
     """Fuse several rankings of the same items into one, best first.
 
     Reciprocal rank fusion needs no score calibration between the rankers, which is why it is the right
-    way to combine BM25 with cosine similarity once embeddings exist.
+    way to combine BM25 with proximity, and with cosine similarity once embeddings exist. The items
+    are whatever the rankers rank — paragraph positions within a judgment, paragraph ids across the
+    corpus — so long as every ranker names them the same way.
+
+    Ties break on the order the item was first seen, so a fusion of identical rankings returns that
+    ranking unchanged rather than a reshuffling of it.
     """
-    scores: dict[int, float] = {}
+    scores: dict[T, float] = {}
+    first_seen: dict[T, int] = {}
     for ranking in rankings:
         for rank, item in enumerate(ranking, start=1):
             scores[item] = scores.get(item, 0.0) + 1.0 / (k + rank)
-    return sorted(scores.items(), key=lambda pair: (-pair[1], pair[0]))
+            first_seen.setdefault(item, len(first_seen))
+    return sorted(scores.items(), key=lambda pair: (-pair[1], first_seen[pair[0]]))

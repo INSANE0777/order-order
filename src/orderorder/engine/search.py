@@ -33,11 +33,12 @@ from dataclasses import dataclass, field
 
 from sqlalchemy import bindparam
 from sqlalchemy import text as sql_text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from orderorder.db.models import Judgment
 from orderorder.engine.citator import TreatmentReport, treatment_of
-from orderorder.engine.lexical import tokenize
+from orderorder.engine.lexical import reciprocal_rank_fusion, tokenize
 from orderorder.engine.locator import Candidate
 from orderorder.engine.sentences import split_sentences
 from orderorder.engine.voice import VoiceVerdict, attribute_voice
@@ -45,6 +46,20 @@ from orderorder.engine.voice import VoiceVerdict, attribute_voice
 FTS_TABLE = "paragraph_fts"
 DEFAULT_CANDIDATES = 120
 DEFAULT_TOP = 5
+
+# Proximity retrieval. A run of five consecutive terms is long enough to be distinctive and short
+# enough that a court restating the rule in nearly the same words still satisfies it; the window is
+# wider than the run so the stopwords between them, which the index keeps and `tokenize` does not,
+# have room. Several runs are taken across a long proposition and capped, because each is a query.
+NEAR_TERMS = 5
+NEAR_WINDOW = 12
+MAX_NEAR_QUERIES = 6
+NEAR_LIMIT = 40
+# Reciprocal rank fusion scores are around 0.016 at the top and fall slowly. Multiplied up, the
+# spread across the first twenty results is a few points, which is where the standing bonus below
+# was already pitched against BM25: enough to move an authority a place or two, never enough to
+# lift an irrelevant one.
+FUSION_SCALE = 1000.0
 
 # How much a judgment's standing counts beside how well its words match. A larger bench binds a
 # smaller one, so bench strength is worth more than recency; both are worth less than relevance,
@@ -147,24 +162,93 @@ def fts_query(proposition: str) -> str:
     return " OR ".join(f'"{t}"' for t in dict.fromkeys(terms))
 
 
+def near_queries(proposition: str) -> list[str]:
+    """FTS5 proximity queries over runs of consecutive terms in the proposition.
+
+    OR-ing the terms and ranking by BM25 asks which paragraph contains *many* of these words. That is
+    the wrong question when the words came from a passage, because a long paragraph on the same
+    subject can carry more of them than the one the passage is in. The right question is which
+    paragraph has them *together*, and `NEAR` asks exactly that.
+
+    Runs of a few consecutive terms rather than the whole proposition, because NEAR requires every
+    term it names: a whole sentence would match nothing, and a run of five is short enough that a
+    court restating a rule still satisfies it. Several runs across the proposition, fused, so no
+    single one has to be the right one.
+    """
+    terms = [t for t in tokenize(proposition) if len(t) > 2]
+    if len(terms) < NEAR_TERMS:
+        return []
+    starts = list(range(0, len(terms) - NEAR_TERMS + 1))
+    if len(starts) > MAX_NEAR_QUERIES:
+        step = len(starts) / MAX_NEAR_QUERIES
+        starts = [starts[int(i * step)] for i in range(MAX_NEAR_QUERIES)]
+    return [
+        f"NEAR({' '.join(chr(34) + t + chr(34) for t in terms[s : s + NEAR_TERMS])}, {NEAR_WINDOW})"
+        for s in starts
+    ]
+
+
+def _match(session: Session, query: str, limit: int) -> list[dict]:
+    rows = (
+        session.execute(
+            sql_text(
+                f"""
+                SELECT paragraph_id, judgment_id, body, bm25({FTS_TABLE}) AS rank
+                FROM {FTS_TABLE}
+                WHERE {FTS_TABLE} MATCH :query
+                ORDER BY rank
+                LIMIT :limit
+                """
+            ),
+            {"query": query, "limit": limit},
+        )
+        .mappings()
+        .all()
+    )
+    return [dict(r) for r in rows]
+
+
 def search_paragraphs(session: Session, proposition: str, *, limit: int = DEFAULT_CANDIDATES) -> list[dict]:
-    """Rank paragraphs across the whole corpus by BM25. Raw retrieval, before authority is weighed."""
+    """Rank paragraphs across the corpus, fusing how many of the words match with how close they sit.
+
+    Raw retrieval, before authority is weighed. Two rankers, fused: BM25 over the OR of the terms,
+    which finds paragraphs about the same subject, and proximity, which finds the paragraph the words
+    came from. Neither is reliable alone — proximity finds nothing for a paraphrase, and BM25 buries
+    a short holding under long paragraphs that mention more of the vocabulary — and reciprocal rank
+    fusion needs no calibration between them.
+    """
     query = fts_query(proposition)
     if not query:
         return []
-    rows = session.execute(
-        sql_text(
-            f"""
-            SELECT paragraph_id, judgment_id, body, bm25({FTS_TABLE}) AS rank
-            FROM {FTS_TABLE}
-            WHERE {FTS_TABLE} MATCH :query
-            ORDER BY rank
-            LIMIT :limit
-            """
-        ),
-        {"query": query, "limit": limit},
-    ).mappings().all()
-    return [dict(r) for r in rows]
+
+    by_words = _match(session, query, limit)
+    rankings: list[list[str]] = [[row["paragraph_id"] for row in by_words]]
+    rows = {row["paragraph_id"]: row for row in by_words}
+
+    for near in near_queries(proposition):
+        try:
+            close = _match(session, near, NEAR_LIMIT)
+        except OperationalError:
+            # A term FTS5 cannot parse inside NEAR is not worth failing the search over; the word
+            # ranking still stands on its own.
+            continue
+        rankings.append([row["paragraph_id"] for row in close])
+        for row in close:
+            rows.setdefault(row["paragraph_id"], row)
+
+    # The fused position is the ranking, so it has to be what `relevance` reports: leaving the BM25
+    # score on the row would have the caller sort by the ranker the fusion was meant to correct, and
+    # the proximity half would change nothing at all. Scores are divided by the number of rankers so
+    # that a long proposition, which raises more proximity queries, does not come out scored higher
+    # than a short one — the ranking within a search is unaffected either way, but the standing bonus
+    # added downstream is a fixed size and has to mean the same thing in both.
+    fused = reciprocal_rank_fusion(rankings)
+    ranked: list[dict] = []
+    for paragraph_id, score in fused[:limit]:
+        row = dict(rows[paragraph_id])
+        row["relevance"] = FUSION_SCALE * score / len(rankings)
+        ranked.append(row)
+    return ranked
 
 
 def best_line(body: str, proposition: str) -> tuple[str | None, int | None, int | None]:
@@ -254,8 +338,7 @@ def find_authorities(
         if court_voice_only and not voice.is_the_court:
             continue
 
-        # bm25() returns a negative number, better matches more negative. Flip it so bigger is better.
-        relevance = -float(row["rank"])
+        relevance = float(row["relevance"])
         line, start, end = best_line(row["body"], proposition)
         found.append(
             Authority(

@@ -13,11 +13,14 @@ import pytest
 
 from orderorder.db.models import CitationAlias, Judgment
 from orderorder.engine.search import (
+    MAX_NEAR_QUERIES,
+    NEAR_TERMS,
     best_line,
     build_index,
     find_authorities,
     fts_query,
     index_exists,
+    near_queries,
     search_paragraphs,
 )
 from orderorder.ingest.pdf import ExtractedJudgment
@@ -197,3 +200,53 @@ def test_the_densest_sentence_wins_not_the_longest() -> None:
 
 def test_a_paragraph_sharing_nothing_yields_no_line() -> None:
     assert best_line("The appeal is dismissed.", "maritime salvage") == (None, None, None)
+
+
+# --- words together, not merely words --------------------------------------------------------------
+
+
+def test_a_proposition_raises_proximity_queries_over_runs_of_its_terms() -> None:
+    proposition = (
+        "A misrepresentation vitiates consent only where it induced the contract and the burden lies"
+    )
+    near = near_queries(proposition)
+    assert " OR " in fts_query(proposition)
+    assert near, "a proposition of this length should raise at least one proximity query"
+    for query in near:
+        assert query.startswith("NEAR(")
+        assert query.count('"') == NEAR_TERMS * 2
+
+
+def test_a_proposition_too_short_to_have_a_run_raises_none() -> None:
+    assert near_queries("consent vitiated") == []
+
+
+def test_proximity_queries_are_capped_however_long_the_proposition() -> None:
+    """Each one is a query against the corpus; a page of text must not become a page of queries."""
+    long_one = " ".join(f"distinctive{n} holding{n} principle{n}" for n in range(40))
+    assert len(near_queries(long_one)) <= MAX_NEAR_QUERIES
+
+
+def test_the_paragraph_the_words_came_from_beats_one_that_merely_shares_them(corpus) -> None:
+    """The point of proximity: a long paragraph on the same subject carries more of the vocabulary.
+
+    Here BENCH_JUDGMENT's paragraph 2 says the rule and goes on at length; HOLDING_JUDGMENT's
+    paragraph 3 is where the sentence actually is. Asking which paragraph has the words *together*
+    is what separates them.
+    """
+    lifted = (
+        "A misrepresentation vitiates consent only where it induced the contract. The burden of "
+        "proving inducement lies upon the party alleging it."
+    )
+    found = find_authorities(corpus, lifted, top=3, one_per_judgment=False)
+    assert found
+    assert found[0].canonical_key == "INSC:2019:1"
+    assert found[0].paragraph_label == "3"
+
+
+def test_relevance_reported_is_the_one_the_ranking_used(corpus) -> None:
+    """If the rows carried the BM25 score, the caller would re-sort by the ranker fusion corrects."""
+    found = find_authorities(corpus, CLAIM, top=3, one_per_judgment=False)
+    assert found
+    assert [a.score for a in found] == sorted((a.score for a in found), reverse=True)
+    assert all(a.relevance > 0 for a in found)
