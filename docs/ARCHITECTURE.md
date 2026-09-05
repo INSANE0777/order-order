@@ -853,8 +853,11 @@ Search, 148 queries over the whole corpus:
 |---|---|---|---|---|---|
 | verbatim | 91% | 99% | 100% | 99% | 100% |
 | fragment | 81% | 91% | 93% | 85% | 100% |
+| paraphrase | 33% | 44% | 51% | 36% | 94% |
 
-**What these numbers do not say.** Planted errors are the ones we thought of, and they are not the distribution real advocates produce; that is what the memorials are for. Clean items are not drawn from paragraphs the sequence heuristic calls quoted, since the generator cannot assert those are the court's own words — so the false positive rate above does not measure that one detector, and closing that gap needs paragraphs a person has read. A fragment query is a run of words lifted from the judgment, so it measures quoted search — "where is this line from" — and says nothing about paraphrase, which needs the dense half of the hybrid retrieval.
+The distance between the first two rows and the third is the most useful number on this page, and it is not a tuning problem. Retrieval here is lexical: it matches words. A verbatim line and a half-remembered fragment *are* the judgment's words, so it finds them. A paraphrase shares only the idea, and there is nothing for BM25 or proximity to match — two thirds of the time the right case does not come first. That is the case for the dense half of the hybrid retrieval this document specifies, stated in numbers rather than in principle, and nothing else described here would move it.
+
+**What these numbers do not say.** Planted errors are the ones we thought of, and they are not the distribution real advocates produce; that is what the memorials are for. Clean items are not drawn from paragraphs the sequence heuristic calls quoted, since the generator cannot assert those are the court's own words — so the false positive rate above does not measure that one detector, and closing that gap needs paragraphs a person has read. And the paraphrases were written by a model, once, and kept in `evals/paraphrases.jsonl` so that anyone can read them and disagree: the score is against *a* set of restatements, not the ones lawyers write.
 
 ---
 

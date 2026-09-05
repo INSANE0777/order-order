@@ -105,9 +105,12 @@ Search, 148 queries over all 409,499 paragraphs:
 |---|---|---|---|---|
 | the line, verbatim | 91% | 99% | 99% | 100% |
 | a remembered fragment | 81% | 91% | 85% | 100% |
+| a paraphrase | 33% | 44% | 36% | 94% |
 
 Once the right paragraph is found, the sentence named as the line is the one the proposition came from
-every time. What these numbers do not say — and the limits matter more than the figures — is set out
+almost every time. Getting to the right paragraph is another matter, and the third row says why:
+retrieval is lexical, so it finds the judgment's own words and not an idea restated in someone
+else's. That row is the case for embeddings, in numbers rather than in principle. What these numbers do not say — and the limits matter more than the figures — is set out
 in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §11.4.
 
 ### What works today
@@ -263,8 +266,8 @@ characters of publisher's text came out of judgments already stored.
 
 ### Not built yet
 
-Embeddings and hybrid retrieval, so search is lexical and finds a quoted line far better than a
-paraphrase. Document assembly for the drafting surface (PRD B7) and its DOCX export (B9) — the gate
+Embeddings and hybrid retrieval. Search is lexical, and the measured cost of that is the paraphrase
+row above: 33% against 91%. Document assembly for the drafting surface (PRD B7) and its DOCX export (B9) — the gate
 that decides what may enter a draft is built, and `argue` is it. The web app. See
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
