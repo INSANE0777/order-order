@@ -57,6 +57,7 @@ uv run orderorder treatment INSC:2019:770            # is this authority still g
 uv run orderorder eval generate --seeds 40 --rng-seed 1729   # plant known failures in real judgments
 uv run orderorder eval run --no-model --detail               # score every check that needs no model
 uv run orderorder eval search --judgments 40                 # score the other direction
+uv run orderorder eval gate --judgments 40 --no-model        # what the drafting gate is filtering
 
 uv run orderorder serve                              # all of it in a browser, on localhost
 ```
@@ -111,9 +112,9 @@ it stay here.
 
 ### What it scores
 
-The engine is measured in both directions, against ground truth the corpus supplies rather than labels
-anyone wrote, on **forty judgments the detectors were not developed against**. The set they were fixed
-on cannot measure them, so every number here is from a held-out draw.
+The engine is measured in all three directions, against ground truth the corpus supplies rather than
+labels anyone wrote, on **forty judgments the detectors were not developed against**. The set they
+were fixed on cannot measure them, so every number here is from a held-out draw.
 
 Verification, 270 planted items, **no model configured**:
 
@@ -147,7 +148,28 @@ Embeddings were the obvious answer and they did not work. `orderorder embed` bui
 the search fuses them, but over 391,356 paragraphs a CPU-feasible encoder makes paragraph recall on
 that third row *worse*, not better — 36% down to 30%, and further the more weight it is given. It is
 off by default, the numbers are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §11.4, and what the
-testing rules out is a night spent on a bigger CPU model rather than the idea itself. What these numbers do not say — and the limits matter more than the figures — is set out
+testing rules out is a night spent on a bigger CPU model rather than the idea itself.
+
+Drafting, 74 propositions lifted from the same forty judgments — half of them from paragraphs
+reciting counsel's argument rather than the court's holding:
+
+| the proposition was lifted from | paragraphs a word search returns | of those, not the court speaking |
+|---|---|---|
+| the court's own words | 4.0 | 0.5 |
+| counsel's submission | 4.0 | **2.2** |
+
+That second row is why the drafting surface has a filter and a gate at all. Ask the corpus for a
+proposition phrased the way an advocate phrases one — which is to say baldly, without the
+qualifications a court attaches — and **more than half of what a word search hands back is somebody's
+argument rather than anybody's holding.** It reads like better authority than the holding does,
+because that is what an argument is for. The source paragraph itself was within reach in **34 of 34**
+cases, and none of the 34 survived to reach the gate.
+
+What that measurement cannot do is tell you the voice detector is right: the same detector labels the
+item and drops the paragraph. What it does tell you is the size of the field it is working over, which
+is a fact about the corpus rather than about the detector. `evals/report-gate.txt` has the run.
+
+What these numbers do not say — and the limits matter more than the figures — is set out
 in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §11.4.
 
 ### What works today
@@ -230,7 +252,7 @@ which the corpus does not yet hold.
 | One page for all of it: verdict board, judgment viewer, authority search, drafting workspace | `web/` |
 | Verdict assembly and the grading rubric | `engine/verdict.py` |
 | The engine as a LangGraph state graph | `engine/graph.py` |
-| The evaluation harness: plant known failures, score both directions | `evaluation/` |
+| The evaluation harness: plant known failures, score all three directions | `evaluation/` |
 | Repairs to stored text when extraction is corrected after the fact | `ingest/repair.py` |
 
 Measured on the real corpus, which is now the whole of it:

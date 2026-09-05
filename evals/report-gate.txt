@@ -1,0 +1,23 @@
+74 propositions from 40 judgments, no model configured
+
+Per proposition: what a word search returns, and what survives to reach the gate.
+
+  drawn from                 n  retrieved  not court  to the gate  gate drops
+  the court's own words     40        4.0        0.5          4.0        0.05
+  counsel's submission      34        4.0        2.2          3.9        0.09
+
+What the drafting surface answered, end to end:
+
+  drawn from                 bound  narrowed  unchecked  refused
+  the court's own words         0%        0%       100%       0%
+  counsel's submission          0%        0%       100%       0%
+
+Counsel's submission: a word search put the source paragraph within reach for 34 of 34 propositions; 0 survived the voice filter to reach the gate; 0 were bound.
+No judgment in this draw carried a dissenting opinion, so that row is missing rather than clean.
+
+No proposition was bound to the paragraph it was lifted from where that
+paragraph was counsel's submission or a dissent.
+
+With no model configured nothing can be bound, so the `bound` and `narrowed` columns
+are structurally zero and say nothing about the gate. What they do measure is the
+three-state honesty: an unchecked passage is offered to read and never as authority.

@@ -37,6 +37,7 @@ Measuring both:
     orderorder eval run [--no-model]     score the engine against them
     orderorder eval paraphrase           build restated queries for the search evaluation
     orderorder eval search               score the search direction
+    orderorder eval gate                 what the drafting gate lets through, and throws out
 """
 
 from __future__ import annotations
@@ -76,6 +77,7 @@ from orderorder.engine.schemas import (
     WeightAssessment,
 )
 from orderorder.engine.verdict import GRADES
+from orderorder.evaluation import gate as gate_eval
 from orderorder.evaluation import retrieval
 from orderorder.evaluation.generate import generate as generate_gold
 from orderorder.evaluation.gold import read_gold, write_gold
@@ -710,6 +712,61 @@ def eval_search(
     if report:
         Path(report).parent.mkdir(parents=True, exist_ok=True)
         Path(report).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        console.print(f"[dim]written to {report}[/dim]")
+
+
+@eval_app.command("gate")
+def eval_gate(
+    judgments: int = typer.Option(40, help="How many judgments to draw propositions from."),
+    per_judgment: int = typer.Option(1, help="Propositions of each kind per judgment."),
+    checked: int = typer.Option(
+        gate_eval.FIELD, help="How wide a field of candidates the gate sees."
+    ),
+    rng_seed: int = typer.Option(20260904, help="Which judgments get drawn."),
+    no_model: bool = typer.Option(
+        False, "--no-model", help="Run only the half of the gate that needs no model."
+    ),
+    report: str | None = typer.Option(None, help="Also write the report to this file."),
+) -> None:
+    """Measure the drafting gate: what the retriever hands up, and what the gate does with it.
+
+    The gate is the component with the most to lose by being wrong, because it is the one that
+    writes. A verification miss leaves a bad citation in somebody else's brief; a gate miss puts one
+    in yours, over your signature, with a pinpoint that makes it look checked.
+
+    Propositions are drawn from three kinds of paragraph — the court's own words, counsel's
+    submission, a dissent — and put to the search the way an advocate would put them. The number the
+    gate exists for is how much of what comes back is not citable, and it is not small.
+    """
+    init_db()
+    model = None if no_model else build_structured(ScopeAssessment)
+    if model is None and not no_model:
+        console.print(
+            "[yellow]no language model configured[/yellow], so nothing can be bound. The "
+            "model-free half of the gate is still measured."
+        )
+    with get_session() as session:
+        if not search.index_exists(session):
+            console.print("[red]no search index[/red]; run [bold]orderorder index[/bold] first")
+            raise typer.Exit(1)
+        items = gate_eval.build_items(
+            session, judgments=judgments, per_judgment=per_judgment, seed_value=rng_seed
+        )
+        if not items:
+            console.print("[red]no propositions could be drawn[/red]; is there text in the corpus?")
+            raise typer.Exit(1)
+        console.print(f"[dim]{len(items)} propositions[/dim]")
+
+        def progress(done: int, total: int) -> None:
+            if done % 10 == 0 or done == total:
+                console.print(f"  [dim]{done}/{total}[/dim]")
+
+        scored = gate_eval.run_gate(session, items, model, checked=checked, on_item=progress)
+
+    lines = gate_eval.format_gate(scored)
+    console.print("\n".join(lines))
+    if report:
+        gate_eval.write_report(scored, Path(report))
         console.print(f"[dim]written to {report}[/dim]")
 
 

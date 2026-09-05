@@ -155,21 +155,24 @@ phantom citation is on screen while the ones that need a model are still running
 with checks that could not run gets a hollow badge rather than a solid one: nothing was found against
 it, but not everything was asked, and on a board read at a glance the badge has to say so.
 
-### 8. The numbers
+### 9. The numbers
 
-Neither of the two directions is worth much unmeasured, and both are measured against ground truth
-the corpus supplies rather than labels anyone wrote:
+None of the three directions is worth much unmeasured, and all three are measured against ground
+truth the corpus supplies rather than labels anyone wrote:
 
 ```bash
 uv run orderorder eval generate --seeds 40 --rng-seed 1729 --out evals/holdout.jsonl
 uv run orderorder eval run --no-model --detail --gold evals/holdout.jsonl
 uv run orderorder eval search --judgments 40
+uv run orderorder eval gate --judgments 40 --no-model
 ```
 
 The first plants known failures in forty judgments *the detectors were not developed against* — the
 set they were fixed on cannot measure them. The second scores every check that needs no model, in
 seconds. The third asks the search direction: given a line, does the corpus give back the judgment,
-the paragraph, and the line.
+the paragraph, and the line. The fourth asks the drafting direction, and asks it about the traffic
+rather than the detector: how much of what a word search puts in front of a lawyer is something
+nobody may cite, and what happens to it on the way into a draft.
 
 Current numbers and, more importantly, what they do not say are in
 [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) §11.4.

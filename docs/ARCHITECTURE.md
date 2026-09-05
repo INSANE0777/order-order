@@ -444,6 +444,18 @@ flowchart TD
 - **Assembly**: Indian written-submission template (synopsis, list of dates, issues, arguments with headings per issue, prayer, table of authorities in SCC / neutral-citation style, verification appendix). Templates are files the co-founder owns.
 - **Self-attack**: the assembled draft is run through Surface A; in addition, for each issue the engine searches for judgments with contrary holdings (queries built from the negation of each accepted proposition) and lists them as counter-authorities with their bench strength and treatment.
 
+### 5.1 What is built, and where it departs from the specification
+
+`orderorder draft plan.txt --docx out.docx` runs the right-hand half of Diagram 5: gate, assembly, self-attack, export. Three departures, each deliberate.
+
+**The plan is written by hand, not derived.** The digest, issue framing and confirmation loops at the top of the diagram are not built. Everything they produce — the court, the parties, the list of dates, the issues, the propositions to argue, the prayer — is the advocate's own knowledge of their case, and `drafting/plan.py` reads it from a plain text file. That is not a stub for a model: an advocate who has to correct a machine's guess at their own issues has done more work than one who typed them, and the guessing is the part of the diagram with the least to offer and the most to get wrong.
+
+**A refusal survives into the document.** The diagram's "rejected, alternative sought" loop ends somewhere, and where it ends is the design question that matters. It ends *in the draft*: a proposition nothing could support keeps its place in the argument, marked, and in red in the Word file. Dropping it would produce a submission in which every sentence appears supported, which is precisely the document Surface A exists to catch — a drafting tool that quietly deletes its failures is a machine for manufacturing the failure mode. The list of authorities is built from what was verified and can hold nothing else, so the body and the table cannot drift apart.
+
+**Self-attack is the citation graph, not a negation search.** Searching for judgments that state the opposite of each accepted proposition needs a model and a way to score a contradiction, and neither is built. What is built needs no model at all: a case a later court held *distinguishable* is still good law, so the gate keeps it, and it is exactly the argument the other side will make; a judgment in the same retrieval field with a larger bench or a later date that the draft does not cite is the first thing an opponent's junior will find; an authority nothing in the corpus has cited since is something they will say out loud. The section closes by naming what it did not look at, because a list of attacks that stops at what it found reads as an assurance that this is all of them.
+
+The export is DOCX and Markdown, built once as a list of typed blocks so the two cannot say different things, and both carry the verification appendix: for every citation, the paragraph, the subsequent history and the words that verified; for every refusal, what was considered and why each candidate failed.
+
 ---
 
 ## 6. Retrieval hierarchy
@@ -863,7 +875,20 @@ The reason is scale, not the fusion. Asked to pick the right paragraph out of a 
 
 What that rules out is spending a night on a bigger *CPU* model, which is worth knowing before spending it. What it leaves open is the plan this document always had: a strong encoder — BGE-M3 — embedded on a borrowed GPU. The store records which model wrote it and the encoder is a flag, so that experiment is `orderorder embed --model ...` and a re-run of the numbers above.
 
-**What these numbers do not say.** Planted errors are the ones we thought of, and they are not the distribution real advocates produce; that is what the memorials are for. Clean items are not drawn from paragraphs the sequence heuristic calls quoted, since the generator cannot assert those are the court's own words — so the false positive rate above does not measure that one detector, and closing that gap needs paragraphs a person has read. And the paraphrases were written by a model, once, and kept in `evals/paraphrases.jsonl` so that anyone can read them and disagree: the score is against *a* set of restatements, not the ones lawyers write.
+**Drafting**, 74 propositions drawn from the same forty judgments, `orderorder eval gate`. The other two directions ask whether a detector is right. This one asks a different question, because the gate's voice check and the labelling of the items are the same code, and a detector cannot grade itself. What it asks is about the **traffic**: how much of what a word search puts within a drafting tool's reach is something nobody may cite.
+
+| the proposition was lifted from | n | paragraphs retrieved | of those, not the court speaking | reaching the gate |
+|---|---|---|---|---|
+| the court's own words | 40 | 4.0 | 0.5 | 4.0 |
+| counsel's submission | 34 | 4.0 | **2.2** | 3.9 |
+
+Take a sentence a court wrote and search for it: one in eight of the paragraphs that come back is not the court speaking. Take a sentence from counsel's argument — which is how an advocate states a proposition, baldly, without the qualifications a court attaches — and it is **more than half**. The submission matches the query better than the holding does, because that is what a submission is for. The source paragraph was within reach in 34 of 34 cases and none of the 34 survived the voice filter.
+
+That is the case for `court_voice_only` being the default in `engine.search` and for the gate refusing again on the way into a draft, stated as a measured quantity rather than as a principle. It is also the reason a drafting tool built on plain retrieval would be a machine for producing failure mode 5 at scale: with no filter, half of what it offered for a proposition phrased like an argument would *be* an argument.
+
+No judgment in the draw carried a dissenting opinion, so that row is missing rather than clean. And with no model configured nothing can be bound, so the end-to-end columns are structurally zero: what they measure is the three-state honesty — an unchecked passage is offered to read and never as authority — not the gate's judgement about support.
+
+**What these numbers do not say.** Planted errors are the ones we thought of, and they are not the distribution real advocates produce; that is what the memorials are for. Clean items are not drawn from paragraphs the sequence heuristic calls quoted, since the generator cannot assert those are the court's own words — so the false positive rate above does not measure that one detector, and closing that gap needs paragraphs a person has read. And the paraphrases were written by a model, once, and kept in `evals/paraphrases.jsonl` so that anyone can read them and disagree: the score is against *a* set of restatements, not the ones lawyers write. The drafting table above is a measurement of the field, not of the filter: `attribute_voice` both labels the item and drops the paragraph, so "the filter removed what we labelled" is true by construction and is evidence of nothing. What is not circular is how large the field was.
 
 ---
 
