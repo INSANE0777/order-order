@@ -41,7 +41,7 @@ from orderorder.engine.schemas import (
 from orderorder.evaluation.generate import generate as generate_gold
 from orderorder.evaluation.gold import read_gold, write_gold
 from orderorder.evaluation.gold import summarise as summarise_gold
-from orderorder.evaluation.run import format_report, run_gold
+from orderorder.evaluation.run import format_disagreements, format_report, run_gold
 from orderorder.ingest import aliases as alias_learning
 from orderorder.ingest import bulk
 from orderorder.ingest import corpus as corpus_mod
@@ -470,11 +470,15 @@ def locate_command(
 def eval_generate(
     out: str = typer.Option("evals/gold.jsonl", help="Where to write the gold set."),
     seeds: int = typer.Option(8, help="How many judgments to plant errors in."),
+    rng_seed: int = typer.Option(
+        20260904,
+        help="Which judgments get drawn. Change it for a held-out set the detectors were not tuned on.",
+    ),
 ) -> None:
     """Build a gold set by planting known failure modes in real judgments."""
     init_db()
     with get_session() as session:
-        items = generate_gold(session, seeds=seeds)
+        items = generate_gold(session, seeds=seeds, seed_value=rng_seed)
     path = Path(out)
     write_gold(items, path)
     console.print(f"[green]{len(items)} items[/green] written to {path}")
@@ -491,6 +495,14 @@ def eval_run(
     gold: str = typer.Option("evals/gold.jsonl", help="Gold set to score against."),
     report: str | None = typer.Option(None, help="Also write the report to this file."),
     limit: int | None = typer.Option(None, help="Score only the first N items."),
+    no_model: bool = typer.Option(
+        False,
+        "--no-model",
+        help="Score only the checks that need no model. Seconds instead of an hour.",
+    ),
+    detail: bool = typer.Option(
+        False, "--detail", help="Print every item the engine disagreed with the gold label about."
+    ),
 ) -> None:
     """Run the engine over the gold set and report what it caught and what it invented."""
     items = read_gold(Path(gold))
@@ -500,7 +512,9 @@ def eval_run(
     if limit:
         items = items[:limit]
 
-    model = build_structured(ScopeAssessment)
+    # The model-free score is the one to watch while developing the detectors: it runs in seconds
+    # rather than an hour, and every check it covers is one that costs nothing per citation.
+    model = None if no_model else build_structured(ScopeAssessment)
     if model is None:
         console.print(
             "[yellow]no language model configured[/yellow]: the modes that need one are reported as "
@@ -516,13 +530,15 @@ def eval_run(
             session,
             items,
             model,
-            voice_model=build_structured(VoiceAssessment),
-            weight_model=build_structured(WeightAssessment),
-            facts_model=build_structured(ApplicabilityAssessment),
+            voice_model=None if no_model else build_structured(VoiceAssessment),
+            weight_model=None if no_model else build_structured(WeightAssessment),
+            facts_model=None if no_model else build_structured(ApplicabilityAssessment),
             on_result=progress,
         )
 
     lines = format_report(scored)
+    if detail:
+        lines += ["", *format_disagreements(scored)]
     console.print("\n".join(lines))
     if report:
         Path(report).parent.mkdir(parents=True, exist_ok=True)

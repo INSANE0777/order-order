@@ -114,3 +114,49 @@ def test_empty_judgment_is_safe() -> None:
     result = locate([], "anything at all")
     assert result.candidates == []
     assert result.best is None
+
+
+# --- the pinpoint that exists but is not the one -------------------------------------------------
+
+CLAIM_FROM_THREE = (
+    "A misrepresentation vitiates consent only where it induced the contract, and the burden "
+    "of proving inducement lies upon the party alleging it."
+)
+
+
+def test_a_pinpoint_naming_a_paragraph_the_words_are_not_in_is_caught() -> None:
+    """The commonest wrong pinpoint: the paragraph exists, the words are three paragraphs away."""
+    check = check_pinpoint(PARAGRAPHS, "1", CLAIM_FROM_THREE)
+    assert check.status == "wrong_paragraph"
+    assert check.is_problem
+    assert check.exists  # it is a real paragraph; it is the wrong one
+    assert check.found_at == "3"
+    assert check.anchor and "vitiates consent only where it induced" in check.anchor
+
+
+def test_the_right_pinpoint_stays_ok() -> None:
+    assert check_pinpoint(PARAGRAPHS, "3", CLAIM_FROM_THREE).status == "ok"
+
+
+def test_a_paraphrase_is_not_evidence_of_a_wrong_pinpoint() -> None:
+    """Advocates paraphrase. Without a verbatim run there is nothing to say, and nothing is said."""
+    paraphrase = "Consent is vitiated by a false statement that caused the party to enter the bargain."
+    assert check_pinpoint(PARAGRAPHS, "1", paraphrase).status == "ok"
+
+
+def test_without_a_proposition_the_check_only_asks_whether_the_paragraph_exists() -> None:
+    """The pinpoint check is used where no claim is in hand, and must not invent a finding there."""
+    assert check_pinpoint(PARAGRAPHS, "1").status == "ok"
+
+
+def test_a_pinpoint_that_does_not_exist_is_still_reported_as_such() -> None:
+    """Not-there beats wrong-paragraph: naming paragraph 73 of a five-paragraph judgment is worse."""
+    check = check_pinpoint(PARAGRAPHS, "73", CLAIM_FROM_THREE)
+    assert check.status == "out_of_range"
+    assert not check.exists
+
+
+def test_the_wrong_pinpoint_reaches_the_candidate_ranking() -> None:
+    result = locate(PARAGRAPHS, CLAIM_FROM_THREE, claimed_pinpoint="1")
+    assert result.pinpoint.status == "wrong_paragraph"
+    assert result.best is not None and result.best.printed_label == "3"

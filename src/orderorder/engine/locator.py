@@ -7,7 +7,9 @@ Two jobs, both model-free:
     then string-verified by `engine.quotes`, which is what makes "supported" mean something.
   * **check_pinpoint** compares the paragraph the brief cited with what the judgment actually contains.
     This alone catches the Delhi High Court case from September 2025, where a brief pinpointed
-    paragraphs 73 and 74 of a judgment that has 27 paragraphs.
+    paragraphs 73 and 74 of a judgment that has 27 paragraphs. It also catches the quieter version,
+    where the paragraph exists but is not the one the words came from: a long verbatim run of the
+    brief's own sentence turning up in a different paragraph settles that without a model.
 
 Both return evidence rather than a conclusion, because the verdict is assembled from all the detectors.
 """
@@ -17,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from orderorder.engine.lexical import BM25Index, ScoredDocument, tokenize
-from orderorder.engine.quotes import QuoteMatch, find_quote
+from orderorder.engine.quotes import NO_SHARED_RUN, QuoteMatch, SharedRun, find_quote, longest_shared_run
 from orderorder.ingest.segment import SegParagraph, find_out_of_sequence
 
 DEFAULT_TOP_K = 8
@@ -48,15 +50,22 @@ class PinpointCheck:
     """What the brief claimed against what the judgment holds."""
 
     claimed: str | None
-    status: str  # ok | not_in_judgment | out_of_range | none_claimed
+    status: str  # ok | not_in_judgment | out_of_range | wrong_paragraph | none_claimed
     highest_label: str | None = None
     paragraph_count: int = 0
     available: list[str] = field(default_factory=list)
     note: str | None = None
+    found_at: str | None = None
+    anchor: str | None = None
 
     @property
     def is_problem(self) -> bool:
-        return self.status in {"not_in_judgment", "out_of_range"}
+        return self.status in {"not_in_judgment", "out_of_range", "wrong_paragraph"}
+
+    @property
+    def exists(self) -> bool:
+        """The paragraph the brief named is in the judgment, whatever it says."""
+        return self.status in {"ok", "wrong_paragraph"}
 
 
 @dataclass
@@ -84,8 +93,46 @@ def _numeric(label: str | None) -> float | None:
         return None
 
 
-def check_pinpoint(paragraphs: list[SegParagraph], claimed: str | None) -> PinpointCheck:
-    """Verify that the paragraph a brief cites exists in the judgment."""
+def _words_are_elsewhere(
+    paragraphs: list[SegParagraph], claimed: str, proposition: str
+) -> tuple[str, SharedRun] | None:
+    """Where in the judgment the brief's own words actually are, if not where it said.
+
+    Only a verbatim run decides this, and only a long one. A brief that paraphrases shares nothing
+    with the judgment but stock phrasing, so a short overlap proves nothing either way; ten
+    consecutive words does not happen by accident. And the finding needs both halves — the words
+    somewhere else *and* not at the pinpoint — because a phrase the judgment repeats would otherwise
+    convict a citation that was right.
+
+    This is the same discipline as the rest of the engine: a string match, not a similarity score, and
+    silence where there is no match.
+    """
+    at_pinpoint = NO_SHARED_RUN
+    best_label: str | None = None
+    best_run = NO_SHARED_RUN
+
+    for paragraph in paragraphs:
+        label = paragraph.printed_label
+        if not label:
+            continue
+        run = longest_shared_run(proposition, paragraph.body)
+        # Labels are not unique: a judgment that quotes another carries its numbering too, so
+        # "paragraph 2" can name two paragraphs. Neither of them is *elsewhere* than paragraph 2, and
+        # counting the second as elsewhere reported a citation as pointing away from where it points.
+        if label == claimed:
+            at_pinpoint = max(at_pinpoint, run, key=lambda r: r.words)
+        elif run.words > best_run.words:
+            best_label, best_run = label, run
+
+    if at_pinpoint.is_distinctive or not best_run.is_distinctive or best_label is None:
+        return None
+    return best_label, best_run
+
+
+def check_pinpoint(
+    paragraphs: list[SegParagraph], claimed: str | None, proposition: str | None = None
+) -> PinpointCheck:
+    """Verify that the paragraph a brief cites exists in the judgment, and that it is the right one."""
     labels = [p.printed_label for p in paragraphs if p.printed_label]
     numbers = [n for n in (_numeric(label) for label in labels) if n is not None]
     highest = max(numbers) if numbers else None
@@ -101,7 +148,23 @@ def check_pinpoint(paragraphs: list[SegParagraph], claimed: str | None) -> Pinpo
 
     claimed = str(claimed).strip()
     if claimed in labels:
-        return PinpointCheck(claimed, "ok", highest_label, len(paragraphs), labels)
+        elsewhere = _words_are_elsewhere(paragraphs, claimed, proposition) if proposition else None
+        if elsewhere is None:
+            return PinpointCheck(claimed, "ok", highest_label, len(paragraphs), labels)
+        found_at, run = elsewhere
+        return PinpointCheck(
+            claimed,
+            "wrong_paragraph",
+            highest_label,
+            len(paragraphs),
+            labels,
+            note=(
+                f"the brief cites paragraph {claimed}, but {run.words} consecutive words of its own "
+                f"sentence appear in paragraph {found_at} and not in {claimed}: {run.text!r}"
+            ),
+            found_at=found_at,
+            anchor=run.text,
+        )
 
     claimed_number = _numeric(claimed)
     if claimed_number is not None and highest is not None and claimed_number > highest:
@@ -138,7 +201,7 @@ def locate(
     The paragraph the brief pinpointed is always included in the candidate set even when it ranks
     poorly, so the verdict can report that the cited paragraph does not in fact support the claim.
     """
-    pinpoint = check_pinpoint(paragraphs, claimed_pinpoint)
+    pinpoint = check_pinpoint(paragraphs, claimed_pinpoint, proposition)
     if not paragraphs:
         return LocationResult([], pinpoint)
 

@@ -4,6 +4,11 @@ A claim is "supported" only if a verbatim quote the model returned can be found,
 in the judgment text we hold. This module is pure Python and never calls a model. It normalises both
 sides (Unicode, quotes, dashes, whitespace, soft hyphens, case), finds the quote, and maps the match
 back to character offsets in the original text so the viewer can highlight it.
+
+It also answers the question the other way round. `find_quote` asks whether a quote is in a passage
+you were pointed at; `longest_shared_run` asks how much of a claim is in a passage when nobody has
+pointed anywhere, which is what the pinpoint check needs to say the words are in some other paragraph
+than the one the brief cited.
 """
 
 from __future__ import annotations
@@ -16,6 +21,10 @@ from rapidfuzz import fuzz
 
 MIN_QUOTE_WORDS = 6
 FUZZY_THRESHOLD = 97.0
+# Legal prose is formulaic - "it is well settled that", "in the facts and circumstances of the
+# case" - so a short run of shared words says nothing. Ten consecutive words is past the point
+# where stock phrasing explains the coincidence.
+DISTINCTIVE_RUN_WORDS = 10
 
 _QUOTE_MAP = str.maketrans(
     {
@@ -82,6 +91,17 @@ def normalize(text: str) -> NormalizedText:
     return NormalizedText("".join(out), idx)
 
 
+def normalized(text: str) -> str:
+    """The same normalised form as `normalize`, without the index map.
+
+    `normalize` walks the string character by character because it has to record where each character
+    came from. Nothing that only compares text needs that, and paying for it turned the pinpoint check
+    into the slowest thing in the engine — it normalises every paragraph of a judgment for every
+    citation. Whole-string translation gives the same answer for the text itself.
+    """
+    return " ".join(unicodedata.normalize("NFKC", text).translate(_QUOTE_MAP).lower().split())
+
+
 def word_count(text: str) -> int:
     return len(re.findall(r"\w+", text))
 
@@ -118,3 +138,48 @@ def find_quote(quote: str, source: str, *, ocr_derived: bool = False) -> QuoteMa
 
 def verify_quotes(quotes: list[str], source: str, *, ocr_derived: bool = False) -> list[QuoteMatch]:
     return [find_quote(q, source, ocr_derived=ocr_derived) for q in quotes]
+
+
+@dataclass(frozen=True)
+class SharedRun:
+    """The longest run of consecutive words a claim and a passage have word for word in common."""
+
+    words: int
+    text: str
+
+    @property
+    def is_distinctive(self) -> bool:
+        """Long enough that two passages sharing it are not sharing it by chance."""
+        return self.words >= DISTINCTIVE_RUN_WORDS
+
+
+NO_SHARED_RUN = SharedRun(0, "")
+
+
+def longest_shared_run(claim: str, source: str) -> SharedRun:
+    """The longest sequence of consecutive words from `claim` that appears verbatim in `source`.
+
+    `find_quote` answers "is this whole quote there"; this answers "how much of this is there", which
+    is the question to ask when nobody has told you where to look. A brief that paraphrases shares
+    only stock phrasing with the judgment; a brief that lifts a line shares the line.
+
+    Normalisation is the same as `find_quote`'s, so a run found here would verify there.
+    """
+    claim_words = normalized(claim).split()
+    haystack = normalized(source)
+    if not claim_words or not haystack:
+        return NO_SHARED_RUN
+
+    best = NO_SHARED_RUN
+    for start in range(len(claim_words)):
+        # Nothing from here can beat what we have: the tail is too short.
+        if len(claim_words) - start <= best.words:
+            break
+        end = start + best.words + 1
+        while end <= len(claim_words):
+            run = " ".join(claim_words[start:end])
+            if run not in haystack:
+                break
+            best = SharedRun(end - start, run)
+            end += 1
+    return best

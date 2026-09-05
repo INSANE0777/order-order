@@ -16,6 +16,7 @@ offsets into the source so a verified quote can be highlighted in the original.
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
 from dataclasses import dataclass
 
 # "1." / "23." / "(6)" / "[5]" / "Para 7." / "5.1" — the label plus the space after it.
@@ -33,9 +34,10 @@ LABEL_RE = re.compile(
     r")\s+(?=\S)"
 )
 MIN_LABELS_FOR_LABEL_MODE = 3
-# The largest step that still reads as the court numbering onwards. One clear paragraph ahead, plus
-# room for a sub-label; anything further is a leap that wants a second signal before it counts.
-MAX_STEP = 1.5
+# How much of a judgment's numbering has to ascend before the numbering is worth reading at all.
+# Column-formatted reports extract out of order, and there the labels carry no information about whose
+# words a paragraph holds — so the honest answer is silence, not a judgment flagged half over.
+MIN_ASCENDING_SHARE = 0.5
 
 HEADING_RE = re.compile(r"^\s*(?:JUDGMENT|ORDER|J U D G M E N T|O R D E R)\s*$", re.IGNORECASE)
 SIGNATURE_RE = re.compile(r"^\s*(?:\.{3,}|…)?\s*[A-Z][A-Za-z.\s]{2,60},?\s*(?:C\.?J\.?I?\.?|J\.?)\s*\.?\s*$")
@@ -177,48 +179,82 @@ def label_value(label: str | None) -> float | None:
         return None
 
 
-def find_out_of_sequence(paragraphs: list[SegParagraph]) -> set[int]:
-    """Sequence numbers of paragraphs whose printed label breaks the ascending order.
+def _ascending_run(values: list[float]) -> set[int]:
+    """Positions of a longest strictly ascending subsequence, by patience sorting."""
+    tails: list[float] = []  # tails[k] = smallest possible tail of an ascending run of length k+1
+    tail_at: list[int] = []  # the position holding that tail
+    came_from: list[int | None] = [None] * len(values)
 
-    A court numbers its own paragraphs in order. When a judgment quotes another judgment at length it
-    reproduces that judgment's numbering, so a high label appears among lower ones and the sequence
-    jumps backwards afterwards. Those paragraphs are very likely quoted from elsewhere, which matters
-    because attributing them to the citing court is failure mode 5 in the taxonomy.
+    for position, value in enumerate(values):
+        slot = bisect_left(tails, value)
+        came_from[position] = tail_at[slot - 1] if slot else None
+        if slot == len(tails):
+            tails.append(value)
+            tail_at.append(position)
+        elif value < tails[slot]:
+            # A strictly smaller tail extends further, so it replaces the one held. An *equal* tail
+            # extends no further, and keeping the position already held keeps the run early: a
+            # judgment whose own paragraphs 18 to 21 are quoted back later offers two runs of the same
+            # length, and the court's own came first.
+            tails[slot] = value
+            tail_at[slot] = position
+
+    run: set[int] = set()
+    position = tail_at[-1] if tail_at else None
+    while position is not None:
+        run.add(position)
+        position = came_from[position]
+    return run
+
+
+def _anchored_run(values: list[float]) -> set[int]:
+    """The court's own numbering: the longest ascending run that starts where the judgment does.
+
+    Length alone is not enough to tell the court's numbering from a quoted one. A judgment numbered 2
+    to 34 that quotes twenty paragraphs in its second half offers two ascending runs of about the same
+    size, and the longer one can be the quotation — it borrows the judgment's own closing paragraphs
+    to finish on. What separates them is where they begin. The court's numbering starts at the
+    judgment's first numbered paragraph, because that is what a judgment is; a quotation cannot.
+    """
+    if not values:
+        return set()
+    later = [(position, value) for position, value in enumerate(values) if position and value > values[0]]
+    anchored = _ascending_run([value for _position, value in later])
+    return {0} | {later[position][0] for position in anchored}
+
+
+def find_out_of_sequence(paragraphs: list[SegParagraph]) -> set[int]:
+    """Sequence numbers of paragraphs whose printed label is not part of the court's own numbering.
+
+    A court numbers its own paragraphs in order, and a judgment that quotes another at length brings
+    that judgment's numbering with it. So the court's own paragraphs are the labels that ascend
+    through the judgment from beginning to end, and the quoted ones are what is left over. Taking the
+    *longest* ascending subsequence says exactly that, and says it in one rule.
+
+    Walking forwards instead — carry a mark of where the numbering has reached, flag anything at or
+    below it — reads correctly until a quoted block climbs past the mark. A judgment numbering itself
+    1, 2, ... 6.5 and then quoting ten paragraphs numbered 1 to 10 pushes the mark to 10, after which
+    the court's own 6.6, 6.7 and everything following it is flagged: one quotation poisons the whole
+    tail of the judgment. That is not a tuning problem, and no threshold fixes it, because the mark
+    itself is wrong.
 
     This is a signal, not a verdict: the voice check confirms it. It costs nothing and needs no model.
+
+    Where the numbering is too damaged to read — column-formatted reports extract out of order, and
+    then no ascending run is much better than any other — it says nothing at all rather than
+    condemning half the judgment.
     """
     labelled = [(p.seq, label_value(p.printed_label)) for p in paragraphs if p.printed_label]
     labelled = [(seq, value) for seq, value in labelled if value is not None]
     if len(labelled) < 3:
         return set()
 
-    # Walk forwards, tracking where the court's own numbering has reached. Two shapes betray quoted
-    # matter, and nothing else does:
-    #
-    #   * a **restart** — a label at or below the mark, which is a quoted judgment beginning again at
-    #     its own paragraph 1 while the citing court is at 13;
-    #   * a **spike** — a label above the mark that the very next label comes back down from, which is
-    #     a single quoted paragraph carrying a foreign number ("... 4. 12. 5. ...").
-    #
-    # A plain forward gap is neither. Judgments skip numbers, and extraction loses paragraphs, so a
-    # jump from 1 to 5 is ordinary; treating it as suspicious flagged the court's own holding.
-    #
-    # Comparing each label against the *following* ones instead — flagging any label that some later
-    # label undercuts — reads a quoted block near the end as evidence against everything before it. On
-    # a real judgment numbered 1 to 19 with quoted matter interleaved, that flagged 22 of 39
-    # paragraphs, and half of a set of sound citations were marked possibly-quoted on the strength of
-    # it. Measured, not guessed: see the eval harness.
-    quoted: set[int] = set()
-    reached = 0.0
-    for index, (seq, value) in enumerate(labelled):
-        following = labelled[index + 1][1] if index + 1 < len(labelled) else None
-        restart = value <= reached
-        # A spike both leaps ahead of the sequence and is immediately undercut. Either alone is
-        # ordinary: judgments skip numbers, and the label after the court's last paragraph is often a
-        # quoted block restarting low.
-        spike = value > reached + MAX_STEP and following is not None and following < value
-        if restart or spike:
-            quoted.add(seq)
-        else:
-            reached = value
-    return quoted
+    values = [value for _seq, value in labelled]
+    own = _anchored_run(values)
+    if len(own) < len(labelled) * MIN_ASCENDING_SHARE:
+        # Either the first label is itself misread, or the text is too scrambled to read. Try without
+        # the anchor, and if that is no better say nothing.
+        own = _ascending_run(values)
+        if len(own) < len(labelled) * MIN_ASCENDING_SHARE:
+            return set()
+    return {seq for position, (seq, _value) in enumerate(labelled) if position not in own}

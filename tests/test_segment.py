@@ -124,3 +124,71 @@ def test_sub_paragraphs_do_not_trip_the_detector() -> None:
 
 def test_too_few_labels_to_judge() -> None:
     assert find_out_of_sequence(segment("9. Only one labelled paragraph here.")) == set()
+
+
+def _flagged_labels(text: str) -> set[str]:
+    paragraphs = segment(text)
+    flagged = find_out_of_sequence(paragraphs)
+    return {p.printed_label for p in paragraphs if p.seq in flagged}
+
+
+def test_a_quoted_block_that_climbs_past_the_court_does_not_poison_the_rest() -> None:
+    """The failure that the walk-forwards rule could not survive.
+
+    A judgment numbering itself 1 to 6.5 quotes ten paragraphs numbered 1 to 10. Carrying a mark of
+    where the numbering has reached pushes that mark to 10, and the court's own 6.6 onwards then falls
+    below it — one quotation condemning the whole tail of the judgment.
+    """
+    own = ["1.", "2.", "3.", "4.", "5.", "6.", "6.1", "6.2", "6.3", "6.4", "6.5"]
+    quotation = [f"{n}." for n in range(1, 11)]
+    rest = ["6.6", "6.7", "7.", "7.1", "8.", "9.", "10."]
+    text = "\n\n".join(
+        f"{label} Sentence belonging to paragraph {label} of this judgment."
+        for label in own + quotation + rest
+    )
+    flagged = find_out_of_sequence(segment(text))
+    # Exactly the quotation, and nothing of the court's own before or after it. The labels alone
+    # cannot say this - 7, 8, 9 and 10 appear in both - so it is the positions that are checked.
+    quoted_positions = set(range(len(own) + 1, len(own) + len(quotation) + 1))
+    assert flagged == quoted_positions
+
+
+def test_the_courts_own_numbering_wins_even_when_the_quotation_is_longer() -> None:
+    """Length alone does not decide: the court's numbering is the one that starts the judgment.
+
+    Here the quoted block borrows the judgment's closing paragraphs to finish on, so the ascending run
+    through the quotation is the longer of the two. It is still not the court's.
+    """
+    own = [str(n) for n in range(2, 12)]
+    quotation = ["1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9"]
+    rest = [str(n) for n in range(12, 20)]
+    text = "\n\n".join(
+        f"{label}. Sentence belonging to paragraph {label}."
+        if "." not in label
+        else f"{label} Sentence belonging to paragraph {label}."
+        for label in own + quotation + rest
+    )
+    assert _flagged_labels(text) == set(quotation)
+
+
+def test_the_courts_own_paragraphs_win_a_tie_with_their_own_quotation() -> None:
+    """A judgment that quotes its own earlier paragraphs back offers two runs of equal length."""
+    text = "\n\n".join(
+        f"{label}. Sentence belonging to paragraph {label}."
+        for label in ["1", "2", "3", "4", "5", "3", "4", "5", "6", "7"]
+    )
+    paragraphs = segment(text)
+    flagged = find_out_of_sequence(paragraphs)
+    # The three flagged are the second 3, 4 and 5 — the later copies, not the court's own.
+    assert sorted(flagged) == [6, 7, 8]
+
+
+def test_numbering_too_damaged_to_read_says_nothing() -> None:
+    """Column-formatted reports extract out of order; there the labels carry no signal at all."""
+    text = "\n\n".join(
+        f"{label}. Sentence belonging to paragraph {label}."
+        # Three columns of a printed report read out of order: each block descends, so no ascending
+        # run through the judgment is any more credible than another.
+        for label in ["5", "4", "3", "2", "1", "10", "9", "8", "7", "6", "15", "14", "13", "12", "11"]
+    )
+    assert find_out_of_sequence(segment(text)) == set()

@@ -1,0 +1,15 @@
+70 items: 60 planted, 10 clean
+model configured: False
+
+recall by planted failure mode
+  [ 1] phantom                10/10    100%
+  [ 2] mis-cite               10/10    100%
+  [ 3] wrong court or bench   10/10    100%
+  [ 5] wrong voice            10/10    100%
+  [ 9] selective quotation    0/2  (needs a model; not counted)
+  [10] dead or wounded law    8/8    100%
+  [12] wrong pinpoint         10/10    100%
+
+false positives on clean citations : 0/10  0%
+abstention rate                    : 100%
+seconds per item                   : 0.0

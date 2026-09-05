@@ -27,11 +27,13 @@ from __future__ import annotations
 
 import random
 import re
+from collections import Counter
 from dataclasses import dataclass
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from orderorder.citations.grammar import extract_citations
 from orderorder.db.models import CitationAlias, Judgment, JudgmentTextVersion
 from orderorder.engine.citator import NEGATIVE, CitationEdge, treatment_of
 from orderorder.engine.locator import Candidate
@@ -39,6 +41,7 @@ from orderorder.engine.sentences import split_sentences
 from orderorder.engine.voice import attribute_voice
 from orderorder.engine.weight import DECLINING_CUES
 from orderorder.evaluation.gold import GoldItem, GoldLabels
+from orderorder.ingest.segment import find_out_of_sequence
 from orderorder.ingest.store import load_paragraphs
 
 # A sentence has to be substantial enough to be a proposition a brief would actually make.
@@ -51,6 +54,15 @@ QUALIFIER = re.compile(
     r"(?i)\b(only\s+(?:where|when|if)|unless|provided\s+that|subject\s+to|except\s+where|"
     r"so\s+long\s+as|in\s+the\s+facts\s+of|having\s+regard\s+to)\b"
 )
+
+# Ways a judgment announces that a quotation follows. What comes after is the proposition; this is not.
+LEAD_IN = re.compile(
+    r"(?i)(?:as\s+under|as\s+follows|thus|to\s+the\s+following\s+effect|in\s+the\s+following\s+terms)"
+    r"\s*[:.-]|(?::-|:)\s*$|\b(?:may\s+usefully\s+refer|it\s+is\s+profitable\s+to\s+(?:refer|quote)|"
+    r"we\s+may\s+(?:quote|reproduce|extract))\b"
+)
+# "Pandurang and Ors. v. State of Hyderabad" — another case named inside the sentence.
+PARTIES = re.compile(r"\b[A-Z][\w.&'()-]*(?:\s+[\w.&'()-]+){0,6}\s+(?:v\.|vs\.?|versus)\s+[A-Z]")
 
 
 @dataclass
@@ -74,7 +86,34 @@ def _usable(sentence: str) -> bool:
     # Page furniture, tables of authorities and citation runs are not propositions.
     if sentence.count("(") > 3 or sum(c.isdigit() for c in sentence) > len(sentence) * 0.12:
         return False
-    return bool(re.match(r"^[A-Z“\"']", sentence.strip()))
+    # A sentence that announces a quotation is not the proposition; the quotation is. Offered as one,
+    # it carries the introduced case's bench and citation into a claim about a different case, and the
+    # engine is right to object — "In paragraphs 365 and 366, the Constitution Bench of this Court has
+    # held as under:-" asserts a Constitution Bench, whatever the judgment it was taken from.
+    if LEAD_IN.search(sentence):
+        return False
+    # Likewise a sentence naming another authority. The gold item pairs a claim with one citation, and
+    # a second citation inside the claim makes it ambiguous which one the item is about.
+    if extract_citations(sentence) or PARTIES.search(sentence):
+        return False
+    stripped = sentence.strip()
+    # A proposition is a whole sentence. Column-formatted reports extract into fragments — half a
+    # table row, a line that stops mid-clause — and a fragment is not something an advocate would
+    # assert. One such fragment reached the gold set as a *clean* item and was flagged, which reads
+    # as a false positive by the engine and was nothing of the kind.
+    if not stripped.endswith((".", "?", "!", '."', ".'", ".”", ".’")):
+        return False
+    return bool(re.match(r"^[A-Z“\"']", stripped))
+
+
+def _first_citation(session: Session, judgment_id) -> str | None:
+    """One citation for a judgment, chosen the same way every time so a run is reproducible."""
+    alias = session.scalars(
+        select(CitationAlias)
+        .where(CitationAlias.judgment_id == judgment_id)
+        .order_by(CitationAlias.reporter, CitationAlias.citation_string)
+    ).first()
+    return alias.citation_string if alias else None
 
 
 def collect_seed(session: Session, judgment: Judgment) -> Seed | None:
@@ -82,19 +121,36 @@ def collect_seed(session: Session, judgment: Judgment) -> Seed | None:
     paragraphs = load_paragraphs(session, judgment.id)
     if len(paragraphs) < 6:
         return None
-    alias = session.scalars(
-        select(CitationAlias)
-        .where(CitationAlias.judgment_id == judgment.id)
-        .order_by(CitationAlias.reporter)
-    ).first()
-    if alias is None:
+    citation = _first_citation(session, judgment.id)
+    if citation is None:
         return None
 
-    seed = Seed(judgment, alias.citation_string, [], [], [], [], [], [])
+    # A printed label is not unique: a judgment that quotes another carries that judgment's numbering
+    # too. An item drawn from the second paragraph numbered 11 and cited as "para 11" points at the
+    # first one, so it is not a sound citation whatever else is true of it — and as a *clean* item it
+    # would score the engine down for saying so. Ground truth has to be unambiguous or it is not
+    # ground truth.
+    occurrences = Counter(p.printed_label for p in paragraphs if p.printed_label)
+
+    # Paragraphs whose printed number is not part of the court's own numbering carry words from
+    # somewhere else. The generator cannot assert that such a paragraph is the court's own holding,
+    # so it does not draw items from them at all.
+    #
+    # Be clear about what this costs. It is the one place where the generator uses a detector's own
+    # answer to decide what to label, and it means **the false positive rate below does not measure
+    # the sequence-based half of failure mode 5**: those paragraphs never reach the gold set, so that
+    # detector cannot be seen to fire on a clean item here. Every other detector is measured. Closing
+    # this gap needs paragraphs whose provenance a person has read and confirmed, which is what the
+    # hand-labelled memorials are for.
+    quoted = find_out_of_sequence(paragraphs)
+
+    seed = Seed(judgment, citation, [], [], [], [], [], [])
     for paragraph in paragraphs:
         if not paragraph.printed_label:
             continue
         seed.labels.append(paragraph.printed_label)
+        if occurrences[paragraph.printed_label] > 1 or paragraph.seq in quoted:
+            continue
         candidate = Candidate(
             seq=paragraph.seq,
             printed_label=paragraph.printed_label,
@@ -134,16 +190,20 @@ def _shifted(labels: list[str], label: str, by: int = 7) -> str:
     return str(by * 10)
 
 
-def _altered(citation: str) -> str:
-    """The same case with the volume and page wrong: right name, wrong numbers."""
-
-    def bump(match: re.Match[str]) -> str:
-        return str(int(match.group(0)) + 3)
-
-    return re.sub(r"\d+", bump, citation, count=2)
+def _party_name(title: str) -> str:
+    """The first-named party, as a brief would write it."""
+    head = re.split(r"(?i)\s+(?:versus|vs\.?|v\.)\s+", title)[0]
+    head = re.sub(r"(?i)\s*(?:etc\.?|& ors\.?|and others|& anr\.?|and another)\s*$", "", head)
+    return " ".join(word.capitalize() if word.isupper() else word for word in head.split())
 
 
-def plant(seed: Seed, session: Session, rng: random.Random, overruled: list[tuple[str, str]]) -> list[GoldItem]:
+def plant(
+    seed: Seed,
+    session: Session,
+    rng: random.Random,
+    overruled: list[tuple[str, str]],
+    decoy: str | None = None,
+) -> list[GoldItem]:
     """Derive one item per failure mode the seed can support, plus a clean one."""
     key = seed.judgment.canonical_key
     items: list[GoldItem] = []
@@ -185,9 +245,13 @@ def plant(seed: Seed, session: Session, rng: random.Random, overruled: list[tupl
     add("m1", sentence, f"({2000 + rng.randint(0, 24)}) {rng.randint(11, 19)} SCC {rng.randint(4000, 9000)}",
         1, "invented citation, resolves nowhere")
 
-    # 2 — mis-cite. Right case by name, wrong numbers.
-    add("m2", sentence, f"{seed.judgment.title.split(' versus ')[0].title()} v. Anr., {_altered(seed.citation)}",
-        2, "party names right, reporter numbers altered")
+    # 2 — mis-cite. The case is named correctly and the reporter reference belongs to a different
+    # case altogether. This is the shape that matters: bumping the numbers of a neutral citation
+    # produces a reference that resolves nowhere, which is a phantom (mode 1) and not a mis-cite, and
+    # an item labelled 2 that contains a 1 marks the engine down for being right.
+    if decoy is not None:
+        add("m2", sentence, f"{_party_name(seed.judgment.title)} v. Anr., {decoy}", 2,
+            "party names are this case; the reporter reference belongs to another")
 
     # 3 — wrong bench. Only when the claim would actually overstate it.
     if (seed.judgment.bench_strength or 0) < 5:
@@ -291,7 +355,18 @@ def generate(session: Session, *, seeds: int = 8, seed_value: int = 20260904) ->
         collected = collect_seed(session, judgment)
         if collected is None:
             continue
-        items.extend(plant(collected, session, rng, dead))
+        # A real citation belonging to some other case, for the mis-cite item to point at.
+        decoy = next(
+            (
+                other
+                for judgment_id in (j.id for j in rng.sample(judgments, min(8, len(judgments))))
+                if judgment_id != judgment.id
+                for other in [_first_citation(session, judgment_id)]
+                if other and other != collected.citation
+            ),
+            None,
+        )
+        items.extend(plant(collected, session, rng, dead, decoy))
         used += 1
 
     # The same overruled judgment is drawn repeatedly; one item for it is enough.

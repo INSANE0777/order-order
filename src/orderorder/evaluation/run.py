@@ -220,3 +220,43 @@ def format_report(report: Report) -> list[str]:
         for result in errors[:5]:
             lines.append(f"  {result.item.id}: {result.error}")
     return lines
+
+
+def format_disagreements(report: Report) -> list[str]:
+    """Every item the engine and the gold label disagree about, with enough to act on.
+
+    A score that moves tells you something changed and nothing about what. This is the view to read
+    next: the clean citations that were flagged and what was said about them, and the planted errors
+    that went by. Modes needing a model are left out of the misses when there was none, since a
+    question never asked is not a wrong answer.
+    """
+    unassessed = report.unassessed_modes()
+    lines = ["disagreements"]
+
+    for result in report.clean:
+        if not result.false_positive:
+            continue
+        lines.append(f"  FALSE POSITIVE  {result.item.id}")
+        lines.append(f"    cited   {result.item.citation_raw}")
+        lines.append(f"    claim   {result.item.claim_text[:150]}")
+        for finding in result.verdict.findings if result.verdict else []:
+            lines.append(f"      -> {finding}")
+
+    for result in report.planted:
+        mode = result.item.planted_error
+        if result.caught or mode in unassessed:
+            continue
+        name = MODE_NAMES.get(mode or 0, str(mode))
+        lines.append(f"  MISSED [{mode}] {name}  {result.item.id}")
+        lines.append(f"    cited   {result.item.citation_raw}")
+        lines.append(f"    claim   {result.item.claim_text[:150]}")
+        if result.error:
+            lines.append(f"    errored {result.error}")
+        elif result.verdict:
+            lines.append(f"    graded  {result.verdict.grade}, existence {result.verdict.existence}")
+            for finding in result.verdict.findings:
+                lines.append(f"      -> said instead: {finding}")
+
+    if len(lines) == 1:
+        lines.append("  none: every planted error was caught and no clean citation was flagged")
+    return lines

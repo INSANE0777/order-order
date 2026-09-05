@@ -8,9 +8,12 @@ born-digital text, which is what stops a model from inventing a near-quote.
 from __future__ import annotations
 
 from orderorder.engine.quotes import (
+    DISTINCTIVE_RUN_WORDS,
     FUZZY_THRESHOLD,
     MIN_QUOTE_WORDS,
+    NO_SHARED_RUN,
     find_quote,
+    longest_shared_run,
     normalize,
     verify_quotes,
     word_count,
@@ -102,3 +105,38 @@ def test_normalize_index_map_is_aligned() -> None:
     assert normalized.text == "hello world"
     assert len(normalized.index_map) == len(normalized.text)
     assert normalized.index_map[0] == 0
+
+
+# --- how much of a claim a passage carries ------------------------------------------------------
+
+
+def test_a_lifted_line_shows_as_a_long_shared_run() -> None:
+    claim = "A misrepresentation vitiates consent only where it induced the contract, and the burden lies elsewhere."
+    run = longest_shared_run(claim, JUDGMENT)
+    assert run.is_distinctive
+    assert run.text.startswith("a misrepresentation vitiates consent only where it induced the contract")
+
+
+def test_a_paraphrase_shares_nothing_distinctive() -> None:
+    claim = "Consent is vitiated by a false statement that caused the party to enter into the bargain."
+    assert not longest_shared_run(claim, JUDGMENT).is_distinctive
+
+
+def test_stock_phrasing_alone_is_not_distinctive() -> None:
+    """Legal prose repeats itself, so a short overlap must not read as a match."""
+    claim = "The burden of proving that the will was duly attested lies upon the propounder of it."
+    run = longest_shared_run(claim, JUDGMENT)
+    assert run.words < DISTINCTIVE_RUN_WORDS
+
+
+def test_the_run_survives_the_same_normalisation_a_quote_does() -> None:
+    claim = "A  MISREPRESENTATION   vitiates consent only where it induced the contract — and so on."
+    run = longest_shared_run(claim, JUDGMENT)
+    assert run.is_distinctive
+    # Whatever is reported as shared really is findable as a quote.
+    assert find_quote(run.text, JUDGMENT).found
+
+
+def test_nothing_shared_with_an_empty_passage() -> None:
+    assert longest_shared_run("anything at all", "") == NO_SHARED_RUN
+    assert longest_shared_run("", JUDGMENT) == NO_SHARED_RUN

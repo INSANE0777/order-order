@@ -23,15 +23,15 @@ from orderorder.citations.hc_prefixes import court_for_prefix
 @dataclass(frozen=True)
 class Pinpoint:
     kind: str  # "para" | "page"
-    start: int
-    end: int | None = None
+    start: str
+    end: str | None = None
     raw: str = ""
 
     @property
     def label(self) -> str:
         if self.end and self.end != self.start:
             return f"{self.start}-{self.end}"
-        return str(self.start)
+        return self.start
 
 
 @dataclass
@@ -115,11 +115,18 @@ HC_NEUTRAL_RE = re.compile(
 # indiankanoon.org/doc/12345/
 IK_RE = re.compile(r"indiankanoon\.org/doc/(?P<doc>\d+)/?", re.IGNORECASE)
 
-# para 23 | paras 23-25 | paragraph 12 to 14 | at para 23 | ¶ 23 | [23]
+# para 23 | paras 23-25 | paragraph 12 to 14 | at para 23 | ¶ 23 | [23] | para 3.1
+#
+# Indian judgments sub-number their paragraphs and briefs pinpoint the sub-number, so "para 8.2" has
+# to survive as "8.2". Reading it as paragraph 8 sends the locator to a paragraph the words are not
+# in, and the engine then reports a sound citation as pinpointing the wrong paragraph. The digits
+# after the dot are required, so a pinpoint ending a sentence ("para 23. The court held") still reads
+# as 23.
+_PARA_NUMBER = r"\d{1,4}(?:\.\d{1,3})?"
 PINPOINT_RE = re.compile(
-    r"(?:,|;|\s|at)\s*(?:\(?(?:at\s+)?(?:para(?:graph)?s?\.?|¶)\s*(?P<p1>\d{1,4})"
-    r"(?:\s*(?:-|–|—|to|and)\s*(?P<p2>\d{1,4}))?\)?"
-    r"|\[(?P<b1>\d{1,4})\](?:\s*(?:-|–|to)\s*\[?(?P<b2>\d{1,4})\]?)?"
+    r"(?:,|;|\s|at)\s*(?:\(?(?:at\s+)?(?:para(?:graph)?s?\.?|¶)\s*(?P<p1>" + _PARA_NUMBER + r")"
+    r"(?:\s*(?:-|–|—|to|and)\s*(?P<p2>" + _PARA_NUMBER + r"))?\)?"
+    r"|\[(?P<b1>" + _PARA_NUMBER + r")\](?:\s*(?:-|–|to)\s*\[?(?P<b2>" + _PARA_NUMBER + r")\]?)?"
     r"|(?:at\s+)?(?:p|pp|page|pages)\.?\s*(?P<g1>\d{1,5})(?:\s*(?:-|–|to)\s*(?P<g2>\d{1,5}))?)",
     re.IGNORECASE,
 )
@@ -321,17 +328,11 @@ def _attach_pinpoint(c: Citation, text: str) -> None:
         return
     g = m.groupdict()
     if g.get("p1"):
-        c.pinpoint = Pinpoint(
-            "para", int(g["p1"]), int(g["p2"]) if g.get("p2") else None, m.group(0).strip(" ,;")
-        )
+        c.pinpoint = Pinpoint("para", g["p1"], g.get("p2"), m.group(0).strip(" ,;"))
     elif g.get("b1"):
-        c.pinpoint = Pinpoint(
-            "para", int(g["b1"]), int(g["b2"]) if g.get("b2") else None, m.group(0).strip(" ,;")
-        )
+        c.pinpoint = Pinpoint("para", g["b1"], g.get("b2"), m.group(0).strip(" ,;"))
     elif g.get("g1"):
-        c.pinpoint = Pinpoint(
-            "page", int(g["g1"]), int(g["g2"]) if g.get("g2") else None, m.group(0).strip(" ,;")
-        )
+        c.pinpoint = Pinpoint("page", g["g1"], g.get("g2"), m.group(0).strip(" ,;"))
 
 
 def _attach_parties(c: Citation, text: str) -> None:

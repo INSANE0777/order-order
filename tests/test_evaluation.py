@@ -25,7 +25,7 @@ from orderorder.db.models import CitationAlias, Judgment
 from orderorder.engine.verdict import CitationVerdict, Finding
 from orderorder.evaluation.generate import (
     QUALIFIER,
-    _altered,
+    _party_name,
     _shifted,
     _usable,
     collect_seed,
@@ -175,14 +175,42 @@ def test_page_furniture_is_not_a_proposition() -> None:
     assert not _usable("Leave granted.")  # too short to be a proposition
     assert not _usable("(2019) 4 SCC 118 (2018) 3 SCC 1 (2017) 2 SCC 9 (2016) 1 SCC 4 and others cited")
     assert not _usable("the sentence begins lower case and so is a fragment of the one above it here")
+    # Column extraction produces half-sentences; an advocate asserts whole ones.
+    assert not _usable("In case of the sample lifted from one of the five sticks the content was")
 
 
-def test_the_altered_citation_keeps_the_case_and_changes_the_numbers() -> None:
-    altered = _altered("(2019) 4 SCC 118")
-    assert altered != "(2019) 4 SCC 118"
-    assert "SCC" in altered
-    # Two numbers change and no more, leaving a citation that is still well formed.
-    assert altered == "(2022) 7 SCC 118"
+def test_a_sentence_announcing_a_quotation_is_not_the_proposition() -> None:
+    """What follows is the proposition. This sentence describes another case, and says so.
+
+    Offered as a claim it carries that other case's bench into an assertion about this one, and the
+    engine is right to object; scoring the objection as a false positive would be scoring it for
+    being right.
+    """
+    assert not _usable(
+        "In paragraphs 365 and 366, the Constitution Bench of this Court has observed as under:-"
+    )
+    assert not _usable(
+        "The relevant portion of the impugned judgment of the High Court reads as follows:"
+    )
+    assert not _usable(
+        "In this regard we may usefully refer to a passage from the authority of the larger Bench."
+    )
+
+
+def test_a_sentence_naming_another_authority_is_not_used() -> None:
+    """A gold item pairs one claim with one citation; a second citation inside it makes it ambiguous."""
+    assert not _usable(
+        "The same view was taken by this Court on the question in Kasturi v. Iyyamperumal and others."
+    )
+    assert not _usable(
+        "This principle was settled in the decision reported at (1973) 4 SCC 225 many years ago."
+    )
+
+
+def test_the_party_name_reads_as_a_brief_would_write_it() -> None:
+    assert _party_name("GURMIT SINGH BHATIA versus KIRAN KANT ROBINSON AND OTHERS") == "Gurmit Singh Bhatia"
+    assert _party_name("STATE OF KERALA & ORS. versus SOMEONE ELSE") == "State Of Kerala"
+    assert _party_name("PARMESHWAR NANDA ETC. v. THE STATE OF JHARKHAND") == "Parmeshwar Nanda"
 
 
 def test_the_shifted_pinpoint_lands_away_from_the_paragraph() -> None:
@@ -203,14 +231,21 @@ def test_every_seed_yields_a_clean_item(seed, session) -> None:
 
 
 def test_the_planted_modes_are_what_the_labels_say(seed, session) -> None:
-    items = {i.id.rsplit("-", 1)[1]: i for i in plant(seed, session, random.Random(1), [])}
+    items = {
+        i.id.rsplit("-", 1)[1]: i
+        for i in plant(seed, session, random.Random(1), [], decoy="(2020) 4 SCC 118")
+    }
 
     assert items["m1"].planted_error == 1
     assert items["m1"].labels.exists is False
     assert items["m1"].labels.judgment_key is None
 
     assert items["m2"].planted_error == 2
-    assert seed.citation not in items["m2"].citation_raw  # the numbers really did change
+    # A mis-cite names the right case and points at a reference belonging to another. If the
+    # reference resolved nowhere the item would be a phantom, and mode 1 is not mode 2.
+    assert "Alpha" in items["m2"].citation_raw
+    assert seed.citation not in items["m2"].citation_raw
+    assert "(2020) 4 SCC 118" in items["m2"].citation_raw
 
     assert items["m3"].planted_error == 3
     assert "Constitution Bench" in items["m3"].claim_text

@@ -65,6 +65,13 @@ def test_parallel_citations_all_found() -> None:
         ("(2019) 4 SCC 1 [23]", "para", "23"),
         ("(2019) 4 SCC 1, at p. 45", "page", "45"),
         ("(2019) 4 SCC 1, pp. 45-48", "page", "45-48"),
+        # Indian judgments sub-number their paragraphs and briefs pinpoint the sub-number. Reading
+        # "8.2" as 8 sends the locator to a paragraph the words are not in.
+        ("(2019) 4 SCC 1, para 3.1", "para", "3.1"),
+        ("(2019) 4 SCC 1, paras 3.1-3.4", "para", "3.1-3.4"),
+        ("(2019) 4 SCC 1 [8.2]", "para", "8.2"),
+        # A pinpoint that ends a sentence is still the paragraph, not a sub-paragraph.
+        ("(2019) 4 SCC 1, para 23. The Court went on to hold otherwise.", "para", "23"),
     ],
 )
 def test_pinpoints(text: str, kind: str, label: str) -> None:

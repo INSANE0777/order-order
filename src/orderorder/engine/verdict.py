@@ -185,9 +185,16 @@ def build_verdict(
         )
         verdict.grade = _floor(verdict.grade, "D")
 
-    # Pinpoint.
+    # Pinpoint. Two kinds, and the difference is worth showing: a paragraph that is not in the
+    # judgment at all, and a paragraph that is there but is not where the words came from. The second
+    # is the commoner mistake and the harder one to see by hand.
     if pinpoint is not None and pinpoint.is_problem:
-        verdict.findings.append(Finding(MODE_WRONG_PINPOINT, "pinpoint does not exist", pinpoint.note or ""))
+        label = (
+            "pinpoint names the wrong paragraph"
+            if pinpoint.status == "wrong_paragraph"
+            else "pinpoint does not exist"
+        )
+        verdict.findings.append(Finding(MODE_WRONG_PINPOINT, label, pinpoint.note or ""))
         verdict.grade = _drop(verdict.grade, 2)
 
     # The out-of-sequence heuristic is the weakest form of the voice check, so it only speaks when the
