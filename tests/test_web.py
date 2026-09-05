@@ -326,3 +326,94 @@ def test_a_file_larger_than_a_brief_is_refused(client) -> None:
         "/api/upload", files={"file": ("huge.txt", b"x" * 26_000_000, "text/plain")}
     )
     assert response.status_code == 413
+
+
+# --- the drafting workspace -------------------------------------------------------------------------
+
+PLAN = """court: In the Supreme Court of India
+parties: X versus Y
+
+# issue Whether consent was vitiated
+A misrepresentation vitiates consent only where it induced the contract to be made.
+
+# prayer
+allow the appeal
+"""
+
+
+def _draft(client, plan: str = PLAN) -> dict:
+    started = client.post("/api/draft", json={"plan": plan, "use_model": False})
+    assert started.status_code == 200, started.text
+    job = started.json()["job"]
+    for _ in range(200):
+        body = client.get(f"/api/draft/{job}").json()
+        if body["finished"]:
+            body["job"] = job
+            return body
+    raise AssertionError("the drafting job never finished")
+
+
+def test_a_plan_is_read_back_before_anything_is_bound(client) -> None:
+    """A typo should be a typo while it is still cheap, not after four minutes of model calls."""
+    body = client.post("/api/plan", json={"plan": PLAN}).json()
+    assert body["court"] == "In the Supreme Court of India"
+    assert body["issues"][0]["title"] == "Whether consent was vitiated"
+    assert body["propositions"] == 1
+
+
+def test_a_plan_that_cannot_be_read_says_which_line(client) -> None:
+    response = client.post("/api/plan", json={"plan": "judge: someone\n\n# issue X\nsomething here now"})
+    assert response.status_code == 400
+    assert "unknown field" in response.json()["detail"]
+
+
+def test_the_draft_comes_back_assembled(client) -> None:
+    body = _draft(client)
+    assert body["done"] == 1
+    document = client.get(f"/api/draft/{body['job']}/document").text
+    assert "WRITTEN SUBMISSIONS" in document
+    assert "LIST OF AUTHORITIES" in document
+    assert "APPENDIX: VERIFICATION" in document
+
+
+def test_with_no_model_the_page_is_told_nothing_could_be_bound(client) -> None:
+    body = _draft(client)
+    assert body["model_configured"] is False
+    assert body["bindings"][0]["usable"] is False
+    assert body["bindings"][0]["citation"] is None
+
+
+def test_a_binding_carries_what_was_considered_and_why_it_failed(client) -> None:
+    body = _draft(client)
+    considered = body["bindings"][0]["considered"]
+    assert considered
+    assert all(c["reason"] for c in considered)
+
+
+def test_the_word_file_downloads(client) -> None:
+    body = _draft(client)
+    response = client.get(f"/api/draft/{body['job']}/document.docx")
+    assert response.status_code == 200
+    assert response.content[:2] == b"PK"
+    assert "written-submissions.docx" in response.headers["content-disposition"]
+
+
+def test_the_self_attack_reaches_the_page(client) -> None:
+    body = _draft(client)
+    assert body["attacks"]
+    assert all(a["kind"] and a["says"] and a["fix"] for a in body["attacks"])
+
+
+def test_a_drafting_id_is_not_a_verification_id(client) -> None:
+    """One store holds both. Handing a draft id to the verdict route must not half-work."""
+    body = _draft(client)
+    assert client.get(f"/api/jobs/{body['job']}").status_code == 404
+
+
+def test_the_document_is_not_offered_before_it_is_assembled(client) -> None:
+    from orderorder.web.jobs import JobStore
+
+    store = JobStore()
+    with TestClient(create_app(store=store, session_factory=None)) as c:
+        job = store.create_draft(plan=None, source="x")
+        assert c.get(f"/api/draft/{job.id}/document").status_code == 409

@@ -102,7 +102,10 @@ A brief can be pasted or opened from a PDF or DOCX; what is read is shown before
 mangled extraction is obvious in a second rather than arriving as nine inexplicable phantoms. Then:
 click a flag, see the paragraph the engine read, see the verified sentence highlighted inside it.
 The board fills as each citation is decided, so a phantom is on screen while the ones that need a
-model are still running. It binds to localhost; the corpus and anything pasted into it stay here.
+model are still running. The third tab is the drafting workspace: paste a case plan, watch each
+proposition bind or refuse as it is decided, read the assembled submission and what the other side
+will say about it, and download the .docx. It binds to localhost; the corpus and anything pasted into
+it stay here.
 
 `uv run pytest` runs the suite; it uses an in-memory database and never touches the network.
 
@@ -224,6 +227,7 @@ which the corpus does not yet hold.
 | The drafting gate: bind a proposition to an authority, or refuse to | `engine/authority.py` |
 | Draft assembly in Indian written-submission format, with a DOCX export and a verification appendix | `drafting/` |
 | Self-attack on the assembled draft, from the citation graph and bench strengths, with no model | `drafting/attack.py` |
+| One page for all of it: verdict board, judgment viewer, authority search, drafting workspace | `web/` |
 | Verdict assembly and the grading rubric | `engine/verdict.py` |
 | The engine as a LangGraph state graph | `engine/graph.py` |
 | The evaluation harness: plant known failures, score both directions | `evaluation/` |

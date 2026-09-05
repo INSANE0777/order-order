@@ -143,11 +143,12 @@ answer.
 uv run orderorder serve
 ```
 
-Paste a brief or open one from a PDF or DOCX. The verdict board, the annotated brief and the
-judgment viewer on one page — which is the point of
-having a page at all, since each exists as text already. Click a citation, read the paragraph the
-engine actually read, and see the verified sentence highlighted inside it. The other tab is the search
-direction.
+Three tabs. Paste a brief or open one from a PDF or DOCX. The verdict board, the annotated brief and
+the judgment viewer on one page — which is the point of having a page at all, since each exists as
+text already. Click a citation, read the paragraph the engine actually read, and see the verified
+sentence highlighted inside it. The second tab is the search direction. The third is the drafting
+workspace: paste the plan, watch each proposition bind or refuse as it is decided, read the assembled
+submission and the self-attack beside it, and download the .docx.
 
 Two details worth watching. The board fills as each citation is decided rather than all at once, so a
 phantom citation is on screen while the ones that need a model are still running. And a grade earned

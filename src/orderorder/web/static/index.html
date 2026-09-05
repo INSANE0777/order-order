@@ -94,6 +94,18 @@
                  padding: 5px 12px; font-size: 13px; }
   .tabs button.on { color: var(--ink); border-color: var(--rule); background: #fff; }
   .hint { font-size: 12.5px; color: var(--faint); margin-top: 10px; }
+  /* A binding's state, said in a word. `bound` and `narrowed` may be cited; the other two may not,
+     and the colour is the first thing a reader takes from the row, so it has to agree with that. */
+  .st { display: inline-block; padding: 1px 7px; border-radius: 3px; font-size: 11px;
+        font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #fff; }
+  .st.bound { background: var(--good); }
+  /* Bound, but for less than was asked. A solid badge would read the same as `bound` at a glance. */
+  .st.narrowed { background: #fff; color: var(--good); box-shadow: inset 0 0 0 1.5px var(--good); }
+  .st.unchecked { background: var(--warn); }
+  .st.refused { background: var(--bad); }
+  .attack { margin: 12px 0; padding-left: 12px; border-left: 2px solid var(--warn); }
+  .attack b { display: block; font-size: 13px; }
+  .attack span { color: var(--muted); font-size: 12.5px; }
   a { color: var(--accent); }
 </style>
 </head>
@@ -107,6 +119,7 @@
   <div class="tabs">
     <button id="tab-check" class="on">Check a brief</button>
     <button id="tab-find">Find an authority</button>
+    <button id="tab-draft">Draft a submission</button>
   </div>
 
   <!-- ============ check a brief ============ -->
@@ -169,6 +182,45 @@
       <div id="results"><p class="none">Nothing searched yet.</p></div>
     </div>
   </section>
+
+  <!-- ============ draft a submission ============ -->
+  <section id="view-draft" hidden>
+    <div class="card">
+      <h2>The case plan</h2>
+      <textarea id="plan" spellcheck="false" placeholder="court: ...&#10;parties: ...&#10;&#10;# issue Whether ...&#10;A sentence you intend to argue.&#10;&#10;# prayer&#10;set aside the impugned order"></textarea>
+      <div class="controls">
+        <button id="build">Draft the submission</button>
+        <button id="readplan" class="quiet">Read the plan back</button>
+        <button id="demoplan" class="quiet">Load the demo plan</button>
+        <label class="check"><input type="checkbox" id="usemodel2" checked> use a language model</label>
+        <span id="dprog" class="hint"></span>
+      </div>
+      <div id="parsed"></div>
+      <p class="hint">The plan is yours: the court, the parties, the issues, the sentences you mean to argue,
+        the prayer. What this adds is an authority behind each sentence or a mark saying there is none.
+        A proposition that finds nothing is <b>not</b> dropped — a draft that quietly loses its unsupported
+        sentences reads as though every sentence in it is supported.</p>
+    </div>
+
+    <div class="row" style="margin-top:24px">
+      <div class="card">
+        <h2>Propositions</h2>
+        <div id="bindings"><p class="none">Nothing drafted yet.</p></div>
+        <div class="controls" id="dexports" hidden>
+          <button class="quiet" id="dl-docx">Download .docx</button>
+          <button class="quiet" id="dl-md">Download Markdown</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="tabs">
+          <button id="t-doc" class="on">Submission</button>
+          <button id="t-attack">What they will say</button>
+        </div>
+        <div id="doc"><p class="none">Nothing drafted yet.</p></div>
+        <div id="attack" hidden><p class="none">Nothing drafted yet.</p></div>
+      </div>
+    </div>
+  </section>
 </main>
 
 <script>
@@ -185,13 +237,14 @@ fetch("/api/health").then(r => r.json()).then(h => {
 
 // ---------- tabs ----------
 function showTab(which) {
-  $("view-check").hidden = which !== "check";
-  $("view-find").hidden = which !== "find";
-  $("tab-check").classList.toggle("on", which === "check");
-  $("tab-find").classList.toggle("on", which === "find");
+  for (const name of ["check", "find", "draft"]) {
+    $("view-" + name).hidden = which !== name;
+    $("tab-" + name).classList.toggle("on", which === name);
+  }
 }
 $("tab-check").onclick = () => showTab("check");
 $("tab-find").onclick = () => showTab("find");
+$("tab-draft").onclick = () => showTab("draft");
 
 function showPanel(which) {
   for (const [tab, panel] of [["t-detail","detail"],["t-judgment","judgment"],["t-memo","memo"]]) {
@@ -415,6 +468,132 @@ async function post(url, body) {
 function escape(s) {
   return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
+
+// ---------- drafting ----------
+let draftJob = null, bindings = [], attacks = [];
+
+function showDraftPanel(which) {
+  for (const [tab, panel] of [["t-doc", "doc"], ["t-attack", "attack"]]) {
+    const on = panel === which;
+    $(tab).classList.toggle("on", on);
+    $(panel).hidden = !on;
+  }
+}
+$("t-doc").onclick = () => showDraftPanel("doc");
+$("t-attack").onclick = () => showDraftPanel("attack");
+
+$("demoplan").onclick = () => { $("plan").value = DEMO_PLAN; $("parsed").innerHTML = ""; };
+
+// Read the plan back before anything is bound. A typo should still be a typo, not something
+// discovered after four minutes of model calls.
+$("readplan").onclick = async () => {
+  const response = await fetch("/api/plan", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ plan: $("plan").value }),
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    $("parsed").innerHTML = `<p class="review">${escape(body.detail || "the plan cannot be read")}</p>`;
+    return;
+  }
+  const issues = body.issues.map(i =>
+    `<div class="p"><b>${escape(i.title)}</b><br>` +
+    i.propositions.map(x => escape(x)).join("<br>") + "</div>").join("");
+  $("parsed").innerHTML =
+    `<p class="hint">${escape(body.court || "—")} · ${escape(body.parties || "—")} · ` +
+    `${body.issues.length} issue(s) · ${body.propositions} proposition(s)</p>${issues}`;
+};
+
+$("build").onclick = async () => {
+  const plan = $("plan").value.trim();
+  if (!plan) return;
+  $("build").disabled = true;
+  $("dprog").textContent = "reading the plan…";
+  bindings = []; attacks = [];
+  try {
+    const response = await fetch("/api/draft", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan, use_model: $("usemodel2").checked }),
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.detail || `HTTP ${response.status}`);
+    draftJob = body.job;
+    $("parsed").innerHTML = "";
+    watchDraft(body.total);
+  } catch (e) {
+    $("dprog").textContent = "";
+    $("parsed").innerHTML = `<p class="review">${escape(String(e.message || e))}</p>`;
+    $("build").disabled = false;
+  }
+};
+
+function watchDraft(total) {
+  const stream = new EventSource(`/api/draft/${draftJob}/events`);
+  stream.addEventListener("progress", (e) => {
+    const d = JSON.parse(e.data);
+    $("dprog").textContent = `${d.done} of ${d.total || total} bound…`;
+  });
+  stream.addEventListener("binding", (e) => {
+    bindings.push(JSON.parse(e.data).binding);
+    $("dprog").textContent = `${bindings.length} of ${total} bound…`;
+    drawBindings();
+  });
+  stream.addEventListener("done", async (e) => {
+    stream.close();
+    $("build").disabled = false;
+    const d = JSON.parse(e.data);
+    $("dprog").textContent = d.error ? `stopped: ${d.error}` : "";
+    const full = await (await fetch(`/api/draft/${draftJob}`)).json();
+    bindings = full.bindings; attacks = full.attacks;
+    drawBindings(); drawAttacks();
+    $("doc").innerHTML = `<pre>${escape(await (await fetch(`/api/draft/${draftJob}/document`)).text())}</pre>`;
+    $("dexports").hidden = false;
+  });
+}
+
+function drawBindings() {
+  if (!bindings.length) return;
+  const rows = bindings.map(b => `<tr>
+    <td><span class="st ${b.status}">${b.status}</span></td>
+    <td>${escape(b.proposition)}
+      ${b.citation ? `<br><b>${escape(b.citation)}</b>` : ""}
+      ${b.narrowed_to ? `<br><span style="color:var(--muted);font-size:12.5px">argue instead: ${escape(b.narrowed_to)}</span>` : ""}
+      ${b.usable ? "" : `<br><span class="review">${escape(b.reason)}</span>`}</td>
+  </tr>`).join("");
+  $("bindings").innerHTML = `<table><thead><tr><th></th><th>Proposition</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function drawAttacks() {
+  if (!attacks.length) {
+    $("attack").innerHTML = '<p class="none">Nothing found in the citation graph against the authorities cited.</p>';
+    return;
+  }
+  $("attack").innerHTML = attacks.map(a =>
+    `<div class="attack"><b>${escape(a.says)}</b>` +
+    (a.citation ? `<span>${escape(a.citation)}</span><br>` : "") +
+    `<span>${escape(a.fix)}</span></div>`).join("");
+}
+
+$("dl-docx").onclick = () => window.location = `/api/draft/${draftJob}/document.docx`;
+$("dl-md").onclick = () => window.location = `/api/draft/${draftJob}/document`;
+
+const DEMO_PLAN = `court: In the Supreme Court of India
+cause: Civil Appeal No. 4521 of 2025
+parties: Ashok Kumar versus Union of India and others
+for: the Appellant
+
+# dates
+12 March 2019 - the agreement to sell was executed
+19 January 2024 - the trial court dismissed the suit for non-joinder
+
+# issue Whether the suit was liable to be dismissed for non-joinder
+A subsequent purchaser who holds a prior agreement to sell is a necessary party to a suit for specific performance.
+The plaintiff is dominus litis and cannot be compelled to add a party against whom he does not want to fight.
+
+# prayer
+allow the appeal and set aside the judgment of the High Court
+restore the suit to the file of the trial court for decision on the merits
+`;
 
 const DEMO = `WRITTEN SUBMISSIONS ON BEHALF OF THE APPELLANT
 

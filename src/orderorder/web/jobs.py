@@ -30,27 +30,16 @@ MAX_JOBS = 20
 
 
 @dataclass
-class Job:
-    """One brief being checked, and the verdicts so far."""
+class Watched:
+    """Work a browser is waiting on: something to wake, and something to say it is over."""
 
     id: str
-    text: str
-    source: str
     total: int = 0
-    verdicts: list[CitationVerdict] = field(default_factory=list)
     error: str | None = None
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     finished: bool = False
     model_configured: bool = False
     _event: threading.Event = field(default_factory=threading.Event, repr=False)
-
-    @property
-    def done(self) -> int:
-        return len(self.verdicts)
-
-    def add(self, verdict: CitationVerdict) -> None:
-        self.verdicts.append(verdict)
-        self._wake()
 
     def finish(self, error: str | None = None) -> None:
         self.error = error
@@ -66,27 +55,111 @@ class Job:
         self._event.wait(timeout)
 
 
+@dataclass
+class Job(Watched):
+    """One brief being checked, and the verdicts so far."""
+
+    text: str = ""
+    source: str = ""
+    verdicts: list[CitationVerdict] = field(default_factory=list)
+
+    @property
+    def done(self) -> int:
+        return len(self.verdicts)
+
+    def add(self, verdict: CitationVerdict) -> None:
+        self.verdicts.append(verdict)
+        self._wake()
+
+
+@dataclass
+class DraftJob(Watched):
+    """One case plan being turned into a submission, and the bindings so far.
+
+    The same shape as a verification job for the same reason: with a model configured each
+    proposition takes seconds, and the page has to show the ones that are settled while the rest are
+    still running. What it collects is bindings rather than verdicts, and the assembled document is
+    built once at the end, because a half-assembled submission is not a document anyone should see.
+    """
+
+    plan: object | None = None
+    source: str = ""
+    order: list[str] = field(default_factory=list)
+    bindings: dict[str, object] = field(default_factory=dict)
+    document: str | None = None
+    attacks: list = field(default_factory=list)
+
+    @property
+    def done(self) -> int:
+        return len(self.bindings)
+
+    def add(self, proposition: str, binding: object) -> None:
+        self.bindings[proposition] = binding
+        self.order.append(proposition)
+        self._wake()
+
+
 class JobStore:
     """The jobs this process is holding. Oldest are dropped once there are too many."""
 
     def __init__(self, limit: int = MAX_JOBS) -> None:
-        self._jobs: dict[str, Job] = {}
+        self._jobs: dict[str, Watched] = {}
         self._limit = limit
         self._lock = threading.Lock()
 
     def create(self, text: str, source: str) -> Job:
-        job = Job(id=uuid.uuid4().hex[:12], text=text, source=source)
+        return self._keep(Job(id=uuid.uuid4().hex[:12], text=text, source=source))
+
+    def create_draft(self, plan, source: str) -> DraftJob:
+        return self._keep(DraftJob(id=uuid.uuid4().hex[:12], plan=plan, source=source))
+
+    def _keep(self, job):
         with self._lock:
             self._jobs[job.id] = job
             while len(self._jobs) > self._limit:
                 self._jobs.pop(next(iter(self._jobs)))
         return job
 
-    def get(self, job_id: str) -> Job | None:
+    def get(self, job_id: str) -> Watched | None:
         return self._jobs.get(job_id)
 
     def __len__(self) -> int:
         return len(self._jobs)
+
+
+def watch_draft(job: DraftJob, *, poll: float = 1.0) -> Iterator[tuple[str, dict]]:
+    """Yield (event, payload) for a drafting job until it finishes."""
+    sent = 0
+    while True:
+        while sent < len(job.order):
+            proposition = job.order[sent]
+            yield "binding", {"index": sent, "binding": binding_json(proposition, job.bindings[proposition])}
+            sent += 1
+        if job.finished:
+            yield "done", {"bound": job.done, "error": job.error}
+            return
+        yield "progress", {"done": job.done, "total": job.total}
+        job.wait(poll)
+
+
+def binding_json(proposition: str, binding) -> dict:
+    """One binding as the page needs it. Nothing computed; the binding, flattened."""
+    chosen = binding.chosen
+    return {
+        "proposition": proposition,
+        "status": binding.status,
+        "reason": binding.reason,
+        "usable": binding.is_usable,
+        "narrowed_to": binding.narrowed_to,
+        "quote": binding.quote,
+        "citation": chosen.pinpoint if chosen and binding.is_usable else None,
+        "case": chosen.authority.title if chosen else None,
+        "key": chosen.authority.canonical_key if chosen else None,
+        "considered": [
+            {"pinpoint": c.pinpoint, "case": c.authority.title, "reason": c.reason}
+            for c in binding.considered
+        ],
+    }
 
 
 def watch(job: Job, *, poll: float = 1.0) -> Iterator[tuple[str, dict]]:

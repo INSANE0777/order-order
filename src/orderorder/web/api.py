@@ -24,6 +24,7 @@ silently talks to the real nine-thousand-judgment corpus is worse than one that 
 from __future__ import annotations
 
 import json
+import tempfile
 import threading
 from collections.abc import Iterator
 from pathlib import Path
@@ -36,6 +37,12 @@ from sqlalchemy import select
 from orderorder import __version__
 from orderorder.db.models import Judgment, JudgmentTextVersion
 from orderorder.db.session import get_session
+from orderorder.drafting.assemble import assemble
+from orderorder.drafting.attack import attack_draft
+from orderorder.drafting.plan import PlanError, parse_plan
+from orderorder.drafting.render import to_markdown
+from orderorder.drafting.word import write_docx
+from orderorder.engine import authority as authority_gate
 from orderorder.engine import search
 from orderorder.engine.graph import verify_text
 from orderorder.engine.memo import render_memo, write_memo
@@ -49,15 +56,36 @@ from orderorder.engine.schemas import (
 )
 from orderorder.ingest.brief import read_brief
 from orderorder.ingest.store import load_paragraphs
-from orderorder.web.jobs import Job, JobStore, as_json, watch
+from orderorder.web.jobs import (
+    DraftJob,
+    Job,
+    JobStore,
+    Watched,
+    as_json,
+    binding_json,
+    watch,
+    watch_draft,
+)
 
 STATIC = Path(__file__).parent / "static"
+
+# How long a case plan may be. A plan is issues and sentences, not a bundle; past this something
+# other than a plan has been pasted in.
+MAX_PLAN_CHARS = 60_000
 
 # How long a brief may be. A memorial is tens of kilobytes; anything past this is a book, and checking
 # it would tie the single worker up for an hour with no way to say so.
 MAX_BRIEF_CHARS = 400_000
 # And how large a file. A memorial is under a megabyte; a bundle of annexures is not a brief.
 MAX_UPLOAD_BYTES = 25_000_000
+
+
+class DraftRequest(BaseModel):
+    plan: str = Field(description="A case plan. See `drafting/plan.py` for the format.")
+    use_model: bool = Field(
+        default=True,
+        description="Run the checks that need a language model. Without one nothing can be bound.",
+    )
 
 
 class VerifyRequest(BaseModel):
@@ -71,7 +99,9 @@ class VerifyRequest(BaseModel):
 
 def create_app(*, store: JobStore | None = None, session_factory=get_session) -> FastAPI:
     app = FastAPI(title="OrderOrder", version=__version__, docs_url="/api/docs")
-    jobs = store or JobStore()
+    # `is not None`, not `or`: a JobStore defines __len__, so an empty one is falsy and `or` would
+    # quietly hand back a different store than the caller passed in.
+    jobs = store if store is not None else JobStore()
     open_session = session_factory
 
     @app.get("/api/health")
@@ -182,6 +212,98 @@ def create_app(*, store: JobStore | None = None, session_factory=get_session) ->
             raise HTTPException(404, "no such citation in this job")
         return "\n".join(render_memo(write_memo(job.verdicts[index])))
 
+    @app.post("/api/plan")
+    def check_plan(request: DraftRequest) -> dict:
+        """Read a plan and hand back what it says, without binding anything.
+
+        The page shows the parsed issues and propositions before it runs, for the same reason the
+        brief is shown before it is checked: an advocate should see what the tool thinks they wrote
+        while a typo is still a typo, rather than after four minutes of model calls.
+        """
+        try:
+            plan = parse_plan(request.plan)
+        except PlanError as error:
+            raise HTTPException(400, str(error)) from error
+        return {
+            "court": plan.court,
+            "cause": plan.cause,
+            "parties": plan.parties,
+            "appearing_for": plan.appearing_for,
+            "dates": plan.dates,
+            "issues": [{"title": i.title, "propositions": i.propositions} for i in plan.issues],
+            "prayer": plan.prayer,
+            "propositions": len(plan.propositions),
+        }
+
+    @app.post("/api/draft")
+    def start_draft(request: DraftRequest) -> dict:
+        """Take a case plan and start binding it. Returns at once with a job to watch."""
+        if len(request.plan) > MAX_PLAN_CHARS:
+            raise HTTPException(413, f"a plan may be up to {MAX_PLAN_CHARS:,} characters")
+        try:
+            plan = parse_plan(request.plan)
+        except PlanError as error:
+            raise HTTPException(400, str(error)) from error
+
+        job = jobs.create_draft(plan, source="pasted plan")
+        job.total = len(plan.propositions)
+        job.model_configured = request.use_model and build_structured(ScopeAssessment) is not None
+        threading.Thread(target=_draft, args=(job, open_session), daemon=True).start()
+        return {"job": job.id, "model_configured": job.model_configured, "total": job.total}
+
+    @app.get("/api/draft/{job_id}")
+    def read_draft(job_id: str) -> dict:
+        job = _find_draft(jobs, job_id)
+        return {
+            "job": job.id,
+            "done": job.done,
+            "total": job.total,
+            "finished": job.finished,
+            "error": job.error,
+            "model_configured": job.model_configured,
+            "bindings": [binding_json(p, job.bindings[p]) for p in job.order],
+            "attacks": [
+                {"kind": a.kind, "says": a.says, "fix": a.fix, "citation": a.citation}
+                for a in job.attacks
+            ],
+        }
+
+    @app.get("/api/draft/{job_id}/events")
+    def stream_draft(job_id: str) -> StreamingResponse:
+        job = _find_draft(jobs, job_id)
+
+        def events() -> Iterator[str]:
+            for name, payload in watch_draft(job):
+                yield f"event: {name}\ndata: {json.dumps(payload)}\n\n"
+
+        return StreamingResponse(
+            events(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    @app.get("/api/draft/{job_id}/document", response_class=PlainTextResponse)
+    def draft_document(job_id: str) -> str:
+        job = _find_draft(jobs, job_id)
+        if job.document is None:
+            raise HTTPException(409, "the draft is still being assembled")
+        return job.document
+
+    @app.get("/api/draft/{job_id}/document.docx")
+    def draft_docx(job_id: str) -> FileResponse:
+        """The submission as a Word file, written to a temporary path and handed straight back."""
+        job = _find_draft(jobs, job_id)
+        if job.document is None:
+            raise HTTPException(409, "the draft is still being assembled")
+        draft = assemble(job.plan, job.bindings)
+        path = Path(tempfile.gettempdir()) / f"orderorder-{job.id}.docx"
+        write_docx(draft, path, job.attacks)
+        return FileResponse(
+            path,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            filename="written-submissions.docx",
+        )
+
     @app.get("/api/judgment/{key}")
     def judgment(key: str, highlight: str | None = None) -> dict:
         """A judgment's paragraphs, so the page can show the one the verdict rests on.
@@ -273,10 +395,42 @@ def create_app(*, store: JobStore | None = None, session_factory=get_session) ->
 
 
 def _find(jobs: JobStore, job_id: str) -> Job:
+    return _of_kind(jobs, job_id, Job)
+
+
+def _find_draft(jobs: JobStore, job_id: str) -> DraftJob:
+    return _of_kind(jobs, job_id, DraftJob)
+
+
+def _of_kind(jobs: JobStore, job_id: str, kind: type) -> Watched:
+    """One store holds both sorts of job, so the id has to name the right one."""
     job = jobs.get(job_id)
     if job is None:
         raise HTTPException(404, "no such job; it may have been dropped when the server restarted")
+    if not isinstance(job, kind):
+        raise HTTPException(404, "that job is not of this kind")
     return job
+
+
+def _draft(job: DraftJob, open_session) -> None:
+    """Bind one plan, on its own thread, appending bindings as they finish.
+
+    The document is assembled once, at the end. A submission half-built is not a document anybody
+    should be shown, and the page has the bindings as they land in any case.
+    """
+    try:
+        model = build_structured(ScopeAssessment) if job.model_configured else None
+        with open_session() as session:
+            if not search.index_exists(session):
+                search.build_index(session)
+            for proposition in job.plan.propositions:
+                job.add(proposition, authority_gate.bind_proposition(session, proposition, model))
+            draft = assemble(job.plan, job.bindings)
+            job.attacks = attack_draft(session, draft)
+            job.document = to_markdown(draft, job.attacks)
+        job.finish()
+    except Exception as exc:  # noqa: BLE001 - the page needs to be told, whatever went wrong
+        job.finish(error=f"{type(exc).__name__}: {exc}")
 
 
 def _preferred_citation(session, judgment_id: str) -> str | None:
