@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from orderorder.engine.citator import TreatmentReport
 from orderorder.engine.facts import ApplicabilityVerdict
 from orderorder.engine.hierarchy import HierarchyCheck
-from orderorder.engine.locator import PinpointCheck
+from orderorder.engine.locator import PinpointCheck, pinpoint_covers
 from orderorder.engine.scope import ScopeVerdict
 from orderorder.engine.voice import VoiceVerdict
 from orderorder.engine.weight import WeightVerdict
@@ -291,16 +291,28 @@ def build_verdict(
             verdict.findings.append(Finding(MODE_OVERSTATEMENT, "overstated", detail))
             verdict.grade = _drop(verdict.grade, 2)
 
-        if scope.wrong_pinpoint and scope.quote_verified:
-            verdict.findings.append(
-                Finding(
-                    MODE_WRONG_PINPOINT,
-                    "quote is in a different paragraph",
-                    f"the supporting text is in paragraph {scope.matched_paragraph_label}, "
-                    f"not {scope.paragraph_label}",
+        # Where the verified quote turned out to be, against where the *brief* said to look. The
+        # comparison has to be with the brief's own pinpoint: `scope.wrong_pinpoint` records that the
+        # model named one paragraph and the quote verified in another, which is the model disagreeing
+        # with itself and a reason to have someone look, not a finding against the citation. Comparing
+        # the two model answers as strings also reported "paragraph 18" against "para 18 and para 19"
+        # as a mismatch, which is a citation being marked down for being more precise than the brief.
+        if scope.quote_verified and scope.matched_paragraph_label:
+            if claimed_pinpoint and not pinpoint_covers(claimed_pinpoint, scope.matched_paragraph_label):
+                verdict.findings.append(
+                    Finding(
+                        MODE_WRONG_PINPOINT,
+                        "quote is in a different paragraph",
+                        f"the supporting text is in paragraph {scope.matched_paragraph_label}, "
+                        f"but the brief cites paragraph {claimed_pinpoint}",
+                    )
                 )
-            )
-            verdict.grade = _drop(verdict.grade)
+                verdict.grade = _drop(verdict.grade)
+            elif scope.wrong_pinpoint:
+                verdict.ask_review(
+                    f"the passage was read as paragraph {scope.paragraph_label} but the quote verified "
+                    f"in paragraph {scope.matched_paragraph_label}"
+                )
 
         if scope.needs_review:
             verdict.ask_review(scope.review_reason)

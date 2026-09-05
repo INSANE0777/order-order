@@ -29,6 +29,7 @@ from orderorder.db.session import get_session, init_db
 from orderorder.engine import citator, search
 from orderorder.engine.graph import verify_text
 from orderorder.engine.locator import locate as locate_claim
+from orderorder.engine.memo import render_memo, write_memo
 from orderorder.engine.prompts import SCOPE_PROMPT, format_candidates
 from orderorder.engine.providers import build_structured, describe_providers
 from orderorder.engine.quotes import find_quote
@@ -38,6 +39,7 @@ from orderorder.engine.schemas import (
     VoiceAssessment,
     WeightAssessment,
 )
+from orderorder.engine.verdict import GRADES
 from orderorder.evaluation import retrieval
 from orderorder.evaluation.generate import generate as generate_gold
 from orderorder.evaluation.gold import read_gold, write_gold
@@ -789,6 +791,11 @@ def verify_command(
     facts: str | None = typer.Option(
         None, "--facts", help="File of the present matter's facts, to test each authority against them."
     ),
+    memo: bool = typer.Option(
+        False,
+        "--memo",
+        help="Write what opposing counsel would say about each citation, and how to answer it.",
+    ),
 ) -> None:
     """Verify every citation in a passage: does the case exist, which paragraph, and does it support the claim."""
     if file:
@@ -871,6 +878,13 @@ def verify_command(
             )
         if v.scope and v.scope.narrowed_proposition:
             console.print(f"  [cyan]supported instead[/cyan]: {v.scope.narrowed_proposition}")
+
+    if memo:
+        # Weakest first: the memo is read to decide what to drop, and that decision starts at the
+        # bottom of the board.
+        console.print("\n[bold]Opposing counsel's memo[/bold]")
+        for verdict in sorted(verdicts, key=lambda v: -GRADES.index(v.grade)):
+            console.print("\n".join(render_memo(write_memo(verdict))))
 
     graded = sum(1 for v in verdicts if v.grade in "DEF")
     console.print(

@@ -135,11 +135,37 @@ def test_quoted_passage_is_flagged() -> None:
     assert verdict.grade == "B"
 
 
-def test_quote_found_in_another_paragraph_is_reported() -> None:
+def test_a_quote_verified_away_from_the_brief_s_pinpoint_is_reported() -> None:
     scope = _scope(wrong_pinpoint=True, paragraph_label="5", matched_paragraph_label="3")
-    verdict = build_verdict(CITATION, CLAIM, FOUND, pinpoint=GOOD_PINPOINT, scope=scope)
+    verdict = build_verdict(
+        CITATION, CLAIM, FOUND, pinpoint=GOOD_PINPOINT, scope=scope, claimed_pinpoint="5"
+    )
     finding = next(f for f in verdict.findings if f.mode == MODE_WRONG_PINPOINT)
     assert "paragraph 3" in finding.detail
+    assert "paragraph 5" in finding.detail
+
+
+def test_a_pinpoint_covering_the_paragraph_is_not_a_wrong_pinpoint() -> None:
+    """A brief citing "paras 3-6" has not misdirected anyone by a quote verifying in paragraph 3."""
+    scope = _scope(wrong_pinpoint=True, paragraph_label="6", matched_paragraph_label="3")
+    verdict = build_verdict(
+        CITATION, CLAIM, FOUND, pinpoint=GOOD_PINPOINT, scope=scope, claimed_pinpoint="3-6"
+    )
+    assert not any(f.mode == MODE_WRONG_PINPOINT for f in verdict.findings)
+
+
+def test_a_model_disagreeing_with_its_own_quote_asks_for_review_not_a_finding() -> None:
+    """With no pinpoint in the brief there is no pinpoint to be wrong; there is something to look at.
+
+    `wrong_pinpoint` records that the model named one paragraph and its quote verified in another.
+    That is the model disagreeing with itself, and reporting it as a defect in the citation would
+    mark an advocate down for the engine's own uncertainty.
+    """
+    scope = _scope(wrong_pinpoint=True, paragraph_label="5", matched_paragraph_label="3")
+    verdict = build_verdict(CITATION, CLAIM, FOUND, pinpoint=GOOD_PINPOINT, scope=scope)
+    assert not any(f.mode == MODE_WRONG_PINPOINT for f in verdict.findings)
+    assert verdict.needs_review
+    assert "paragraph 3" in (verdict.review_reason or "")
 
 
 def test_deductions_accumulate() -> None:

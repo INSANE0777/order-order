@@ -93,6 +93,27 @@ def _numeric(label: str | None) -> float | None:
         return None
 
 
+def pinpoint_covers(claimed: str | None, label: str | None) -> bool:
+    """Does the pinpoint the brief gave name this paragraph?
+
+    A brief may cite a range — "paras 18-20" — and a quote from any paragraph in it is where the brief
+    said it would be. Comparing the strings would report the citation as pinpointing the wrong
+    paragraph for being more generous than a single number.
+    """
+    if not claimed or not label:
+        return False
+    claimed = str(claimed).strip()
+    if claimed == str(label).strip():
+        return True
+    low, dash, high = claimed.partition("-")
+    if not dash:
+        return False
+    first, last, wanted = _numeric(low), _numeric(high), _numeric(label)
+    if first is None or last is None or wanted is None:
+        return False
+    return first <= wanted <= last
+
+
 def _words_are_elsewhere(
     paragraphs: list[SegParagraph], claimed: str, proposition: str
 ) -> tuple[str, SharedRun] | None:
