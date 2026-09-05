@@ -14,6 +14,7 @@ from orderorder.engine.facts import ApplicabilityVerdict
 from orderorder.engine.hierarchy import HierarchyCheck
 from orderorder.engine.locator import PinpointCheck, pinpoint_covers
 from orderorder.engine.scope import ScopeVerdict
+from orderorder.engine.truncation import Truncation
 from orderorder.engine.voice import VoiceVerdict
 from orderorder.engine.weight import WeightVerdict
 from orderorder.resolver import Resolution
@@ -30,6 +31,7 @@ MODE_WRONG_VOICE = 5
 MODE_MINORITY = 6
 MODE_OBITER = 7
 MODE_OVERSTATEMENT = 8
+MODE_SELECTIVE = 9
 MODE_DEAD_LAW = 10
 MODE_DISTINGUISHABLE = 11
 MODE_WRONG_PINPOINT = 12
@@ -65,6 +67,7 @@ class CitationVerdict:
     treatment: TreatmentReport | None = None
     hierarchy: HierarchyCheck | None = None
     applicability: ApplicabilityVerdict | None = None
+    truncation: Truncation | None = None
     findings: list[Finding] = field(default_factory=list)
     grade: str = "A"
     needs_review: bool = False
@@ -122,6 +125,7 @@ def build_verdict(
     treatment: TreatmentReport | None = None,
     hierarchy: HierarchyCheck | None = None,
     applicability: ApplicabilityVerdict | None = None,
+    truncation: Truncation | None = None,
     claimed_pinpoint: str | None = None,
     likely_quoted: bool = False,
     span: tuple[int, int] | None = None,
@@ -143,6 +147,7 @@ def build_verdict(
         treatment=treatment,
         hierarchy=hierarchy,
         applicability=applicability,
+        truncation=truncation,
     )
 
     # Existence. A well-formed citation matching nothing is the phantom case and is terminal.
@@ -199,6 +204,16 @@ def build_verdict(
             else "pinpoint does not exist"
         )
         verdict.findings.append(Finding(MODE_WRONG_PINPOINT, label, pinpoint.note or ""))
+        verdict.grade = _drop(verdict.grade, 2)
+
+    # Selective quotation. Everything the brief quoted is the court's, word for word; what it did was
+    # stop before the qualification. That is a string comparison, so it is made here rather than left
+    # to the scope comparator's model, and it names the words that were cut instead of describing
+    # them.
+    if truncation is not None:
+        verdict.findings.append(
+            Finding(MODE_SELECTIVE, "quotation cut before the qualification", truncation.note)
+        )
         verdict.grade = _drop(verdict.grade, 2)
 
     # The out-of-sequence heuristic is the weakest form of the voice check, so it only speaks when the
@@ -292,7 +307,11 @@ def build_verdict(
             detail = scope.gap or "the court stated this more narrowly than the brief does"
             if scope.dropped_conditions:
                 detail += " Conditions omitted: " + "; ".join(scope.dropped_conditions) + "."
-            verdict.findings.append(Finding(MODE_OVERSTATEMENT, "overstated", detail))
+            # A truncated quotation is an overstatement, and it already has its own finding above with
+            # the exact words that were cut. Reporting both marks the same act down twice and makes
+            # the taxonomy look as though it caught two things.
+            if truncation is None:
+                verdict.findings.append(Finding(MODE_OVERSTATEMENT, "overstated", detail))
             verdict.grade = _drop(verdict.grade, 2)
 
         # Where the verified quote turned out to be, against where the *brief* said to look. The

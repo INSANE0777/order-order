@@ -144,9 +144,9 @@ Each failure mode has a detector in the engine and a label in the evaluation gol
 
 The Princeton benchmark's five hallucination types (non-existent citation, name/reporter mismatch, incorrect pincite, verbatim misquote, content misrepresentation) map onto items 1, 2, 12, 9 and 8 respectively; the taxonomy here is a superset.
 
-**Which of these cost anything to check.** Modes 1, 2, 3, 5, 6, 10 and 12 are settled by the record and the structure of the judgment — who decided it, how many judges sat, whose words a paragraph carries, what later courts did with it, whether the pinpointed paragraph is where the words are. None of them needs a language model, so they run in milliseconds, for nothing, on a laptop, and they are the ones measured in `docs/ARCHITECTURE.md` section 11.4: recall between 34/34 and 40/40 on a held-out set, with no clean citation flagged.
+**Which of these cost anything to check.** Modes 1, 2, 3, 5, 6, 9, 10 and 12 are settled by the record and the structure of the judgment — who decided it, how many judges sat, whose words a paragraph carries, what later courts did with it, whether the pinpointed paragraph is where the words are. None of them needs a language model, so they run in milliseconds, for nothing, on a laptop, and they are the ones measured in `docs/ARCHITECTURE.md` section 11.4: recall between 20/20 and 40/40 on a held-out set, with no clean citation flagged.
 
-Modes 4, 7, 8, 9 and 11 turn on what a passage *means* — whether it supports the proposition, whether the court was deciding or observing, whether a qualification was dropped — and those need a model. They are the expensive half in every sense, and where no model is configured the engine reports them as not checked rather than as passed.
+Modes 4, 7, 8 and 11 turn on what a passage *means* — whether it supports the proposition, whether the court was deciding or observing, whether a qualification was dropped — and those need a model. They are the expensive half in every sense, and where no model is configured the engine reports them as not checked rather than as passed.
 
 ---
 

@@ -34,7 +34,12 @@ from orderorder.evaluation.gold import MODE_NAMES, GoldItem
 
 # Modes that need a language model to be detected at all. Without one they are reported as unassessed
 # rather than counted as misses, because a miss and a question never asked are different things.
-MODEL_DEPENDENT = {7, 8, 9, 11}
+#
+# Mode 9 was here until the truncation check was written. It had scored 0/20 *with* a model, which the
+# report showed was not a miss at all: the model found the dropped condition every time and the
+# verdict recorded it as mode 8. Truncation is a string operation, so it now has its own model-free
+# check and its own number, and scores 20/20 with nothing configured.
+MODEL_DEPENDENT = {4, 7, 8, 11}
 
 
 @dataclass

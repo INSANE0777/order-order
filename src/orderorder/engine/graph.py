@@ -24,6 +24,7 @@ from orderorder.engine.locator import Candidate, LocationResult, locate
 from orderorder.engine.providers import StructuredModel
 from orderorder.engine.scope import ScopeVerdict, assess_scope
 from orderorder.engine.sentences import sentence_around
+from orderorder.engine.truncation import Truncation, find_truncation
 from orderorder.engine.verdict import CitationVerdict, build_verdict
 from orderorder.engine.voice import VoiceVerdict, attribute_voice, relied_on
 from orderorder.engine.weight import WeightVerdict, classify_weight, find_disposition
@@ -47,6 +48,7 @@ class VerifyState(TypedDict, total=False):
     treatment: TreatmentReport | None
     hierarchy: HierarchyCheck | None
     applicability: ApplicabilityVerdict | None
+    truncation: Truncation | None
     verdict: CitationVerdict
 
 
@@ -104,7 +106,13 @@ def build_verify_graph(
         paragraphs = state.get("paragraphs") or []
         pinpoint = citation.pinpoint.label if citation.pinpoint else None
         location = locate(paragraphs, state["proposition"], claimed_pinpoint=pinpoint, top_k=top_k)
-        return {"location": location, "candidates": location.candidates}
+        # Whether the brief stopped a quotation before its qualification is a string comparison, so it
+        # is settled here alongside the pinpoint rather than waited on from the model.
+        return {
+            "location": location,
+            "candidates": location.candidates,
+            "truncation": find_truncation(state["proposition"], paragraphs),
+        }
 
     def scope_node(state: VerifyState) -> dict:
         # Called even with no candidates: assess_scope reports that as unassessed rather than
@@ -167,6 +175,7 @@ def build_verify_graph(
             treatment=state.get("treatment"),
             hierarchy=state.get("hierarchy"),
             applicability=state.get("applicability"),
+            truncation=state.get("truncation"),
             claimed_pinpoint=citation.pinpoint.label if citation.pinpoint else None,
             likely_quoted=any(c.likely_quoted for c in candidates[:3]),
             span=citation.span,

@@ -820,11 +820,14 @@ Against 270 items planted in 40 judgments the detectors were not developed on, w
 | 2 | mis-cite | 40/40 |
 | 3 | wrong court or bench | 39/39 |
 | 5 | wrong voice | 34/34 |
+| 9 | selective quotation | 20/20 |
 | 10 | dead or wounded law | 14/14 |
 | 12 | wrong pinpoint | 40/40 |
 | | **false positives on clean citations** | **0/40** |
 
-Modes 4, 7, 8, 9 and 11 need a model and are reported unassessed here.
+Modes 4, 7, 8 and 11 need a model and are reported unassessed here.
+
+Mode 9 was among them until a run *with* a model scored it 0/20 and the disagreement listing showed why: the model found the dropped condition every time, and the verdict recorded it as mode 8. Truncation is a string operation — the brief's words are a verbatim prefix of the court's sentence and the rest of that sentence carries a qualifier — so it now has its own check, its own number, and 20/20 with nothing configured. The measurement did not improve the engine by tuning it; it showed that a check believed to need a model did not.
 
 Search, 148 queries over the whole corpus:
 
