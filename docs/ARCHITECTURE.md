@@ -829,6 +829,24 @@ Modes 4, 7, 8 and 11 need a model and are reported unassessed here.
 
 Mode 9 was among them until a run *with* a model scored it 0/20 and the disagreement listing showed why: the model found the dropped condition every time, and the verdict recorded it as mode 8. Truncation is a string operation — the brief's words are a verbatim prefix of the court's sentence and the rest of that sentence carries a qualifier — so it now has its own check, its own number, and 20/20 with nothing configured. The measurement did not improve the engine by tuning it; it showed that a check believed to need a model did not.
 
+With a model configured, over the items whose modes need one plus 25 clean citations:
+
+| | |
+|---|---|
+| obiter as ratio (mode 7) | 3/3 |
+| false positives on clean citations | 0/25 |
+| **quote grounding** | **100%** |
+| abstention rate | 68% |
+| seconds per citation | 6.0 |
+
+Quote grounding is the invariant, not a score: every verdict claiming support rests on a quote that
+string-matches the stored judgment. Anything below 100% means an ungrounded claim was let through,
+which is the one failure this design exists to make impossible.
+
+The abstention rate is high on purpose. Two thirds of these citations are handed back with a reason a
+person should look at them, and that is the intended behaviour of a tool whose alternative is silent
+confidence.
+
 Search, 148 queries over the whole corpus:
 
 | Query | case@1 | case@5 | case@10 | para@5 | line |

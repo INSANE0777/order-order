@@ -1,0 +1,13 @@
+28 items: 3 planted, 25 clean
+model configured: True
+
+recall by planted failure mode
+  [ 7] obiter as ratio        3/3    100%
+
+false positives on clean citations : 0/25  0%
+quote grounding (must be 100%)     : 100%  ok
+abstention rate                    : 68%
+seconds per item                   : 6.0
+
+disagreements
+  none: every planted error was caught and no clean citation was flagged

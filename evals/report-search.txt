@@ -4,4 +4,4 @@
 verbatim       91%     99%    100%     99%    100%
 fragment       81%     91%     93%     85%    100%
 
-seconds per query: 0.72
+seconds per query: 0.70
