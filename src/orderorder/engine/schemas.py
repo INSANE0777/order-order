@@ -88,6 +88,26 @@ class ScopeAssessment(BaseModel):
     )
 
 
+class ChallengeAssessment(BaseModel):
+    """A second, independent reading of whether one sentence states one claim.
+
+    Deliberately not the same shape as `ScopeAssessment`. This model is never shown the first
+    model's answer, and it is not asked to grade or to agree: it is asked what is missing, because a
+    model asked "is this right?" agrees, and a model asked "what is absent?" looks.
+    """
+
+    missing: list[str] = Field(
+        default_factory=list,
+        description="Everything the claim asserts that the sentence does not state. Empty if nothing.",
+    )
+    states_the_claim: bool = Field(
+        description="True only if a reader with nothing but that sentence would have to accept the claim."
+    )
+    reason: str | None = Field(
+        default=None, description="One sentence naming the most important thing the sentence omits."
+    )
+
+
 class VoiceAssessment(BaseModel):
     """Whose words a paragraph carries. A passage can be in a judgment without being the court's view."""
 

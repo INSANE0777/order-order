@@ -144,9 +144,20 @@ def _gate(authority: Authority, verdict: CitationVerdict | None) -> tuple[str, s
 
 
 def check_authority(
-    session: Session, authority: Authority, proposition: str, model: StructuredModel | None
+    session: Session,
+    authority: Authority,
+    proposition: str,
+    model: StructuredModel | None,
+    *,
+    challenge_model: StructuredModel | None = None,
 ) -> CitationVerdict | None:
-    """Put one retrieved authority through the verifier: does that paragraph really say this?"""
+    """Put one retrieved authority through the verifier: does that paragraph really say this?
+
+    `challenge_model` runs the second, independent reading in `engine.challenge` over any quote that
+    verified. It is worth its extra call here in a way it is not on the verification path: a citation
+    this gate lets through is written into the advocate's own document under their own name, where a
+    false bind is not a flag somebody can dismiss but a sentence somebody will file.
+    """
     if model is None:
         return None
     paragraphs = load_paragraphs(session, authority.judgment_id)
@@ -164,7 +175,9 @@ def check_authority(
         ),
         judgment_title=authority.title,
         pinpoint=location.pinpoint,
-        scope=assess_scope(proposition, location.candidates, model),
+        scope=assess_scope(
+            proposition, location.candidates, model, challenge_model=challenge_model
+        ),
         voice=authority.voice,
         treatment=authority.treatment,
         claimed_pinpoint=label,
@@ -178,6 +191,7 @@ def bind_proposition(
     *,
     checked: int = DEFAULT_CHECKED,
     candidates: int = DEFAULT_CANDIDATES,
+    challenge_model: StructuredModel | None = None,
 ) -> Binding:
     """Find an authority for a proposition and decide whether it may be put behind it.
 
@@ -191,7 +205,9 @@ def bind_proposition(
 
     looked_at: list[Considered] = []
     for authority in found:
-        verdict = check_authority(session, authority, proposition, model)
+        verdict = check_authority(
+            session, authority, proposition, model, challenge_model=challenge_model
+        )
         status, reason = _gate(authority, verdict)
         entry = Considered(authority, verdict, status, reason)
         looked_at.append(entry)

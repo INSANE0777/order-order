@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from orderorder.engine.challenge import Challenge, challenge
 from orderorder.engine.locator import Candidate
 from orderorder.engine.prompts import (
     DECOMPOSE_PROMPT,
@@ -60,6 +61,7 @@ class ScopeVerdict:
     gap: str | None = None
     narrowed_proposition: str | None = None
     confidence: float | None = None
+    challenge: Challenge | None = None
     needs_review: bool = False
     review_reason: str | None = None
     wrong_pinpoint: bool = False
@@ -173,6 +175,7 @@ def assess_scope(
     model: StructuredModel | None,
     *,
     ocr_derived: bool = False,
+    challenge_model: StructuredModel | None = None,
 ) -> ScopeVerdict:
     """Ask how far the candidate paragraphs support the claim, then verify the answer against the text."""
     if model is None:
@@ -294,4 +297,35 @@ def assess_scope(
             f"the model's own confidence was {assessment.confidence:.2f}, below the threshold for "
             "reporting support without review"
         )
+
+    _challenge(verdict, challenge_model)
     return verdict
+
+
+def _challenge(verdict: ScopeVerdict, model: StructuredModel | None) -> None:
+    """A second, independent reading of the verified quote against the claim.
+
+    Only reachable with a quote that verified and support the first model was willing to record, which
+    is exactly the set where a mistake becomes a citation. It may lower support and never raise it, so
+    a model that is absent, broken or wrong can only make the engine more cautious than it was.
+    """
+    if model is None or not verdict.quote_verified or verdict.support not in {"full", "partial"}:
+        return
+
+    verdict.challenge = challenge(verdict.claim, verdict.quote or "", model)
+    if not verdict.challenge.found_a_gap:
+        return
+
+    verdict.needs_review = True
+    detail = verdict.challenge.describe()
+    if verdict.support == "full":
+        # Not down to "none": the quote did verify and a first reading found the claim in it. What is
+        # established is that the two readings disagree about how far it goes, and "partial with the
+        # disagreement named" is what that is.
+        verdict.support = "partial"
+    verdict.gap = verdict.gap or detail or None
+    verdict.review_reason = (
+        f"a second reading of the quote found the claim asserts more than it states: {detail}"
+        if detail
+        else "a second reading of the quote found it does not state the claim"
+    )

@@ -61,6 +61,47 @@ will be recorded as unsupported. If you cannot copy such a sentence, answer "non
 Be exacting. A brief that overstates a holding is the specific problem this check exists to catch.
 """
 
+# v2. v1 was written as opposing counsel and told the model that saying no cost nothing. It then said
+# no to a claim that was its own quote, word for word: three ways to answer no, none to answer yes,
+# and an explicit thumb on the scale. Adversarial framing belongs in the memo, which argues about a
+# citation already graded. Here the job is to read two texts against each other, and a reader told in
+# advance which answer is safer is not reading.
+CHALLENGE_VERSION = "challenge-v2"
+CHALLENGE_PROMPT = """A sentence has been taken from a judgment and offered as authority for a claim.
+Decide whether that sentence states the claim.
+
+The claim:
+{claim}
+
+The sentence, copied from the judgment:
+{quote}
+
+You have no knowledge of this case beyond that sentence. Do not reason about what the judgment
+probably held or what the law is. Compare the two texts in front of you and nothing else.
+
+The sentence **states** the claim when it asserts the same thing, even if:
+- it says it in different words, or at greater length;
+- it says more besides, and the claim takes only part of what it says;
+- the claim is a tidier or shorter restatement of it.
+
+The sentence **does not state** the claim when:
+- it is about a related but different question;
+- it attaches a condition or confines itself to circumstances that the claim leaves out;
+- it makes the claim plausible without asserting it;
+- it never mentions something the claim is about.
+
+Work in this order:
+1. Name each thing the claim asserts.
+2. For each, ask whether the sentence asserts it. Not whether it is consistent with it, and not
+   whether a court would likely agree: whether this sentence says it.
+3. List only what the claim asserts and the sentence does not. Leave the list empty if there is
+   nothing, and do not list differences of wording, length or emphasis that leave the substance the
+   same.
+
+Then answer whether the sentence states the claim. Both answers are equally acceptable and the list
+is what carries the weight: if the sentence states the claim, answer yes and leave the list empty.
+"""
+
 VOICE_VERSION = "voice-v1"
 VOICE_PROMPT = """Decide whose words this paragraph of a judgment carries.
 

@@ -71,6 +71,7 @@ from orderorder.engine.quotes import find_quote
 from orderorder.engine.report import annotate_brief, verification_report
 from orderorder.engine.schemas import (
     ApplicabilityAssessment,
+    ChallengeAssessment,
     Restatement,
     ScopeAssessment,
     VoiceAssessment,
@@ -972,6 +973,11 @@ def draft_command(
     attack: bool = typer.Option(
         True, help="Add what the other side will say. --no-attack to leave it out."
     ),
+    challenge: bool = typer.Option(
+        False,
+        "--challenge",
+        help="Read every verified quote back against the claim. Off: it measures worse, see challenge.py.",
+    ),
 ) -> None:
     """Assemble a written submission from a case plan, with every citation checked.
 
@@ -1002,6 +1008,13 @@ def draft_command(
             "authority. That is a useful document, but it is not a submission."
         )
 
+    # The second reading, off unless asked for. It can only lower support, so it cannot make the gate
+    # less careful -- but measured on Gemini 2.5 Flash it tracked the prompt's framing rather than the
+    # texts, so it is not on by default. `engine/challenge.py` carries the numbers.
+    challenge_model = build_structured(ChallengeAssessment) if challenge and model else None
+    if challenge and challenge_model is None and model is not None:
+        console.print("[yellow]no model for the second reading[/yellow], so quotes go unchallenged")
+
     propositions = plan.propositions
     bindings = {}
     with get_session() as session:
@@ -1011,7 +1024,7 @@ def draft_command(
         for index, proposition in enumerate(propositions, start=1):
             console.print(f"[dim]{index}/{len(propositions)} {proposition[:60]}[/dim]")
             bindings[proposition] = authority.bind_proposition(
-                session, proposition, model, checked=checked
+                session, proposition, model, checked=checked, challenge_model=challenge_model
             )
 
     draft = assemble(plan, bindings)
