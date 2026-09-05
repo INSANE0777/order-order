@@ -781,14 +781,59 @@ Each item is one claim-citation pair from a real or planted brief, labelled by t
 | Treatment recall | Share of planted 10 items flagged with the correct treating judgment |
 | Quote-grounding rate | Share of `full`/`partial` verdicts whose quotes string-match; must be 100% |
 | Abstention rate | Share of verdicts with `needs_review` |
+| **False positive rate** | Share of *clean* citations — sound in every respect — that the engine flags anyway |
 | Cost and latency | GPU seconds and wall-clock per citation and per brief |
+
+The false positive rate is the one recall cannot see, and it decides whether the verdict board is worth reading: an engine that flags everything scores perfectly on recall and is useless, because an advocate warned about every citation checks none of them. Every seed judgment therefore yields a clean item as well as its planted ones, and a gold set without them is not a gold set but a list of things already known to be wrong.
+
+Search is measured separately, because a brief arrives with citations and a lawyer preparing argument arrives without any, and being good at one says nothing about the other:
+
+| Metric | Definition |
+|---|---|
+| Judgment recall@k | Share of propositions whose own judgment is in the top k |
+| Paragraph recall@k | Share whose own *paragraph* is in the top k |
+| Line accuracy | Of the searches that reached the right paragraph, share where the sentence named as the line is the one the proposition came from |
 
 ### 11.3 Procedure
 
-- `evals/run.py` executes the engine over the gold set against a pinned corpus snapshot and model version and writes a report; the gold set is mirrored as a LangSmith dataset so runs across providers can be compared side by side; DeepEval assertions gate CI on the P0 metrics.
-- Retrieval choices (embedding model, reranker, chunk context prefix, top-k) are compared on pinpoint hit@k; model choices on support F1 and overstatement recall.
+```
+orderorder eval generate --seeds 40 --rng-seed 1729   # plant errors in real judgments
+orderorder eval run --no-model --detail               # score the checks that need no model
+orderorder eval run                                   # the whole taxonomy, with a model
+orderorder eval search --judgments 40                 # the other direction
+```
+
+- `--rng-seed` draws a different set of judgments. The set the detectors were fixed against cannot measure them; every number below is from a held-out draw.
+- `--no-model` scores the model-free checks in seconds rather than an hour, which is what makes it usable while developing a detector; the modes that need a model are reported *unassessed* rather than counted as misses, because a miss and a question never asked are different things.
+- `--detail` prints every item the engine and the gold label disagree about, which is the view to read when a score moves.
+- Retrieval choices (embedding model, reranker, chunk context prefix, top-k) are compared on paragraph recall; model choices on support F1 and overstatement recall.
 - Every user override in production is offered to the gold set (anonymised, opt-in).
 - Inter-annotator agreement (Cohen's kappa) is reported for the double-annotated subset; labels with low agreement (weight, applicability) are treated as soft targets.
+
+### 11.4 What has been measured
+
+Against 270 items planted in 40 judgments the detectors were not developed on, with no model configured:
+
+| Mode | | Recall |
+|---|---|---|
+| 1 | phantom | 40/40 |
+| 2 | mis-cite | 40/40 |
+| 3 | wrong court or bench | 39/39 |
+| 5 | wrong voice | 34/34 |
+| 10 | dead or wounded law | 14/14 |
+| 12 | wrong pinpoint | 40/40 |
+| | **false positives on clean citations** | **0/40** |
+
+Modes 4, 7, 8, 9 and 11 need a model and are reported unassessed here.
+
+Search, 148 queries over the whole corpus:
+
+| Query | case@1 | case@5 | case@10 | para@5 | line |
+|---|---|---|---|---|---|
+| verbatim | 91% | 99% | 100% | 99% | 100% |
+| fragment | 81% | 91% | 93% | 85% | 100% |
+
+**What these numbers do not say.** Planted errors are the ones we thought of, and they are not the distribution real advocates produce; that is what the memorials are for. Clean items are not drawn from paragraphs the sequence heuristic calls quoted, since the generator cannot assert those are the court's own words — so the false positive rate above does not measure that one detector, and closing that gap needs paragraphs a person has read. A fragment query is a run of words lifted from the judgment, so it measures quoted search — "where is this line from" — and says nothing about paraphrase, which needs the dense half of the hybrid retrieval.
 
 ---
 
