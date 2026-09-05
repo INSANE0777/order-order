@@ -98,7 +98,9 @@ def assess_applicability(
     prompt = APPLICABILITY_PROMPT.format(
         claim=proposition.strip(),
         facts=matter_facts.strip(),
-        candidates=format_candidates([(c.printed_label or f"#{c.seq}", c.body) for c in candidates]),
+        candidates=format_candidates(
+            [(c.printed_label or f"#{c.seq}", c.body) for c in candidates], claim=proposition
+        ),
     )
     try:
         answer = model.invoke(prompt)

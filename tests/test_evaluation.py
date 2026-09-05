@@ -321,6 +321,31 @@ def test_a_finding_on_a_clean_item_is_a_false_positive() -> None:
     assert not _result(5, [12]).false_positive
 
 
+def test_a_finding_the_gold_set_never_labelled_is_not_counted_against_the_engine() -> None:
+    """A clean item is the court's own words correctly cited. It is not warranted to be the ratio.
+
+    Nothing in the corpus says whether a sentence was necessary to the decision, so the generator
+    leaves that label empty rather than guessing. A mode 7 finding contradicts nothing the item
+    claimed, and counting it would mark the engine down for answering a question never asked.
+    """
+    obiter = _result(None, [7])
+    assert obiter.unwarranted == {7}
+    assert not obiter.false_positive
+
+
+def test_a_finding_the_gold_set_did_label_still_counts() -> None:
+    labelled = _result(None, [7])
+    labelled.item.labels.weight = "ratio"
+    assert labelled.unwarranted == set()
+    assert labelled.false_positive
+
+
+def test_an_unlabelled_finding_does_not_excuse_a_labelled_one_beside_it() -> None:
+    both = _result(None, [7, 12])
+    assert both.unwarranted == {7}
+    assert both.false_positive
+
+
 def test_recall_is_reported_per_mode() -> None:
     report = Report(results=[_result(5, [5]), _result(5, []), _result(12, [12])])
     assert report.recall_by_mode() == {5: (1, 2), 12: (1, 1)}

@@ -13,12 +13,12 @@ Everything quoted is the court's, word for word. What the brief did was stop.
 
 The scope comparator finds this with a model, and reports it as an overstatement — which it is, and
 the model names the dropped condition well. But truncation is a string operation, and where it can be
-proved by string comparison it should be: the brief's words are a verbatim prefix of the court's
-sentence, the rest of that sentence carries a qualifier, and nothing has to be believed. That gives
+proved by string comparison it should be: a long run of the court's sentence appears in the brief
+word for word, the rest of that sentence carries a qualifier, and nothing has to be believed. That gives
 the finding its own number rather than folding it into mode 8, it works with no model configured, and
 it names the exact words the brief left out rather than describing them.
 
-The prefix is matched from the sentence's side rather than the brief's, because a brief's sentence
+The run is matched from the sentence's side rather than the brief's, because a brief's sentence
 carries framing and the citation itself — "It is submitted that X, as held in (2019) 4 SCC 1, para
 7" — and only the middle of it is the quotation. Asking how much of the *court's* sentence appears in
 the brief's finds that middle without having to guess where it starts and stops.
@@ -34,7 +34,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from orderorder.engine.quotes import normalized
+from orderorder.engine.quotes import longest_shared_run, normalized
 from orderorder.engine.sentences import split_sentences
 from orderorder.ingest.segment import SegParagraph
 
@@ -73,21 +73,16 @@ class Truncation:
         )
 
 
-def _prefix_in(words: list[str], claim: str) -> int:
-    """How many words from the start of the sentence appear, in order, in the claim."""
-    kept = 0
-    for count in range(MIN_KEPT_WORDS, len(words) + 1):
-        if " ".join(words[:count]) not in claim:
-            break
-        kept = count
-    return kept
-
-
 def find_truncation(proposition: str, paragraphs: list[SegParagraph]) -> Truncation | None:
-    """The court's sentence the brief quoted the front of, if there is one.
+    """The court's sentence the brief quoted part of and stopped, if there is one.
 
-    Silence otherwise, and silence is the common case: a brief that paraphrases has no verbatim prefix
-    to find, and a brief that quotes a whole sentence has nothing dropped.
+    The run is looked for anywhere in the sentence, not only at its start, because a brief quotes the
+    middle. The sentence that prompted this begins "Without adverting much into its pith and
+    substance, it is ubiquitous that..." and no brief carries that; what a brief carries is the rule
+    in the middle, and the "unless" clause at the end is what it leaves behind.
+
+    Silence otherwise, and silence is the common case: a brief that paraphrases has no verbatim run to
+    find, and a brief that quotes to the end of a sentence has dropped nothing.
     """
     claim = normalized(proposition)
     if not claim:
@@ -95,20 +90,27 @@ def find_truncation(proposition: str, paragraphs: list[SegParagraph]) -> Truncat
 
     for paragraph in paragraphs:
         for sentence, _offset in split_sentences(paragraph.body):
-            words = normalized(sentence).split()
-            if len(words) < MIN_KEPT_WORDS + MIN_DROPPED_WORDS:
+            body = normalized(sentence)
+            if len(body.split()) < MIN_KEPT_WORDS + MIN_DROPPED_WORDS:
                 continue
-            kept = _prefix_in(words, claim)
-            if kept < MIN_KEPT_WORDS or len(words) - kept < MIN_DROPPED_WORDS:
+            # Runs of the *court's* sentence that appear in the brief. Asked the other way round the
+            # answer would include the brief's own framing and the citation, which are not quotation.
+            kept = longest_shared_run(sentence, proposition)
+            if kept.words < MIN_KEPT_WORDS:
                 continue
-            dropped = " ".join(words[kept:])
+            position = body.find(kept.text)
+            if position < 0:
+                continue
+            dropped = body[position + len(kept.text) :].strip()
+            if len(dropped.split()) < MIN_DROPPED_WORDS:
+                continue
             match = QUALIFIER.search(dropped)
             # The qualifier has to be missing from the brief as well as present in the judgment: a
             # brief that kept it and merely reordered the sentence has dropped nothing.
             if match and match.group(0) not in claim:
                 return Truncation(
                     paragraph_label=paragraph.printed_label,
-                    kept=" ".join(words[:kept]),
+                    kept=kept.text,
                     dropped=dropped,
                     qualifier=match.group(0),
                 )

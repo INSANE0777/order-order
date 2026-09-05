@@ -217,6 +217,7 @@ def plant(
         *,
         paragraph: str | None = None,
         voice: str | None = None,
+        treatment: str | None = None,
     ) -> None:
         items.append(
             GoldItem(
@@ -230,6 +231,7 @@ def plant(
                     judgment_key=None if mode == 1 else key,
                     paragraph_label=paragraph,
                     voice=voice,
+                    treatment=treatment,
                 ),
             )
         )
@@ -237,9 +239,12 @@ def plant(
     label, sentence = rng.choice(seed.court_sentences)
     pinpoint = f"{seed.citation}, para {label}"
 
-    # Clean. The court's own words, correctly pinpointed. Any finding here is a false positive.
-    add("clean", sentence, pinpoint, None, "the court's own holding, correctly cited",
-        paragraph=label, voice="court_majority")
+    # Clean. The court's own words, correctly pinpointed, in a judgment no later one has doubted —
+    # that last part checked rather than assumed, because a citation to overruled law is not clean
+    # however carefully it is pinpointed, and the citator would be right to say so.
+    if not treatment_of(session, seed.judgment.id).is_doubtful:
+        add("clean", sentence, pinpoint, None, "the court's own holding, correctly cited",
+            paragraph=label, voice="court_majority", treatment="good_law")
 
     # 1 — phantom. A citation shaped like a real one that resolves to nothing.
     add("m1", sentence, f"({2000 + rng.randint(0, 24)}) {rng.randint(11, 19)} SCC {rng.randint(4000, 9000)}",

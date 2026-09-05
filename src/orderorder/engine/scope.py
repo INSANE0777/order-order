@@ -144,7 +144,9 @@ def assess_scope(
 
     prompt = SCOPE_PROMPT.format(
         claim=claim.strip(),
-        candidates=format_candidates([(c.printed_label or f"#{c.seq}", c.body) for c in candidates]),
+        candidates=format_candidates(
+            [(c.printed_label or f"#{c.seq}", c.body) for c in candidates], claim=claim
+        ),
     )
     try:
         assessment = model.invoke(prompt)

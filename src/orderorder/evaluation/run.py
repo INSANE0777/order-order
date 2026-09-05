@@ -41,6 +41,12 @@ from orderorder.evaluation.gold import MODE_NAMES, GoldItem
 # check and its own number, and scores 20/20 with nothing configured.
 MODEL_DEPENDENT = {4, 7, 8, 11}
 
+# Which gold label a finding would have to contradict. A mode absent from this table contradicts a
+# clean item by existing at all: a sound citation resolves, and its paragraph is where its words
+# are, and it does not overstate its bench. The modes listed here need the label to have been
+# recorded, and where it was not, the finding is neither confirmed nor a false positive.
+WARRANTED_BY = {7: "weight", 10: "treatment", 11: "applicability"}
+
 
 @dataclass
 class ItemResult:
@@ -61,9 +67,31 @@ class ItemResult:
         return self.item.planted_error in self.modes_found if self.item.planted_error else False
 
     @property
+    def unwarranted(self) -> set[int]:
+        """Findings on a clean item that the gold labels do not actually contradict.
+
+        A clean item is warranted to be the court's own words, correctly cited, at the paragraph
+        named. It is *not* warranted to be the ratio: nothing in the corpus says whether a sentence
+        was necessary to the decision, and the generator does not pretend otherwise — the label is
+        left empty. So a mode 7 finding on one of these contradicts nothing the gold set claimed, and
+        counting it as a false positive would mark the engine down for answering a question the item
+        never asked.
+
+        That is not the same as the finding being right. It means this set cannot say, and the number
+        below has to be read as covering the checks the labels cover. The rest needs paragraphs a
+        person has read.
+        """
+        labels = self.item.labels
+        return {
+            mode
+            for mode in self.modes_found
+            if (field := WARRANTED_BY.get(mode)) is not None and getattr(labels, field, None) is None
+        }
+
+    @property
     def false_positive(self) -> bool:
-        """A clean citation the engine flagged anyway."""
-        return self.item.is_clean and bool(self.modes_found)
+        """A clean citation the engine flagged with something the gold labels contradict."""
+        return self.item.is_clean and bool(self.modes_found - self.unwarranted)
 
 
 @dataclass
@@ -245,7 +273,8 @@ def format_disagreements(report: Report) -> list[str]:
         lines.append(f"    cited   {result.item.citation_raw}")
         lines.append(f"    claim   {result.item.claim_text[:150]}")
         for finding in result.verdict.findings if result.verdict else []:
-            lines.append(f"      -> {finding}")
+            unwarranted = " (not counted: the gold set does not label this)" if finding.mode in result.unwarranted else ""
+            lines.append(f"      -> {finding}{unwarranted}")
 
     for result in report.planted:
         mode = result.item.planted_error

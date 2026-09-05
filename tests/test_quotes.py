@@ -7,6 +7,7 @@ born-digital text, which is what stops a model from inventing a near-quote.
 
 from __future__ import annotations
 
+from orderorder.engine.prompts import format_candidates
 from orderorder.engine.quotes import (
     DISTINCTIVE_RUN_WORDS,
     FUZZY_THRESHOLD,
@@ -140,3 +141,37 @@ def test_the_run_survives_the_same_normalisation_a_quote_does() -> None:
 def test_nothing_shared_with_an_empty_passage() -> None:
     assert longest_shared_run("anything at all", "") == NO_SHARED_RUN
     assert longest_shared_run("", JUDGMENT) == NO_SHARED_RUN
+
+
+# --- what the model is shown of a long paragraph ---------------------------------------------------
+
+
+def test_a_long_paragraph_is_trimmed_around_the_claim_not_from_the_front() -> None:
+    """The bug this was written for: the supporting sentence fell past the cut and vanished.
+
+    A judgment paragraph that sets out a statute at length runs past the prompt's limit. Trimming
+    from the front removed the tail, and where the sentence answering the claim was in that tail the
+    model reported a sound citation as unsupported by a judgment that supports it.
+    """
+    filler = "The Court then set out the statutory scheme at considerable length. " * 40
+    answer = "A misrepresentation vitiates consent only where it induced the contract."
+    body = filler + answer
+    assert len(body) > 1800
+
+    shown = format_candidates([("3", body)], claim="misrepresentation vitiates consent induced")
+    assert answer in shown
+    assert shown.startswith("[paragraph 3]")
+    assert "[...]" in shown
+
+
+def test_a_paragraph_short_enough_is_shown_whole() -> None:
+    body = "A misrepresentation vitiates consent only where it induced the contract."
+    shown = format_candidates([("3", body)], claim="misrepresentation")
+    assert shown == f"[paragraph 3]\n{body}"
+
+
+def test_without_a_claim_the_head_of_the_paragraph_is_as_good_a_guess_as_any() -> None:
+    body = "x" * 3000
+    shown = format_candidates([("3", body)])
+    assert shown.endswith("[...]")
+    assert len(shown) < 2000

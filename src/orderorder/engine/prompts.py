@@ -12,6 +12,9 @@ explicitly, since a model that knows its quote will be verified is less inclined
 
 from __future__ import annotations
 
+from orderorder.engine.lexical import tokenize
+from orderorder.engine.sentences import split_sentences
+
 DECOMPOSE_VERSION = "decompose-v1"
 DECOMPOSE_PROMPT = """You are helping check whether a legal brief's citations are sound.
 
@@ -132,10 +135,57 @@ catch.
 """
 
 
-def format_candidates(candidates: list[tuple[str, str]], *, max_chars: int = 1800) -> str:
-    """Render (label, body) pairs for a prompt, trimming very long paragraphs."""
+def _anchor(body: str, claim: str) -> int:
+    """Where in the paragraph the claim is most likely to be answered."""
+    wanted = set(tokenize(claim))
+    if not wanted:
+        return 0
+    best = (0.0, 0)
+    for sentence, offset in split_sentences(body):
+        terms = set(tokenize(sentence))
+        if not terms:
+            continue
+        overlap = len(wanted & terms)
+        if overlap:
+            # Density, not count, so a long sentence does not win by carrying more words.
+            score = overlap + overlap / len(terms)
+            if score > best[0]:
+                best = (score, offset)
+    return best[1]
+
+
+def _window(body: str, claim: str | None, max_chars: int) -> str:
+    """A readable slice of a long paragraph, taken around the part that answers the claim.
+
+    Trimming from the front is what this used to do, and it produced the worst kind of wrong answer.
+    A judgment paragraph that runs past the limit — they do, when the court sets out a statute or
+    quotes at length — had its tail cut off, and where the supporting sentence was in that tail the
+    model reported the claim as unsupported by a judgment that supports it. It said so plainly in one
+    eval run: "the provided paragraph 38 is truncated at the exact point of the charge". The model was
+    right and the engine had handed it a mutilated paragraph.
+    """
+    if len(body) <= max_chars:
+        return body
+    if not claim:
+        return body[:max_chars].rstrip() + " [...]"
+
+    anchor = _anchor(body, claim)
+    start = max(0, anchor - max_chars // 3)
+    end = min(len(body), start + max_chars)
+    start = max(0, min(start, len(body) - max_chars))
+    # Whole sentences: a window that begins mid-clause reads as a different claim.
+    if start:
+        boundary = body.find(" ", start)
+        start = boundary + 1 if 0 <= boundary < start + 120 else start
+    text = body[start:end].strip()
+    return ("[...] " if start else "") + text + (" [...]" if end < len(body) else "")
+
+
+def format_candidates(
+    candidates: list[tuple[str, str]], *, max_chars: int = 1800, claim: str | None = None
+) -> str:
+    """Render (label, body) pairs for a prompt, trimming very long paragraphs around the claim."""
     blocks = []
     for label, body in candidates:
-        text = body if len(body) <= max_chars else body[:max_chars].rstrip() + " [...]"
-        blocks.append(f"[paragraph {label}]\n{text}")
+        blocks.append(f"[paragraph {label}]\n{_window(body, claim, max_chars)}")
     return "\n\n".join(blocks)

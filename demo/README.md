@@ -1,6 +1,6 @@
 # Demo
 
-Two runs. Both use the real knowledge base, so import the data first:
+Everything here runs against the real knowledge base, so import the data first:
 
 ```bash
 source scripts/dev-env.sh
@@ -14,14 +14,46 @@ uv run orderorder ingest text INSC:2019:770 INSC:2024:1027 INSC:2024:1051 INSC:2
 uv run orderorder verify --file demo/brief.txt
 ```
 
-Eight citations, six of them wrong in six different ways. See [expected.md](expected.md) for what each
-one is and what the engine should say about it.
+Ten citations, eight of them wrong in eight different ways. See [expected.md](expected.md) for what
+each one is and what the engine should say about it.
 
-This run needs **no API key**: existence, mis-citation, pinpoint, voice and opinion are all decided
-from the corpus and from the judgment's own text. Extent of support is the one question that needs a
-language model, and with none configured the engine reports it as *not assessed* rather than guessing.
+This run needs **no API key**. Eight of the twelve failure modes are settled by the record and by the
+structure of the judgment — whether the case exists, whether the citation names it, who decided it
+and how many judges sat, whose words a paragraph carries, what later courts did with it, whether the
+pinpointed paragraph is where the words are, and whether a quotation was stopped before its
+qualification. Extent of support is the one thing a key changes, and with none configured the engine
+reports it as *not assessed* rather than guessing.
 
-### 2. The third question
+Watch citation 8. Every word the brief quotes is the court's, in order, exactly — and it stops before
+"unless the court is satisfied that the party has not approached it with clean hands", which reverses
+the proposition in the only case where the point arises. No model is asked; the sentence is compared
+with the sentence.
+
+### 2. What the other side will say
+
+```bash
+uv run orderorder verify --file demo/brief.txt --memo
+```
+
+The same verdicts written as the argument they will meet — "My friend is citing the dissent", "That
+case has been overruled and my friend cites it as though it were good law" — each with the fact from
+the verdict that makes it stick and the fix that closes it off. The memo is built from the verdict
+object and nothing else, so it cannot claim more than was proved, and it works with no key.
+
+It also says what *held up*, and what was **not checked**. A short list of problems reads as a clean
+bill of health, and a citation nobody could assess is not a citation that passed.
+
+### 3. The work handed back
+
+```bash
+uv run orderorder verify --file demo/brief.txt --annotate flagged.txt --report report.md
+```
+
+`flagged.txt` is the brief with a marker beside every citation — `[!D 12]` for a finding, `[?C]` where
+a person has to look, `[ok]` where nothing was found — and a key at the foot. `report.md` is the board
+and then every citation in full, worst first.
+
+### 4. The third question
 
 ```bash
 uv run python demo/scripted_model.py
@@ -32,7 +64,7 @@ machine with no provider key. The engine is real throughout — real judgment te
 verification, real grading. Four answers go in, two of them confident and wrong, and the engine
 catches both by string-matching the quote against the stored judgment.
 
-### 3. Finding an authority, with no citation to start from
+### 5. Finding an authority, with no citation to start from
 
 ```bash
 uv run orderorder ingest bulk-text     # text for the whole corpus; resumable, ~0.4s a judgment
@@ -48,6 +80,27 @@ holding does, because it is stated without the qualifications.
 Also no API key. With one configured, each authority is run back through the verifier, so a candidate
 whose words match is separated from one that supports the claim.
 
+### 6. The numbers
+
+Neither of the two directions is worth much unmeasured, and both are measured against ground truth
+the corpus supplies rather than labels anyone wrote:
+
+```bash
+uv run orderorder eval generate --seeds 40 --rng-seed 1729 --out evals/holdout.jsonl
+uv run orderorder eval run --no-model --detail --gold evals/holdout.jsonl
+uv run orderorder eval search --judgments 40
+```
+
+The first plants known failures in forty judgments *the detectors were not developed against* — the
+set they were fixed on cannot measure them. The second scores every check that needs no model, in
+seconds. The third asks the search direction: given a line, does the corpus give back the judgment,
+the paragraph, and the line.
+
+Current numbers and, more importantly, what they do not say are in
+[../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) §11.4.
+
+---
+
 To run the model-dependent checks for real, put any one of these in `.env`:
 
 ```
@@ -60,4 +113,5 @@ or run a local model with no key at all:
 OLLAMA_MODELS=data/ollama ollama serve
 ollama pull qwen3.5:4b
 uv run orderorder doctor          # should now show ollama usable
+uv run orderorder doctor --probe  # and that it returns a filled schema, not prose
 ```
