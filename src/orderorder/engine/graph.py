@@ -169,6 +169,7 @@ def build_verify_graph(
             applicability=state.get("applicability"),
             claimed_pinpoint=citation.pinpoint.label if citation.pinpoint else None,
             likely_quoted=any(c.likely_quoted for c in candidates[:3]),
+            span=citation.span,
         )
         return {"verdict": verdict}
 

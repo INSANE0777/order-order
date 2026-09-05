@@ -71,6 +71,8 @@ class CitationVerdict:
     review_reasons: list[str] = field(default_factory=list)
     scope: ScopeVerdict | None = None
     pinpoint: PinpointCheck | None = None
+    # Where the citation sits in the brief, so a verdict can be shown against the text it is about.
+    span: tuple[int, int] | None = None
 
     @property
     def is_sound(self) -> bool:
@@ -122,6 +124,7 @@ def build_verdict(
     applicability: ApplicabilityVerdict | None = None,
     claimed_pinpoint: str | None = None,
     likely_quoted: bool = False,
+    span: tuple[int, int] | None = None,
 ) -> CitationVerdict:
     """Combine the detectors into one verdict, then grade it."""
     verdict = CitationVerdict(
@@ -132,6 +135,7 @@ def build_verdict(
         judgment_title=judgment_title,
         resolution_method=resolution.method,
         claimed_pinpoint=claimed_pinpoint,
+        span=span,
         pinpoint=pinpoint,
         scope=scope,
         voice=voice,

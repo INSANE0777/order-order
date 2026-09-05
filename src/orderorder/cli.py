@@ -33,6 +33,7 @@ from orderorder.engine.memo import render_memo, write_memo
 from orderorder.engine.prompts import SCOPE_PROMPT, format_candidates
 from orderorder.engine.providers import build_structured, describe_providers
 from orderorder.engine.quotes import find_quote
+from orderorder.engine.report import annotate_brief, verification_report
 from orderorder.engine.schemas import (
     ApplicabilityAssessment,
     ScopeAssessment,
@@ -796,6 +797,12 @@ def verify_command(
         "--memo",
         help="Write what opposing counsel would say about each citation, and how to answer it.",
     ),
+    report: str | None = typer.Option(
+        None, "--report", help="Write a verification report covering every citation to this file."
+    ),
+    annotate: str | None = typer.Option(
+        None, "--annotate", help="Write a copy of the brief with a flag beside every citation."
+    ),
 ) -> None:
     """Verify every citation in a passage: does the case exist, which paragraph, and does it support the claim."""
     if file:
@@ -885,6 +892,17 @@ def verify_command(
         console.print("\n[bold]Opposing counsel's memo[/bold]")
         for verdict in sorted(verdicts, key=lambda v: -GRADES.index(v.grade)):
             console.print("\n".join(render_memo(write_memo(verdict))))
+
+    if report:
+        Path(report).parent.mkdir(parents=True, exist_ok=True)
+        Path(report).write_text(
+            verification_report(verdicts, source=file or "pasted text"), encoding="utf-8"
+        )
+        console.print(f"[dim]report written to {report}[/dim]")
+    if annotate:
+        Path(annotate).parent.mkdir(parents=True, exist_ok=True)
+        Path(annotate).write_text(annotate_brief(text, verdicts), encoding="utf-8")
+        console.print(f"[dim]annotated brief written to {annotate}[/dim]")
 
     graded = sum(1 for v in verdicts if v.grade in "DEF")
     console.print(
