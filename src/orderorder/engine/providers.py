@@ -141,6 +141,13 @@ def available_specs() -> list[ProviderSpec]:
     return out
 
 
+# How long one model call may take before it is abandoned. Generous, because a long paragraph and
+# a schema to fill is real work, and a routed gateway adds a hop; but finite, because the engine
+# has an honest answer for a check it could not run and none for one that never returned.
+REQUEST_TIMEOUT_SECONDS = 90.0
+MAX_RETRIES = 1
+
+
 def _build_one(spec: ProviderSpec, schema: type[BaseModel], **kwargs: Any):
     from langchain.chat_models import init_chat_model
 
@@ -150,6 +157,15 @@ def _build_one(spec: ProviderSpec, schema: type[BaseModel], **kwargs: Any):
     base_url = get_settings().llm_base_url
     if spec.provider == "openai" and base_url and "base_url" not in kwargs:
         kwargs["base_url"] = base_url
+
+    # A request that never answers is worse than one that fails, because nothing downstream can tell
+    # the difference between slow and stopped. A gateway in front of a routed model does hang: a batch
+    # of eighty calls, each answering in about thirteen seconds, ran for over an hour on one of them.
+    # With a deadline the fallback chain takes over, and where there is no fallback the caller gets an
+    # error it can record as "not checked" — which is a state this engine already has and knows how to
+    # report honestly.
+    kwargs.setdefault("timeout", REQUEST_TIMEOUT_SECONDS)
+    kwargs.setdefault("max_retries", MAX_RETRIES)
 
     model = init_chat_model(spec.model, model_provider=spec.provider, temperature=0, **kwargs)
     return model.with_structured_output(schema, method=spec.structured_method)
