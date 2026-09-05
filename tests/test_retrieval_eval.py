@@ -13,10 +13,12 @@ import datetime as dt
 import pytest
 
 from orderorder.db.models import CitationAlias, Judgment
+from orderorder.engine.schemas import Restatement
 from orderorder.engine.search import build_index
 from orderorder.evaluation.retrieval import (
     FRAGMENT,
     FRAGMENT_WORDS,
+    PARAPHRASE,
     VERBATIM,
     Outcome,
     RetrievalItem,
@@ -24,7 +26,10 @@ from orderorder.evaluation.retrieval import (
     _fragment,
     build_items,
     format_retrieval,
+    read_items,
+    restate,
     run_item,
+    write_items,
 )
 from orderorder.ingest.pdf import ExtractedJudgment
 from orderorder.ingest.store import store_extracted
@@ -243,3 +248,79 @@ def test_a_kind_with_no_queries_reports_nothing_rather_than_zero() -> None:
     report = RetrievalReport(outcomes=[_outcome(VERBATIM, 1, 1)])
     assert report.judgment_recall(FRAGMENT, 1) is None
     assert FRAGMENT not in "\n".join(format_retrieval(report))
+
+
+# --- paraphrase queries ---------------------------------------------------------------------------
+
+
+class _Restater:
+    """A model stub. The real one is a model; what matters here is what is done with its answer."""
+
+    def __init__(self, answer):
+        self.answer = answer
+        self.calls = 0
+
+    def invoke(self, _prompt):
+        self.calls += 1
+        return self.answer
+
+
+def test_a_restatement_that_says_it_differently_is_kept() -> None:
+    sentence = (
+        "A misrepresentation of a material fact vitiates the consent of the contracting party only "
+        "where it induced the contract."
+    )
+    said_differently = Restatement(
+        restatement=(
+            "Consent is undone by a false statement about something that mattered, but only if that "
+            "statement is what persuaded the party to enter the bargain."
+        )
+    )
+    assert restate(sentence, _Restater(said_differently)) == said_differently.restatement
+
+
+def test_a_restatement_that_copies_the_original_is_refused() -> None:
+    """A query that is really a quotation would flatter the paraphrase score with the wrong thing."""
+    sentence = (
+        "A misrepresentation of a material fact vitiates the consent of the contracting party only "
+        "where it induced the contract."
+    )
+    copied = Restatement(
+        restatement=(
+            "It is settled that a misrepresentation of a material fact vitiates the consent of the "
+            "contracting party only where it induced the contract."
+        )
+    )
+    assert restate(sentence, _Restater(copied)) is None
+
+
+def test_a_model_that_answers_with_nothing_is_dropped_not_replaced() -> None:
+    assert restate("anything", _Restater(Restatement(restatement="   "))) is None
+    assert restate("anything", _Restater("not a schema at all")) is None
+
+
+def test_a_query_set_survives_a_round_trip(tmp_path) -> None:
+    """The paraphrases are kept in the repository so a run repeats without a model."""
+    items = [
+        RetrievalItem("INSC:2019:1", "3", "the court's sentence", "the lawyer's words", PARAPHRASE)
+    ]
+    path = tmp_path / "paraphrases.jsonl"
+    assert write_items(items, path) == 1
+    back = read_items(path)
+    assert back == items
+    assert back[0].kind == PARAPHRASE
+
+
+def test_a_missing_query_set_reads_as_empty(tmp_path) -> None:
+    assert read_items(tmp_path / "nothing.jsonl") == []
+
+
+def test_the_three_query_shapes_are_reported_apart() -> None:
+    report = RetrievalReport(
+        outcomes=[_outcome(VERBATIM, 1, 1), _outcome(FRAGMENT, 2, 2), _outcome(PARAPHRASE, None, None)]
+    )
+    text = "\n".join(format_retrieval(report))
+    assert VERBATIM in text
+    assert FRAGMENT in text
+    assert PARAPHRASE in text
+    assert report.judgment_recall(PARAPHRASE, 10) == 0.0

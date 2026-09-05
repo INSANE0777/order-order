@@ -28,27 +28,40 @@ Queries come in two shapes, and the difference between their scores is the inter
   * **fragment** — a run of words from the middle, which is what remembering a line is like. Harder,
     and closer to how the question actually arrives.
 
-What neither shape measures is a genuine paraphrase, where the lawyer's words and the court's share
-only the idea. That needs queries a person wrote, and it is the gap to close next; a fragment query
-is a degraded query, not a restated one, and this module does not pretend otherwise.
+  * **paraphrase** — the proposition restated in an advocate's own words, sharing only the idea.
+    This is the hardest shape and the one a lawyer actually types, and it cannot be built from the
+    judgment's text: something has to do the restating. A model does it, cached to a file so the
+    measurement repeats without one.
+
+Using a model to write those queries does not make the measurement circular. The model is not what is
+being measured — the retrieval is lexical and has never seen a model's output — and its job here is
+the one job it is reliably good at, which is saying the same thing differently. What it does mean is
+that the paraphrase score is against *a* set of paraphrases rather than the ones lawyers write, and
+the queries are kept in the repository so anyone can read them and disagree.
 """
 
 from __future__ import annotations
 
+import json
 import random
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from orderorder.db.models import Judgment, JudgmentTextVersion
-from orderorder.engine.quotes import normalized
+from orderorder.engine.prompts import RESTATE_PROMPT
+from orderorder.engine.providers import StructuredModel
+from orderorder.engine.quotes import longest_shared_run, normalized
+from orderorder.engine.schemas import Restatement
 from orderorder.engine.search import find_authorities
 from orderorder.evaluation.generate import collect_seed
 
 VERBATIM = "verbatim"
 FRAGMENT = "fragment"
+PARAPHRASE = "paraphrase"
 
 # How many consecutive words a fragment query keeps. Long enough to be a distinctive phrase, short
 # enough that most of the sentence is missing.
@@ -221,7 +234,7 @@ def format_retrieval(report: RetrievalReport, *, top: int = 10) -> list[str]:
     lines = [f"{len(report.outcomes)} queries over the corpus", ""]
     header = f"{'':<10}{'case @1':>9}{'case @5':>9}{f'case @{top}':>9}{'para @5':>9}{'line':>9}"
     lines.append(header)
-    for kind in (VERBATIM, FRAGMENT):
+    for kind in (VERBATIM, FRAGMENT, PARAPHRASE):
         if not report.of_kind(kind):
             continue
 
@@ -257,3 +270,77 @@ def format_misses(report: RetrievalReport, limit: int = 12) -> list[str]:
     if len(lines) == 1:
         lines.append("  none: every proposition found its own paragraph")
     return lines
+
+
+def write_items(items: list[RetrievalItem], path: Path) -> int:
+    """Keep a query set as JSON Lines, so a run repeats without a model and anyone can read them."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        for item in items:
+            handle.write(json.dumps(asdict(item), ensure_ascii=False) + "\n")
+    return len(items)
+
+
+def read_items(path: Path) -> list[RetrievalItem]:
+    if not path.exists():
+        return []
+    return [
+        RetrievalItem(**json.loads(line))
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def restate(sentence: str, model: StructuredModel) -> str | None:
+    """Ask for the same proposition in different words. Returns None if nothing usable came back.
+
+    A restatement that keeps a long run of the original is not a restatement, and letting one through
+    would flatter the paraphrase score with a query that is really a quotation. Ten consecutive words
+    is the same bar the pinpoint check uses for "not a coincidence".
+    """
+    try:
+        answer = model.invoke(RESTATE_PROMPT.format(sentence=sentence.strip()))
+    except Exception:  # noqa: BLE001 - one refusal must not end the run
+        return None
+    if not isinstance(answer, Restatement) or not answer.restatement.strip():
+        return None
+    text = answer.restatement.strip()
+    if longest_shared_run(text, sentence).is_distinctive:
+        return None
+    return text
+
+
+def build_paraphrases(
+    session: Session,
+    model: StructuredModel,
+    *,
+    judgments: int = 40,
+    per_judgment: int = 2,
+    seed_value: int = 20260904,
+    on_result=None,
+) -> list[RetrievalItem]:
+    """Draw the same propositions as `build_items` and have each one restated.
+
+    The same draw, so the paraphrase score sits beside the verbatim and fragment scores over the same
+    propositions and the three can be compared. A sentence the model declines to restate, or restates
+    by copying, is dropped rather than replaced: a smaller set honestly built beats a full one.
+    """
+    verbatim = [
+        item
+        for item in build_items(
+            session, judgments=judgments, per_judgment=per_judgment, seed_value=seed_value
+        )
+        if item.kind == VERBATIM
+    ]
+    items: list[RetrievalItem] = []
+    for index, item in enumerate(verbatim, start=1):
+        restatement = restate(item.sentence, model)
+        if on_result is not None:
+            on_result(item, index, len(verbatim))
+        if restatement:
+            items.append(
+                RetrievalItem(
+                    item.judgment_key, item.paragraph_label, item.sentence, restatement, PARAPHRASE
+                )
+            )
+    return items

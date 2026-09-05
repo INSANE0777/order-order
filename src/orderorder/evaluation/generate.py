@@ -86,16 +86,6 @@ def _usable(sentence: str) -> bool:
     # Page furniture, tables of authorities and citation runs are not propositions.
     if sentence.count("(") > 3 or sum(c.isdigit() for c in sentence) > len(sentence) * 0.12:
         return False
-    # A sentence that announces a quotation is not the proposition; the quotation is. Offered as one,
-    # it carries the introduced case's bench and citation into a claim about a different case, and the
-    # engine is right to object — "In paragraphs 365 and 366, the Constitution Bench of this Court has
-    # held as under:-" asserts a Constitution Bench, whatever the judgment it was taken from.
-    if LEAD_IN.search(sentence):
-        return False
-    # Likewise a sentence naming another authority. The gold item pairs a claim with one citation, and
-    # a second citation inside the claim makes it ambiguous which one the item is about.
-    if extract_citations(sentence) or PARTIES.search(sentence):
-        return False
     stripped = sentence.strip()
     # A proposition is a whole sentence. Column-formatted reports extract into fragments — half a
     # table row, a line that stops mid-clause — and a fragment is not something an advocate would
@@ -103,7 +93,19 @@ def _usable(sentence: str) -> bool:
     # as a false positive by the engine and was nothing of the kind.
     if not stripped.endswith((".", "?", "!", '."', ".'", ".”", ".’")):
         return False
-    return bool(re.match(r"^[A-Z“\"']", stripped))
+    if not re.match(r"^[A-Z“\"']", stripped):
+        return False
+    # A sentence that announces a quotation is not the proposition; the quotation is. Offered as one,
+    # it carries the introduced case's bench and citation into a claim about a different case, and the
+    # engine is right to object — "In paragraphs 365 and 366, the Constitution Bench of this Court has
+    # held as under:-" asserts a Constitution Bench, whatever the judgment it was taken from.
+    if LEAD_IN.search(sentence) or PARTIES.search(sentence):
+        return False
+    # Likewise a sentence naming another authority. The gold item pairs a claim with one citation, and
+    # a second citation inside the claim makes it ambiguous which one the item is about. This is the
+    # dearest check by a wide margin — the whole citation grammar over every sentence of every
+    # paragraph — so it goes last, where most sentences have already been rejected.
+    return not extract_citations(sentence)
 
 
 def _first_citation(session: Session, judgment_id) -> str | None:

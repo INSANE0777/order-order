@@ -147,3 +147,27 @@ class ApplicabilityAssessment(BaseModel):
     )
     reason: str | None = Field(default=None, description="One sentence of justification.")
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class Restatement(BaseModel):
+    """A proposition put in a lawyer's own words rather than the court's.
+
+    This one is not part of the engine. It exists so the retrieval evaluation can ask a question the
+    corpus cannot answer for itself: how well does search do when the words a lawyer uses and the
+    words the court used share only the idea. Every other query shape the harness can build is a run
+    of the judgment's own text, which measures quoted search and says nothing about paraphrase.
+
+    Using a model to write the queries does not make the measurement circular, because the model is
+    not the thing being measured: the retrieval is lexical and has never seen the model's output.
+    """
+
+    restatement: str = Field(
+        description=(
+            "The same proposition of law, restated as an advocate would write it in a brief, "
+            "using different words from the original wherever the meaning allows."
+        )
+    )
+    kept_terms: list[str] = Field(
+        default_factory=list,
+        description="Terms of art that had to be kept because no synonym carries the same meaning.",
+    )

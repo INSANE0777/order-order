@@ -36,6 +36,7 @@ from orderorder.engine.quotes import find_quote
 from orderorder.engine.report import annotate_brief, verification_report
 from orderorder.engine.schemas import (
     ApplicabilityAssessment,
+    Restatement,
     ScopeAssessment,
     VoiceAssessment,
     WeightAssessment,
@@ -567,6 +568,47 @@ def eval_run(
         console.print(f"[dim]written to {report}[/dim]")
 
 
+@eval_app.command("paraphrase")
+def eval_paraphrase(
+    out: str = typer.Option("evals/paraphrases.jsonl", help="Where to write the query set."),
+    judgments: int = typer.Option(40, help="How many judgments to draw propositions from."),
+    per_judgment: int = typer.Option(2, help="Propositions per judgment."),
+    rng_seed: int = typer.Option(20260904, help="Which judgments get drawn."),
+) -> None:
+    """Build paraphrase queries for the search evaluation, and keep them.
+
+    Every other query shape the harness builds is a run of the judgment's own text, which measures
+    quoted search and says nothing about the hardest and commonest case: a lawyer's words and the
+    court's sharing only the idea. Something has to do the restating, so a model does, once, and the
+    queries are written to a file that anyone can read and that later runs reuse without a model.
+    """
+    init_db()
+    model = build_structured(Restatement)
+    if model is None:
+        console.print("[red]no language model configured[/red]; this is the one command that needs one")
+        raise typer.Exit(1)
+
+    def progress(_item, done: int, total: int) -> None:
+        if done % 10 == 0 or done == total:
+            console.print(f"  [dim]{done}/{total}[/dim]")
+
+    with get_session() as session:
+        items = retrieval.build_paraphrases(
+            session,
+            model,
+            judgments=judgments,
+            per_judgment=per_judgment,
+            seed_value=rng_seed,
+            on_result=progress,
+        )
+    written = retrieval.write_items(items, Path(out))
+    console.print(f"[green]{written} paraphrase queries[/green] written to {out}")
+    for item in items[:3]:
+        console.print("")
+        console.print(f"[dim]court:[/dim] {item.sentence[:150]}")
+        console.print(f"[dim]query:[/dim] {item.query[:150]}")
+
+
 @eval_app.command("search")
 def eval_search(
     judgments: int = typer.Option(40, help="How many judgments to draw propositions from."),
@@ -575,6 +617,9 @@ def eval_search(
     rng_seed: int = typer.Option(20260904, help="Which judgments get drawn."),
     report: str | None = typer.Option(None, help="Also write the report to this file."),
     misses: bool = typer.Option(False, "--misses", help="Print the searches that found nothing."),
+    queries: str | None = typer.Option(
+        None, "--queries", help="A query set built earlier, such as one from `eval paraphrase`."
+    ),
 ) -> None:
     """Measure the search direction: a proposition in, the judgment and the line out.
 
@@ -586,9 +631,16 @@ def eval_search(
         if not search.index_exists(session):
             console.print("[red]no search index[/red]; run [bold]orderorder index[/bold] first")
             raise typer.Exit(1)
-        items = retrieval.build_items(
-            session, judgments=judgments, per_judgment=per_judgment, seed_value=rng_seed
+        items = (
+            retrieval.read_items(Path(queries))
+            if queries
+            else retrieval.build_items(
+                session, judgments=judgments, per_judgment=per_judgment, seed_value=rng_seed
+            )
         )
+        if queries and not items:
+            console.print(f"[red]no queries in {queries}[/red]")
+            raise typer.Exit(1)
         console.print(f"[dim]{len(items)} queries from {judgments} judgments[/dim]")
 
         def progress(_outcome, done: int, total: int) -> None:

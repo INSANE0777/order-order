@@ -189,3 +189,18 @@ def format_candidates(
     for label, body in candidates:
         blocks.append(f"[paragraph {label}]\n{_window(body, claim, max_chars)}")
     return "\n\n".join(blocks)
+
+
+RESTATE_VERSION = "restate-v1"
+RESTATE_PROMPT = """Restate this proposition of law as an advocate would write it in a brief.
+
+The point is to say the same thing in different words. Change the sentence structure and the ordinary
+vocabulary. Keep only the terms of art that have no synonym — a statute's name, a section number, a
+doctrine that is only ever called by its name — and list those separately.
+
+Do not add anything the proposition does not say, and do not leave anything out. If the proposition
+attaches a condition, the restatement attaches the same condition.
+
+The proposition, in the court's words:
+{sentence}
+"""
