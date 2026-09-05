@@ -28,7 +28,7 @@ import threading
 from collections.abc import Iterator
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -47,6 +47,7 @@ from orderorder.engine.schemas import (
     VoiceAssessment,
     WeightAssessment,
 )
+from orderorder.ingest.brief import read_brief
 from orderorder.ingest.store import load_paragraphs
 from orderorder.web.jobs import Job, JobStore, as_json, watch
 
@@ -55,6 +56,8 @@ STATIC = Path(__file__).parent / "static"
 # How long a brief may be. A memorial is tens of kilobytes; anything past this is a book, and checking
 # it would tie the single worker up for an hour with no way to say so.
 MAX_BRIEF_CHARS = 400_000
+# And how large a file. A memorial is under a megabyte; a bundle of annexures is not a brief.
+MAX_UPLOAD_BYTES = 25_000_000
 
 
 class VerifyRequest(BaseModel):
@@ -97,6 +100,38 @@ def create_app(*, store: JobStore | None = None, session_factory=get_session) ->
         job.model_configured = request.use_model and build_structured(ScopeAssessment) is not None
         threading.Thread(target=_run, args=(job, request, open_session), daemon=True).start()
         return {"job": job.id, "model_configured": job.model_configured}
+
+    @app.post("/api/upload")
+    async def upload(file: UploadFile) -> dict:
+        """Read a brief out of a PDF or DOCX and hand back the text, without checking anything yet.
+
+        The text is shown before it is checked, on purpose. A verdict on a document the reader has not
+        seen is a verdict neither of you can point at, and a PDF that came out mangled should be
+        obvious in a second rather than discovered through nine inexplicable phantom citations.
+        """
+        data = await file.read()
+        if len(data) > MAX_UPLOAD_BYTES:
+            raise HTTPException(413, f"a file may be up to {MAX_UPLOAD_BYTES // 1_000_000} MB")
+        try:
+            brief = read_brief(data, file.filename or "")
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        except Exception as exc:  # noqa: BLE001 - a broken file must not read as an empty brief
+            raise HTTPException(400, f"that file could not be read: {type(exc).__name__}") from exc
+
+        if not brief.text.strip():
+            raise HTTPException(
+                422,
+                brief.note
+                or "no text came out of that file; if it is a scan it needs OCR before it can be checked",
+            )
+        return {
+            "text": brief.text,
+            "kind": brief.kind,
+            "pages": brief.pages,
+            "note": brief.note,
+            "filename": file.filename,
+        }
 
     @app.get("/api/jobs/{job_id}")
     def read_job(job_id: str) -> dict:

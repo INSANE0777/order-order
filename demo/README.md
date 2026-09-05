@@ -117,7 +117,8 @@ line to read, marked unchecked.
 uv run orderorder serve
 ```
 
-The verdict board, the annotated brief and the judgment viewer on one page — which is the point of
+Paste a brief or open one from a PDF or DOCX. The verdict board, the annotated brief and the
+judgment viewer on one page — which is the point of
 having a page at all, since each exists as text already. Click a citation, read the paragraph the
 engine actually read, and see the verified sentence highlighted inside it. The other tab is the search
 direction.

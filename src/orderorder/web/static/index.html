@@ -116,10 +116,13 @@
       <textarea id="brief" spellcheck="false" placeholder="Paste a brief, memorial or written submission. Every case-law citation in it will be checked."></textarea>
       <div class="controls">
         <button id="go">Check every citation</button>
+        <button id="pick" class="quiet">Open a PDF or DOCX</button>
+        <input type="file" id="file" accept=".pdf,.docx,.txt,.md" hidden>
         <button id="demo" class="quiet">Load the demo brief</button>
         <label class="check"><input type="checkbox" id="usemodel" checked> use a language model</label>
         <span id="prog" class="hint"></span>
       </div>
+      <p class="hint" id="upnote" hidden></p>
       <p class="hint">Eight of the twelve failure modes need no model. With the box unticked, those still run and
         the rest are reported <em>not checked</em> rather than guessed.</p>
     </div>
@@ -202,8 +205,37 @@ $("t-judgment").onclick = () => { showPanel("judgment"); loadJudgment(); };
 $("t-memo").onclick = () => { showPanel("memo"); loadMemo(); };
 
 // ---------- checking ----------
-$("demo").onclick = async () => {
-  $("brief").value = DEMO;
+$("demo").onclick = () => { $("brief").value = DEMO; $("upnote").hidden = true; };
+
+// A file is read into the box rather than checked straight away: what gets checked is what the
+// reader can see, so a mangled extraction is obvious in a second instead of arriving as nine
+// inexplicable phantom citations.
+$("pick").onclick = () => $("file").click();
+$("file").onchange = async () => {
+  const chosen = $("file").files[0];
+  if (!chosen) return;
+  $("pick").disabled = true;
+  $("prog").textContent = `reading ${chosen.name}…`;
+  const form = new FormData();
+  form.append("file", chosen);
+  try {
+    const response = await fetch("/api/upload", { method: "POST", body: form });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.detail || `HTTP ${response.status}`);
+    $("brief").value = body.text;
+    const bits = [`${chosen.name} — ${body.text.length.toLocaleString()} characters`];
+    if (body.pages) bits.push(`${body.pages} pages`);
+    if (body.note) bits.push(body.note);
+    $("upnote").textContent = bits.join(" · ");
+    $("upnote").hidden = false;
+    $("prog").textContent = "read it — check what is in the box";
+  } catch (e) {
+    $("upnote").textContent = String(e.message || e);
+    $("upnote").hidden = false;
+    $("prog").textContent = "";
+  }
+  $("pick").disabled = false;
+  $("file").value = "";
 };
 
 $("go").onclick = async () => {

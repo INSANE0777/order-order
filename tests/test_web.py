@@ -14,6 +14,7 @@ same answer the command line gives. Two properties carry the weight:
 from __future__ import annotations
 
 import datetime as dt
+import io
 from contextlib import contextmanager
 
 import pytest
@@ -250,3 +251,78 @@ def test_the_store_drops_the_oldest_rather_than_growing_for_ever() -> None:
     store.create("c", "test")
     assert len(store) == 2
     assert store.get(first.id) is None
+
+
+# --- reading a brief out of a file ------------------------------------------------------------------
+
+
+def _docx(paragraphs: list[str], table: list[list[str]] | None = None) -> bytes:
+    from docx import Document
+
+    document = Document()
+    for text in paragraphs:
+        document.add_paragraph(text)
+    if table:
+        grid = document.add_table(rows=len(table), cols=len(table[0]))
+        for row, cells in zip(grid.rows, table, strict=True):
+            for cell, value in zip(row.cells, cells, strict=True):
+                cell.text = value
+    buffer = io.BytesIO()
+    document.save(buffer)
+    return buffer.getvalue()
+
+
+def test_a_docx_brief_comes_back_as_text(client) -> None:
+    data = _docx(["1. The appeal is allowed, as held in (2019) 4 SCC 118, para 3."])
+    response = client.post(
+        "/api/upload",
+        files={"file": ("memorial.docx", data, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["kind"] == "docx"
+    assert "(2019) 4 SCC 118" in body["text"]
+
+
+def test_a_table_of_authorities_is_read_too(client) -> None:
+    """It is a table, and it is exactly where a reader wants every citation checked."""
+    data = _docx(["Table of authorities"], table=[["Kasturi v. Iyyamperumal", "(2019) 4 SCC 118"]])
+    body = client.post(
+        "/api/upload",
+        files={"file": ("memorial.docx", data, "application/octet-stream")},
+    ).json()
+    assert "(2019) 4 SCC 118" in body["text"]
+
+
+def test_a_plain_text_brief_is_taken_as_it_is(client) -> None:
+    body = client.post(
+        "/api/upload", files={"file": ("brief.txt", BRIEF.encode("utf-8"), "text/plain")}
+    ).json()
+    assert body["kind"] == "text"
+    assert body["text"] == BRIEF
+
+
+def test_a_file_with_no_text_in_it_is_refused_rather_than_checked(client) -> None:
+    """An empty extraction checked silently produces a page of nonsense nobody can explain."""
+    data = _docx(["   "])
+    response = client.post("/api/upload", files={"file": ("scan.docx", data, "application/octet-stream")})
+    assert response.status_code == 422
+    assert "scan" in response.json()["detail"] or "no text" in response.json()["detail"]
+
+
+def test_a_file_that_is_not_what_it_claims_is_refused(client) -> None:
+    response = client.post("/api/upload", files={"file": ("brief.pdf", b"not a pdf at all", "application/pdf")})
+    assert response.status_code == 400
+
+
+def test_the_old_doc_format_says_what_to_do_about_it(client) -> None:
+    response = client.post("/api/upload", files={"file": ("brief.doc", b"\xd0\xcf\x11\xe0", "application/msword")})
+    assert response.status_code == 400
+    assert ".docx" in response.json()["detail"]
+
+
+def test_a_file_larger_than_a_brief_is_refused(client) -> None:
+    response = client.post(
+        "/api/upload", files={"file": ("huge.txt", b"x" * 26_000_000, "text/plain")}
+    )
+    assert response.status_code == 413

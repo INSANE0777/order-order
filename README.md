@@ -77,7 +77,9 @@ lawyer intends to advance it searches, verifies, and then refuses everything tha
 own words, from the majority, still good law, and quoted verbatim. Where the court put the point more
 narrowly than the advocate did, it returns the authority *and the proposition to argue instead*.
 
-`serve` puts the three outputs of a stress-test on one page, which is the point of having a page:
+`serve` puts the three outputs of a stress-test on one page, which is the point of having a page.
+A brief can be pasted or opened from a PDF or DOCX; what is read is shown before it is checked, so a
+mangled extraction is obvious in a second rather than arriving as nine inexplicable phantoms. Then:
 click a flag, see the paragraph the engine read, see the verified sentence highlighted inside it.
 The board fills as each citation is decided, so a phantom is on screen while the ones that need a
 model are still running. It binds to localhost; the corpus and anything pasted into it stay here.
@@ -275,8 +277,8 @@ characters of publisher's text came out of judgments already stored.
 
 Embeddings and hybrid retrieval. Search is lexical, and the measured cost of that is the paraphrase
 row above: 33% against 91%. Document assembly for the drafting surface (PRD B7) and its DOCX export (B9) — the gate
-that decides what may enter a draft is built, and `argue` is it. Upload of PDF and DOCX briefs, which
-the page cannot yet take: it accepts pasted text. See
+that decides what may enter a draft is built, and `argue` is it. OCR, so a brief filed as a scan is
+read rather than reported as having no text layer. See
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Status
