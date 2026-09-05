@@ -95,6 +95,7 @@ def _authority(**kwargs) -> Authority:
         "canonical_key": "INSC:2019:1",
         "title": "ALPHA versus BETA",
         "citation": "(2019) 4 SCC 118",
+        "court": "Supreme Court of India",
         "decided_on": "2019-06-01",
         "bench_strength": 2,
         "paragraph_label": "3",
@@ -172,6 +173,28 @@ def test_a_narrower_holding_is_offered_with_the_narrowing() -> None:
     status, reason = _gate(_authority(), _verdict(support="partial", scope=scope))
     assert status == NARROWED
     assert "inducement" in reason
+
+
+def test_a_provider_outage_is_unchecked_and_never_a_refusal() -> None:
+    """A failed HTTP request is not a finding that the judgment does not say this.
+
+    Found by running the drafting demo with the local model proxy down: every candidate came back
+    "the judgment does not state this", which is a verdict, stated on the strength of a connection
+    error. The verifier already refuses to make that mistake; the gate has to refuse it too, and a
+    refusal is the place it hides best, because refusing looks like the tool being careful.
+    """
+    scope = ScopeVerdict(
+        claim=CLAIM,
+        support="none",
+        model_support="error",
+        needs_review=True,
+        review_reason="every configured model provider failed (OpenAIConnectionError)",
+    )
+    verdict = _verdict(support="not_assessed", quote_verified=False, scope=scope)
+    verdict.ask_review(scope.review_reason)
+    status, reason = _gate(_authority(), verdict)
+    assert status == UNCHECKED
+    assert "provider failed" in reason
 
 
 def test_with_no_model_nothing_can_be_bound() -> None:

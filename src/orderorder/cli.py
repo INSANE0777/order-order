@@ -29,6 +29,7 @@ Finding one nobody wrote yet:
 
     orderorder find "..."                which judgment backs a proposition, and which line
     orderorder argue propositions.txt    bind each proposition to an authority, or refuse to
+    orderorder draft plan.txt --docx x   assemble a written submission from a case plan
 
 Measuring both:
 
@@ -54,6 +55,10 @@ from orderorder.citations.grammar import extract_citations
 from orderorder.config import get_settings
 from orderorder.db.models import CitationAlias, Judgment, JudgmentTextVersion, Paragraph
 from orderorder.db.session import get_session, init_db
+from orderorder.drafting.assemble import assemble
+from orderorder.drafting.plan import PlanError, read_plan
+from orderorder.drafting.render import to_markdown
+from orderorder.drafting.word import write_docx
 from orderorder.engine import authority, citator, embeddings, search
 from orderorder.engine.graph import verify_text
 from orderorder.engine.locator import locate as locate_claim
@@ -886,6 +891,82 @@ def argue_command(
         Path(report).parent.mkdir(parents=True, exist_ok=True)
         Path(report).write_text("\n".join(lines) + "\n", encoding="utf-8")
         console.print(f"[dim]written to {report}[/dim]")
+
+
+@app.command("draft")
+def draft_command(
+    file: str = typer.Argument(..., help="A case plan. See `drafting/plan.py` for the format."),
+    docx: str | None = typer.Option(None, help="Write the submission as a .docx here."),
+    markdown: str | None = typer.Option(None, help="Write the submission as Markdown here."),
+    checked: int = typer.Option(
+        authority.DEFAULT_CHECKED, help="How many candidate authorities to verify per proposition."
+    ),
+    show: bool = typer.Option(True, help="Print the submission. --no-show for files only."),
+) -> None:
+    """Assemble a written submission from a case plan, with every citation checked.
+
+    The plan is the advocate's: the court, the parties, the issues, the propositions they intend to
+    argue, and the prayer. What this adds is an authority behind each proposition or a mark saying
+    there is none, a list of authorities built only from what was verified, and an appendix giving the
+    paragraph and the words behind every citation in the document.
+
+    A proposition with no authority is not dropped. It stays where it was written, marked, because a
+    draft that quietly loses the sentences nothing could support reads as though everything in it is
+    supported, and that is the document this engine exists to catch.
+    """
+    init_db()
+    try:
+        plan = read_plan(file)
+    except PlanError as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from error
+    except FileNotFoundError as error:
+        console.print(f"[red]no such file: {file}[/red]")
+        raise typer.Exit(1) from error
+
+    model = build_structured(ScopeAssessment)
+    if model is None:
+        console.print(
+            "[yellow]no language model configured[/yellow], so nothing can be bound: every "
+            "proposition will come back marked, and the draft will be a list of what still needs an "
+            "authority. That is a useful document, but it is not a submission."
+        )
+
+    propositions = plan.propositions
+    bindings = {}
+    with get_session() as session:
+        if not search.index_exists(session):
+            console.print("[dim]building the full-text index (first run)...[/dim]")
+            search.build_index(session)
+        for index, proposition in enumerate(propositions, start=1):
+            console.print(f"[dim]{index}/{len(propositions)} {proposition[:60]}[/dim]")
+            bindings[proposition] = authority.bind_proposition(
+                session, proposition, model, checked=checked
+            )
+
+    draft = assemble(plan, bindings)
+    text = to_markdown(draft)
+    if show:
+        console.print(text)
+
+    counts = draft.counts
+    console.print(
+        f"[bold]{counts['bound']} bound[/bold], {counts['narrowed']} narrowed, "
+        f"{counts['unchecked']} unchecked, [red]{counts['refused']} without authority[/red]"
+    )
+    if draft.unsupported:
+        console.print(
+            f"[yellow]{len(draft.unsupported)} propositions carry no verified authority[/yellow] "
+            "and are marked in the draft. Read them before filing."
+        )
+
+    if markdown:
+        Path(markdown).parent.mkdir(parents=True, exist_ok=True)
+        Path(markdown).write_text(text, encoding="utf-8")
+        console.print(f"[dim]written to {markdown}[/dim]")
+    if docx:
+        written = write_docx(draft, docx)
+        console.print(f"[dim]written to {written}[/dim]")
 
 
 @app.command("find")

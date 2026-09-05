@@ -87,6 +87,7 @@ class Authority:
     canonical_key: str
     title: str
     citation: str | None
+    court: str | None
     decided_on: str | None
     bench_strength: int | None
     paragraph_label: str | None
@@ -399,6 +400,7 @@ def find_authorities(
                 canonical_key=judgment.canonical_key,
                 title=judgment.title,
                 citation=_preferred_citation(session, judgment.id),
+                court=judgment.court,
                 decided_on=judgment.decided_on.isoformat() if judgment.decided_on else None,
                 bench_strength=judgment.bench_strength,
                 paragraph_label=meta.get("printed_label"),

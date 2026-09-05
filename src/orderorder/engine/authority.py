@@ -112,6 +112,14 @@ def _gate(authority: Authority, verdict: CitationVerdict | None) -> tuple[str, s
 
     if verdict is None:
         return UNCHECKED, "no model was configured, so whether this paragraph supports the claim was not checked"
+    if verdict.support == "not_assessed":
+        # The model was configured and did not answer: the provider was down, or it returned
+        # something unusable. `engine.verdict` already refuses to call that a finding, and the gate
+        # must refuse too. Falling through to the refusal below would tell an advocate that the
+        # judgment does not say this, on the strength of a failed HTTP request — which is the
+        # overclaiming this engine exists to catch, committed in the direction where it is invisible,
+        # because a refusal looks like the tool being careful.
+        return UNCHECKED, verdict.review_reason or "extent of support was not assessed"
     if not verdict.quote_verified:
         if verdict.support in {"full", "partial"}:
             # The verifier already refuses to record support without a verified quote; saying so here

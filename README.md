@@ -51,6 +51,7 @@ uv run orderorder citator                            # who cited whom, and what 
 uv run orderorder embed                              # vectors for every paragraph (see the numbers first)
 uv run orderorder find "a misrepresentation vitiates consent only where it induced the contract"
 uv run orderorder argue propositions.txt             # bind each proposition to an authority, or refuse
+uv run orderorder draft demo/plan.txt --docx out.docx  # assemble a written submission from a case plan
 uv run orderorder treatment INSC:2019:770            # is this authority still good law?
 
 uv run orderorder eval generate --seeds 40 --rng-seed 1729   # plant known failures in real judgments
@@ -77,6 +78,15 @@ only the verifier confirms.
 lawyer intends to advance it searches, verifies, and then refuses everything that is not the court's
 own words, from the majority, still good law, and quoted verbatim. Where the court put the point more
 narrowly than the advocate did, it returns the authority *and the proposition to argue instead*.
+
+`draft` takes a case plan — the court, the parties, the issues, the propositions an advocate intends
+to argue, the prayer — and assembles a written submission in the Indian filing format, with `argue`'s
+gate deciding what may go behind each sentence. A proposition that found no authority is not dropped:
+it stays where it was written, marked, because a draft that quietly loses its unsupported sentences
+reads as though everything in it is supported. The list of authorities is built from what was verified
+and can contain nothing else, and an appendix gives the paragraph and the verified words behind every
+citation in the document, so a supervisor can check the whole thing against the reports without
+running any of this. It writes Markdown and a .docx that opens in Word.
 
 `serve` puts the three outputs of a stress-test on one page, which is the point of having a page.
 A brief can be pasted or opened from a PDF or DOCX; what is read is shown before it is checked, so a
@@ -203,6 +213,7 @@ which the corpus does not yet hold.
 | The opposing-counsel memo, written from the verdict object and nothing else | `engine/memo.py` |
 | The annotated brief and the verification report | `engine/report.py` |
 | The drafting gate: bind a proposition to an authority, or refuse to | `engine/authority.py` |
+| Draft assembly in Indian written-submission format, with a DOCX export and a verification appendix | `drafting/` |
 | Verdict assembly and the grading rubric | `engine/verdict.py` |
 | The engine as a LangGraph state graph | `engine/graph.py` |
 | The evaluation harness: plant known failures, score both directions | `evaluation/` |
@@ -283,9 +294,9 @@ characters of publisher's text came out of judgments already stored.
 
 A strong encoder on a GPU. The hybrid retrieval seam is built and measured; what is missing is a
 model good enough to use it, and BGE-M3 on a borrowed GPU session is the experiment the numbers point
-at. Document assembly for the drafting surface (PRD B7) and its DOCX export (B9) — the gate
-that decides what may enter a draft is built, and `argue` is it. OCR, so a brief filed as a scan is
-read rather than reported as having no text layer. See
+at. Self-attack on a generated draft (PRD B8): the memo is built for a brief that somebody else
+wrote, and turning it on the draft this tool just assembled is the same code and a different input.
+OCR, so a brief filed as a scan is read rather than reported as having no text layer. See
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Status

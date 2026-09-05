@@ -1,0 +1,30 @@
+// A case plan: what an advocate has before the draft exists. Everything here is the advocate's own
+// except the authorities, which is the point — `orderorder draft` finds those or says it could not.
+
+court: In the Supreme Court of India
+cause: Civil Appeal No. 4521 of 2025
+parties: Ashok Kumar versus Union of India and others
+for: the Appellant
+counsel: Settled by counsel before filing
+
+# synopsis
+The appellant seeks specific performance of an agreement to sell dated 12 March 2019. The suit was
+dismissed on the ground that a subsequent purchaser had not been impleaded, and the appellant says
+that objection was taken by a party who had no standing to take it.
+
+# dates
+12 March 2019 - the agreement to sell was executed
+04 August 2021 - the suit for specific performance was instituted
+19 January 2024 - the trial court dismissed the suit for non-joinder
+12 November 2024 - the High Court dismissed the first appeal
+
+# issue Whether the suit was liable to be dismissed for non-joinder of the subsequent purchaser
+A subsequent purchaser who holds a prior agreement to sell is a necessary party to a suit for specific performance.
+The plaintiff is dominus litis and cannot be compelled to add a party against whom he does not want to fight.
+
+# issue Whether the delay in approaching the writ court was fatal
+Delay and laches cannot be applied strictly to a writ petition invoking public interest jurisdiction.
+
+# prayer
+allow the appeal and set aside the judgment of the High Court dated 12 November 2024
+restore the suit to the file of the trial court for decision on the merits

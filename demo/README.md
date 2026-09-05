@@ -111,7 +111,26 @@ What was rejected is listed with the reason, which is where the next hour of res
 a key nothing can be *bound* — the gate can still check voice, opinion and treatment, and offers the
 line to read, marked unchecked.
 
-### 7. All of it, in a browser
+### 7. A written submission, assembled
+
+```bash
+uv run orderorder draft demo/plan.txt --docx submission.docx --markdown submission.md
+```
+
+[plan.txt](plan.txt) is the advocate's: the court, the parties, the list of dates, the issues, the
+propositions they mean to argue, the prayer. Everything except the authorities, which is what this
+adds — each proposition goes through the same gate as `argue`, and what comes out is a written
+submission in the format it would be filed in.
+
+What to look at is the sentences that found nothing. They are still there, in place, in red in the
+Word file, because a draft that quietly drops its unsupported propositions reads as though every
+sentence in it is supported, and that is the document the other half of this tool exists to catch.
+The list of authorities is built from what was verified and can contain nothing else, so the two
+cannot drift apart. The appendix gives the paragraph, the subsequent history and the verified words
+behind every citation, plus what was considered and rejected for the ones that failed — which is where
+the next hour of research starts.
+
+### 8. All of it, in a browser
 
 ```bash
 uv run orderorder serve
