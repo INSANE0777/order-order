@@ -1,0 +1,37 @@
+# Everything the build does not need, and two things it must never have.
+#
+# `.env` holds the model keys. A key copied into a layer is published to whoever can pull the image,
+# and `docker history` shows it even after a later layer deletes the file. Keys arrive as environment
+# at run time or they do not arrive.
+#
+# `evals/` and the corpus are state. Baking a 1.2 GB database into an image means rebuilding it to
+# ingest one judgment.
+.env
+.env.*
+!.env.example
+
+.git
+.github
+.venv
+.ruff_cache
+.pytest_cache
+**/__pycache__
+**/*.pyc
+
+tests
+docs
+demo
+evals
+scripts
+infra
+Dockerfile
+.dockerignore
+*.md
+!README.md
+
+# Anything that looks like a corpus or a model, wherever it landed.
+*.sqlite3
+*.sqlite
+*.sqlite3-*
+*.npy
+*.jsonl

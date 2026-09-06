@@ -3,10 +3,18 @@
 #
 #   docker compose -f infra/docker-compose.yml --profile hackathon up -d postgres
 #
+# Serving profile: the engine in a container too, for a box that is not this laptop.
+#
+#   ORDERORDER_API_TOKEN=$(openssl rand -hex 32) \
+#     docker compose -f infra/docker-compose.yml --profile serve up -d
+#
+# The token is required and there is no default for it. `orderorder serve` refuses to bind anything
+# but loopback without one, so a stack brought up with no token set fails at boot rather than
+# publishing nine thousand judgments and a billable model key to whatever can reach the port.
 services:
   postgres:
     image: pgvector/pgvector:pg17
-    profiles: [hackathon, prod]
+    profiles: [hackathon, prod, serve]
     environment:
       POSTGRES_USER: orderorder
       POSTGRES_PASSWORD: orderorder
@@ -20,6 +28,39 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    profiles: [serve]
+    # Published to loopback only. Put a reverse proxy in front of it for anything else, so that TLS
+    # and the token are somebody's explicit decision rather than a port that happened to be open.
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      # No default. Compose substitutes an empty string for an unset variable, and an empty token is
+      # the same as no token, so `serve` refuses to start -- which is the intended failure.
+      ORDERORDER_API_TOKEN: "${ORDERORDER_API_TOKEN:?set a token: openssl rand -hex 32}"
+      ORDERORDER_DATA_DIR: /data
+      # Empty means the SQLite file under /data. Point it at the postgres service to use that instead.
+      DATABASE_URL: "${DATABASE_URL-}"
+      LLM_PRIMARY: "${LLM_PRIMARY-}"
+      LLM_FALLBACKS: "${LLM_FALLBACKS-}"
+      LLM_BASE_URL: "${LLM_BASE_URL-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY-}"
+      GOOGLE_API_KEY: "${GOOGLE_API_KEY-}"
+      GROQ_API_KEY: "${GROQ_API_KEY-}"
+      CEREBRAS_API_KEY: "${CEREBRAS_API_KEY-}"
+    volumes:
+      # The corpus is state and lives outside the image. Read-write because ingestion, the full-text
+      # index and the vector store all write here.
+      - "${ORDERORDER_DATA_DIR:-data}:/data"
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+    restart: unless-stopped
 
   ollama:
     image: ollama/ollama
