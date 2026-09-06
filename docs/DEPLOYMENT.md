@@ -131,6 +131,17 @@ something.
 it mounts at `/data`. Build it on the box, or copy the SQLite file in, and check
 `orderorder stats` before serving.
 
+**Chown the volume, or nothing can write.** The image runs as uid **10001**, not root — a process
+that cannot rewrite its own source is one exploit less. `/data` is created and owned by that user in
+the image, so running with no volume works and a *named* volume inherits the right ownership. A
+**bind** mount does not: the host directory's ownership is what the container sees, and a root-owned
+one leaves the engine unable to write its own corpus. The failure arrives at the first request rather
+than at boot, which makes it look like a bug in the engine.
+
+```bash
+sudo install -d -o 10001 -g 10001 /srv/orderorder-data     # before the first run
+```
+
 **Keys never enter a layer.** No `ARG`, no `COPY` of `.env`, and `.dockerignore` excludes it — a
 secret baked into an image is published to whoever can pull it, and `docker history` shows it even
 after a later layer deletes the file.
