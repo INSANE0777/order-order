@@ -1,0 +1,64 @@
+80 searches over 9,424 judgments, 40 holdings put both ways
+
+Each holding is a sentence a court wrote. It is put to the engine twice: negated, which is
+what the other side argues, and as written, which is what the side relying on it argues.
+Only sentences that state law were drawn; the ones that decide a case are left out.
+
+  proposition                n  source in field  source flagged   leads  seconds
+  the holding, negated      40            100%             55%     2.5      1.2
+  the holding, as written   40            100%              8%     1.4      1.2
+
+The `source flagged` column on the first row is not a finding. The negation that built the
+proposition and the negation the detector reads are the same idea, so a high number there is
+a property of the construction. It is reported because a low one would mean something broke.
+
+What the two rows *do* measure is discrimination, which is the whole question: the same
+paragraph, the same retrieval, and the only difference is the polarity of the sentence put to
+it. A tool that answered the same way to both would be reading the words and not the sense.
+
+  the source paragraph was called contrary ...        
+    for the negated proposition only                  19 of 40
+    for both                                           3
+    for neither                                       18
+    for the court's own words only                     0
+
+The floor: 24 of 40 propositions that are a court's own holding came
+back with a contrary lead from some other judgment, 1.4
+per proposition. Some of those are real, because courts disagree and this corpus holds
+nine thousand of them, so the number is an upper bound on what is wrong rather than a
+count of what is wrong. It is also what a user feels: passages to read for a proposition
+that was never in doubt.
+
+leads returned for a proposition the court itself stated
+  INSC:2016:310 para 11
+    held    The impugned order is accordingly set aside and the appeal is allowed.
+    lead    We, therefore, find no ground to set aside the impugned F order and accordingly uphold the same.
+    from    INSC:2015:82
+  INSC:2015:719 para 24
+    held    The chemical name for charas and hashish is "extracts and tinctures of cannabis".
+    lead    The only drugs for which the entry in column (4) for chemical name is not given in the 2001 notification are ‘natural/plant-based drugs’ namely, Canna
+    from    INSC:2017:583
+  INSC:2018:615 para 23
+    held    However, after an inspection is made, action has to be taken on the basis of the report as provided under the Act and the Regulations by the Central G
+    lead    In case the Central Government does not accept the recommendation, there will be no further action on the recommendation of the Central Board of the B
+    from    INSC:2023:2
+  INSC:2020:249 para 2
+    held    The booster pump/motor installed at ground floor shall be used by both the children without any interference/obstruction by any of them in any manner 
+    lead    The ground floor of the building comprised a parking lot besides three separate rooms on the western side, one of which was used for placing a 500 KVA
+    from    INSC:2014:168
+  INSC:2018:359 para 14
+    held    The discrepancies in the evidence of eyewitnesses, if found not to be minor in nature, may be a ground for disbelieving and discrediting their evidenc
+    lead    Applying these principles, we are of the view that the minor discrepancies in the evidence of the prosecution witnesses are not of such a nature which
+    from    INSC:2021:851
+  INSC:2015:767 para 39
+    held    It will not make a good story for them, but, make the print media to take notice of your affidavit and finally force the hand of amicus and Supreme Co
+    lead    Similarly, the allegation No. (xvii) about failure to take action against the print media has been discarded by the SIT153 being insufficient evidence
+    from    INSC:2022:653
+  INSC:2024:984 para 8
+    held    Therein, it has been held that the exercise of taking out ‘Tanti’ from the EBC (‘Extremely Backward Classes’) list issued under the Bihar Reservation 
+    lead    Parliament may by law include in or exclude from the Central List of socially and educationally backward classes specified in a notification issued un
+    from    INSC:2024:562
+  INSC:2017:1263 para 18
+    held    Similarly, the law also permits the parties to file additional· evidence at any stage of the trial [Order 7 Rule 14 (3)] including at the first or/and
+    lead    The D Trial Court will allow the parties to lead oral evidence to prove additional documentary evidence and then decide the suit afresh on merits stri
+    from    INSC:2017:386

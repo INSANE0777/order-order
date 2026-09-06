@@ -792,6 +792,12 @@ def eval_contrary(
     rng_seed: int = typer.Option(20260904, help="Which judgments get drawn."),
     report: str | None = typer.Option(None, help="Also write the report to this file."),
     examples: bool = typer.Option(True, help="Show the leads returned for a court's own words."),
+    rule_like: bool = typer.Option(
+        True, help="Draw only sentences that state law, not ones that decide a case."
+    ),
+    read: int = typer.Option(
+        0, "--read", help="Also have a model read this many pairs. 0 runs no model at all."
+    ),
 ) -> None:
     """Measure the contrary search: the same holding put both ways, and what comes back.
 
@@ -806,7 +812,11 @@ def eval_contrary(
             console.print("[red]no search index[/red]; run [bold]orderorder index[/bold] first")
             raise typer.Exit(1)
         items = contrary_eval.build_items(
-            session, judgments=judgments, per_judgment=per_judgment, seed_value=rng_seed
+            session,
+            judgments=judgments,
+            per_judgment=per_judgment,
+            seed_value=rng_seed,
+            rule_like=rule_like,
         )
         if not items:
             console.print("[red]no holdings could be drawn[/red]; is there text in the corpus?")
@@ -817,9 +827,25 @@ def eval_contrary(
             if done % 10 == 0 or done == total:
                 console.print(f"  [dim]{done}/{total}[/dim]")
 
-        scored = contrary_eval.run_contrary(session, items, top=top, on_item=progress)
+        scored = contrary_eval.run_contrary(
+            session, items, top=top, rule_like=rule_like, on_item=progress
+        )
 
-    lines = contrary_eval.format_contrary(scored)
+        if read:
+            model = build_structured(OppositionAssessment)
+            if model is None:
+                console.print("[yellow]no language model configured[/yellow]; the reading is skipped")
+            else:
+                console.print(f"[dim]reading {read} pairs, two calls each[/dim]")
+
+                def reading_progress(done: int, total: int) -> None:
+                    console.print(f"  [dim]read {done}/{total}[/dim]")
+
+                contrary_eval.read_pairs(
+                    session, scored, model, limit=read, on_item=reading_progress
+                )
+
+    lines = contrary_eval.format_contrary(scored) + contrary_eval.format_reading(scored)
     if examples:
         lines += ["", *contrary_eval.format_examples(scored)]
     console.print("\n".join(lines))

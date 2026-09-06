@@ -25,6 +25,7 @@ from orderorder.db.models import CitationAlias, Judgment, Opinion
 from orderorder.engine.contrary import (
     ANTONYMS,
     MIN_SHARED_TERMS,
+    RECORD_BOUND,
     antonym_between,
     assess_opposition,
     clauses,
@@ -158,6 +159,22 @@ def test_every_antonym_pair_is_actually_opposed() -> None:
         left = f"The provision in Section 106 of that Act is {first} in every eviction suit."
         right = f"The provision in Section 106 of that Act is {second} in every eviction suit."
         assert opposes(left, right) is not None, f"{first}/{second} did not oppose"
+
+
+def test_a_sentence_about_somebodys_record_is_not_authority() -> None:
+    """A judgment deciding who wins is not stating a rule anybody can argue against.
+
+    This is the rule that removed the recitals from the first measured run: "this appeal arises from
+    the order dated 12.02.2021 by which the appeal ... came to be dismissed on the ground that the
+    appellant had not filed the arbitration petition within the period of limitation" carried every
+    word of a proposition about limitation, with a negation in it, and decided nothing at all.
+    """
+    assert RECORD_BOUND.search("The appellant had not filed the petition within the period.")
+    assert RECORD_BOUND.search("This appeal arises from the order dated 12.02.2021 passed below.")
+    assert RECORD_BOUND.search("The award directs payment of Rs. 25,000 to the workman.")
+    assert RECORD_BOUND.search("In the present case, no notice was served before the suit.")
+    # And a rule stated generally, which is what a contrary authority looks like.
+    assert RECORD_BOUND.search(MANDATORY) is None
 
 
 def test_the_overlap_bar_is_a_count_and_a_share() -> None:

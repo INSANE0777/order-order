@@ -56,8 +56,22 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from orderorder.db.models import Judgment, JudgmentTextVersion
-from orderorder.engine.contrary import ContraryReport, find_contrary
+from orderorder.db.models import Judgment, JudgmentTextVersion, Paragraph
+from orderorder.engine.contrary import (
+    NARROWER,
+    OPPOSITE,
+    RECORD_BOUND,
+    SAME,
+    UNREAD,
+    UNRELATED,
+    ContraryLead,
+    ContraryReport,
+    Opposition,
+    assess_opposition,
+    find_contrary,
+)
+from orderorder.engine.providers import StructuredModel
+from orderorder.engine.search import Authority
 from orderorder.evaluation.generate import collect_seed
 
 OPPOSED = "opposed"
@@ -159,6 +173,11 @@ class ContraryOutcome:
     top_sentence: str | None
     paragraphs_examined: int
     seconds: float
+    # Filled only by `read_pairs`, which is the model half and runs over the source paragraph rather
+    # than over what the search found.
+    reading: str | None = None
+    reading_grounded: bool = False
+    reading_expected: str | None = None
 
     @property
     def source_flagged(self) -> bool:
@@ -170,6 +189,8 @@ class ContraryEvalReport:
     outcomes: list[ContraryOutcome] = field(default_factory=list)
     judgments: int = 0
     corpus_size: int = 0
+    rule_like: bool = True
+    read_by_model: bool = False
 
     def of(self, kind: str) -> list[ContraryOutcome]:
         return [o for o in self.outcomes if o.item.kind == kind]
@@ -186,12 +207,26 @@ class ContraryEvalReport:
 
 
 def build_items(
-    session: Session, *, judgments: int = 40, per_judgment: int = 1, seed_value: int = 20260904
+    session: Session,
+    *,
+    judgments: int = 40,
+    per_judgment: int = 1,
+    seed_value: int = 20260904,
+    rule_like: bool = True,
 ) -> list[ContraryItem]:
     """Draw holdings from the corpus and build the opposed and agreed propositions from each.
 
     The same draw as `evaluation.retrieval` and `evaluation.gate` when given the same seed, so the
     three sit over the same judgments and can be read together.
+
+    `rule_like` keeps only sentences that state law rather than decide a case. Without it the draw
+    contains "the appellant shall deposit the compensation within four weeks", "the chemical name for
+    charas and hashish is extracts and tinctures of cannabis" and every disposition in the corpus --
+    sentences nobody argues, whose negations nobody argues either, and against which any contrary
+    search is measuring its behaviour on inputs it will never see. The filter is `RECORD_BOUND`, the
+    same one the engine applies to candidate sentences, and it is applied to the *proposition* here
+    for the same reason rather than a different one: a sentence about who won is not a proposition of
+    law. It does not touch polarity, which is what the report measures.
     """
     rng = random.Random(seed_value)
     pool = list(
@@ -215,6 +250,8 @@ def build_items(
         for label, sentence in rng.sample(seed.court_sentences, len(seed.court_sentences)):
             if drawn >= per_judgment:
                 break
+            if rule_like and RECORD_BOUND.search(sentence):
+                continue
             opposite = negate(sentence)
             if opposite is None:
                 continue
@@ -267,18 +304,148 @@ def run_item(session: Session, item: ContraryItem, *, top: int = 5) -> ContraryO
 
 
 def run_contrary(
-    session: Session, items: list[ContraryItem], *, top: int = 5, on_item=None
+    session: Session,
+    items: list[ContraryItem],
+    *,
+    top: int = 5,
+    rule_like: bool = True,
+    on_item=None,
 ) -> ContraryEvalReport:
     from orderorder.engine.citator import corpus_size
 
     report = ContraryEvalReport(
-        judgments=len({item.judgment_key for item in items}), corpus_size=corpus_size(session)
+        judgments=len({item.judgment_key for item in items}),
+        corpus_size=corpus_size(session),
+        rule_like=rule_like,
     )
     for index, item in enumerate(items, start=1):
         report.outcomes.append(run_item(session, item, top=top))
         if on_item is not None:
             on_item(index, len(items))
     return report
+
+
+def source_lead(session: Session, item: ContraryItem) -> ContraryLead | None:
+    """The paragraph the holding was lifted from, as a lead, so a model can be asked about it.
+
+    No search is involved. The pair is known: this sentence, that paragraph, and a proposition that
+    is either the sentence negated or the sentence itself.
+    """
+    row = session.execute(
+        select(Paragraph, Judgment)
+        .join(JudgmentTextVersion, Paragraph.text_version_id == JudgmentTextVersion.id)
+        .join(Judgment, JudgmentTextVersion.judgment_id == Judgment.id)
+        .where(
+            Judgment.canonical_key == item.judgment_key,
+            Paragraph.printed_label == item.paragraph_label,
+            JudgmentTextVersion.preferred.is_(True),
+        )
+    ).first()
+    if row is None:
+        return None
+    paragraph, judgment = row
+    authority = Authority(
+        judgment_id=judgment.id,
+        canonical_key=judgment.canonical_key,
+        title=judgment.title,
+        citation=None,
+        court=judgment.court,
+        decided_on=judgment.decided_on.isoformat() if judgment.decided_on else None,
+        bench_strength=judgment.bench_strength,
+        paragraph_label=paragraph.printed_label,
+        paragraph_seq=paragraph.seq,
+        body=paragraph.body,
+        relevance=0.0,
+        score=0.0,
+    )
+    start = paragraph.body.find(item.holding[:60])
+    return ContraryLead(
+        authority=authority,
+        sentence=item.holding,
+        sentence_start=max(0, start),
+        sentence_end=max(0, start) + len(item.holding),
+        opposition=Opposition(
+            kind="known",
+            cue="the item was built from this paragraph",
+            shared_terms=(),
+            proposition_clause=item.query,
+            sentence_clause=item.holding,
+        ),
+    )
+
+
+def read_pairs(
+    session: Session, report: ContraryEvalReport, model: StructuredModel, *, limit: int = 20, on_item=None
+) -> None:
+    """Put the same two texts to the model twice, differing only in the proposition's polarity.
+
+    This is the measurement that says whether a second reading is worth having, and it is built the
+    way it is because of what happened to `engine.challenge`: a model that answers the prompt's lean
+    rather than the texts scores well on positives alone. Here the positive and the negative control
+    are the *same paragraph and the same sentence*. Only the proposition changes, by one word, and
+    the correct answers are opposite and same. A model that says `opposite` to both has told us
+    nothing except that it agrees with whoever is asking.
+    """
+    done = 0
+    for opposed, agreed in report.pairs():
+        if done >= limit:
+            break
+        for outcome, expected in ((opposed, OPPOSITE), (agreed, SAME)):
+            lead = source_lead(session, outcome.item)
+            if lead is None:
+                continue
+            reading = assess_opposition(outcome.item.query, lead, model)
+            outcome.reading = reading.relation
+            outcome.reading_grounded = reading.grounded
+            outcome.reading_expected = expected
+        done += 1
+        if on_item is not None:
+            on_item(done, min(limit, len(report.pairs())))
+    report.read_by_model = True
+
+
+def format_reading(report: ContraryEvalReport) -> list[str]:
+    """What the model made of the pairs, positives and controls counted together."""
+    read = [o for o in report.outcomes if o.reading is not None]
+    if not read:
+        return []
+    lines = [
+        "",
+        "The second reading, over the same paragraph and the same sentence, with only the",
+        "proposition's polarity changed. The correct answers are `opposite` for the negated",
+        "proposition and `same` for the court's own words.",
+        "",
+        f"  {'proposition':<24}{'n':>4}{'opposite':>10}{'narrower':>10}{'same':>8}"
+        f"{'unrelated':>11}{'unread':>8}{'grounded':>10}",
+    ]
+    for kind in KINDS:
+        outcomes = [o for o in report.of(kind) if o.reading is not None]
+        if not outcomes:
+            continue
+        n = len(outcomes)
+        counts = {
+            relation: sum(1 for o in outcomes if o.reading == relation)
+            for relation in (OPPOSITE, NARROWER, SAME, UNRELATED, UNREAD)
+        }
+        lines.append(
+            f"  {KIND_NAMES[kind]:<24}{n:>4}"
+            f"{counts[OPPOSITE]:>10}{counts[NARROWER]:>10}{counts[SAME]:>8}"
+            f"{counts[UNRELATED]:>11}{counts[UNREAD]:>8}"
+            f"{sum(1 for o in outcomes if o.reading_grounded):>10}"
+        )
+
+    correct = sum(1 for o in read if o.reading == o.reading_expected)
+    agreed_opposite = sum(1 for o in report.of(AGREED) if o.reading == OPPOSITE)
+    lines += [
+        "",
+        f"{correct} of {len(read)} answers were the expected one.",
+        f"{agreed_opposite} of the {len(report.of(AGREED))} controls -- where the proposition is the",
+        "sentence itself -- came back as `opposite`. That is the number to read first. A model that",
+        "calls a sentence the opposite of a proposition copied out of it is answering the question it",
+        "was asked to look for rather than the two texts in front of it, and no positive score it",
+        "produces means anything.",
+    ]
+    return lines
 
 
 def format_contrary(report: ContraryEvalReport) -> list[str]:
@@ -290,6 +457,12 @@ def format_contrary(report: ContraryEvalReport) -> list[str]:
         "",
         "Each holding is a sentence a court wrote. It is put to the engine twice: negated, which is",
         "what the other side argues, and as written, which is what the side relying on it argues.",
+        (
+            "Only sentences that state law were drawn; the ones that decide a case are left out."
+            if report.rule_like
+            else "Every court sentence was drawn, including the ones that decide a case rather than"
+            " state law."
+        ),
         "",
         f"  {'proposition':<24}{'n':>4}{'source in field':>17}{'source flagged':>16}{'leads':>8}"
         f"{'seconds':>9}",
@@ -353,7 +526,12 @@ def format_contrary(report: ContraryEvalReport) -> list[str]:
 
 def format_examples(report: ContraryEvalReport, limit: int = 8) -> list[str]:
     """What came back for the court's own words, which is where the false leads are."""
-    lines = ["leads returned for a proposition the court itself stated"]
+    lines = [
+        "leads returned for a proposition the court itself stated",
+        "  (several of these answer a sentence that is not a proposition of law at all -- a",
+        "   disposition, a chemical name, an order about a booster pump. Propositions drawn from",
+        "   arbitrary court sentences are part of why the floor above is an upper bound.)",
+    ]
     shown = 0
     for outcome in report.of(AGREED):
         if not outcome.leads or shown >= limit:
@@ -369,7 +547,7 @@ def format_examples(report: ContraryEvalReport, limit: int = 8) -> list[str]:
 
 
 def write_report(report: ContraryEvalReport, path: Path, *, examples: bool = True) -> None:
-    lines = format_contrary(report)
+    lines = format_contrary(report) + format_reading(report)
     if examples:
         lines += ["", *format_examples(report)]
     path.parent.mkdir(parents=True, exist_ok=True)

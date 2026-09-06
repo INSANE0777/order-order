@@ -404,6 +404,30 @@ FRAMING = re.compile(
 )
 
 
+# A sentence tied to somebody's record rather than to the law. The commonest false lead the first
+# measured run produced was one of these: against a draft arguing that a defendant could claim no
+# right to use a driveway from the front side, the engine offered "Front skull bone, right side skull
+# bone, Tibia, Febulas left and right both were found broken." Four shared words, all of them
+# ordinary, and a finding of fact from an entirely different case.
+#
+# A judgment that decides who wins is not stating a rule anybody can argue against, so a sentence
+# naming a party, a date or a sum of money is not a contrary authority even when its polarity is
+# opposite. This costs the occasional real lead -- a court does sometimes state the rule and apply it
+# in one sentence -- and buys a list a person will read to the end.
+RECORD_BOUND = re.compile(
+    r"""(?ix)
+      \b dated? \s+ \d
+    | \b \d{1,2} [./-] \d{1,2} [./-] \d{2,4} \b
+    | \b(?: rs | inr ) \.? \s* \d
+    | ₹
+    | \b in \s+ th(?: e \s+ (?: present | instant ) | is ) \s+
+        (?: case | matter | appeal | appeals | facts | petition | proceedings )
+    | \b(?: appellant | respondent | petitioner | plaintiff | defendant | complainant
+          | accused | applicant | claimant ) s? \b
+    """
+)
+
+
 @dataclass(frozen=True)
 class Clause:
     """One clause of a sentence, and the joint that introduced it."""
@@ -604,13 +628,15 @@ def contrary_queries(proposition: str) -> list[str]:
 def _sentence_leads(proposition: str, authority: Authority) -> ContraryLead | None:
     """The first sentence of a retrieved paragraph that reads against the proposition.
 
-    Two kinds of sentence are passed over before the polarity test runs at all, and both would
-    otherwise be found constantly, because both carry the proposition's words with the opposite sign:
+    Four kinds of sentence are passed over before the polarity test runs at all, and each would
+    otherwise be found constantly, because each carries a proposition's words with the opposite sign:
 
       * a question, which decides nothing -- see `FRAMING`;
+      * a sentence about somebody's record rather than about the law -- see `RECORD_BOUND`;
       * a sentence inside a block quotation, which is an earlier court speaking. `engine.search` has
         already dropped paragraphs that are somebody else's words, but a paragraph can be the court's
-        own and still quote three sentences of the judgment under appeal in the middle of it.
+        own and still quote three sentences of the judgment under appeal in the middle of it;
+      * a table with full stops in it, which the reports produce and a splitter cannot help.
     """
     for sentence, offset in split_sentences(authority.body):
         if len(sentence.split()) > MAX_SENTENCE_WORDS:
@@ -618,7 +644,9 @@ def _sentence_leads(proposition: str, authority: Authority) -> ContraryLead | No
             # reports as one run of two hundred words with a full stop at the end, and one of them
             # contains a negation for every line it has.
             continue
-        if FRAMING.search(sentence) or inside_quotation(authority.body, offset):
+        if FRAMING.search(sentence) or RECORD_BOUND.search(sentence):
+            continue
+        if inside_quotation(authority.body, offset):
             continue
         opposition = opposes(proposition, sentence)
         if opposition is not None:
