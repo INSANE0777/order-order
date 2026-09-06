@@ -174,8 +174,12 @@ main { max-width: 1240px; margin: 0 auto; padding: 26px 32px 72px; }
   margin-bottom: -1px;
   transition: color .15s ease, border-color .15s ease;
 }
-.tabs button:hover { color: var(--ink); }
-.tabs button.on { color: var(--ink); border-bottom-color: var(--seal); font-weight: 600; }
+/* `.tabs button` and the generic `button:hover` have the same specificity, and the generic block is
+ * declared later, so without saying so here a hovered tab takes the primary button's oxblood fill.
+ * A tab is not a button you press, it is a place you are. */
+.tabs button:hover { color: var(--ink); background: none; }
+.tabs button:active { transform: none; }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--seal); font-weight: 600; background: none; }
 .tabs button:focus-visible { outline: 2px solid var(--seal); outline-offset: 2px; border-radius: 2px; }
 
 /* ---------- cards ---------- */
