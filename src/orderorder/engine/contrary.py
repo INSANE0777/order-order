@@ -404,16 +404,23 @@ FRAMING = re.compile(
 )
 
 
-# A sentence tied to somebody's record rather than to the law. The commonest false lead the first
-# measured run produced was one of these: against a draft arguing that a defendant could claim no
-# right to use a driveway from the front side, the engine offered "Front skull bone, right side skull
-# bone, Tibia, Febulas left and right both were found broken." Four shared words, all of them
-# ordinary, and a finding of fact from an entirely different case.
+# A sentence tied to somebody's record rather than to the law. A judgment that decides who wins is not
+# stating a rule anybody can argue against, so a sentence naming a party, a date or a sum of money is
+# not a contrary authority even when its polarity is opposite.
 #
-# A judgment that decides who wins is not stating a rule anybody can argue against, so a sentence
-# naming a party, a date or a sum of money is not a contrary authority even when its polarity is
-# opposite. This costs the occasional real lead -- a court does sometimes state the rule and apply it
-# in one sentence -- and buys a list a person will read to the end.
+# What this removed from the first measured run were the procedural recitals: "this appeal arises from
+# the order dated 12.02.2021 by which the appeal ... came to be dismissed on the ground that the
+# appellant had not filed the arbitration petition ... within the period of limitation" carries every
+# word of a proposition about limitation, has a negation in it, and decides nothing at all.
+#
+# It costs the occasional real lead, because a court does sometimes state a rule and apply it in one
+# sentence, and it buys a list a person will read to the end.
+#
+# The other half of the same problem is not solved here and cannot be: against a proposition that was
+# itself about a record -- a defendant claiming no right to use a driveway from the front side -- the
+# engine offered "Front skull bone, right side skull bone, Tibia, Febulas left and right both were
+# found broken", on four shared ordinary words. Neither sentence was a proposition of law. The
+# evaluation stopped drawing such propositions; a user who types one gets what they typed.
 RECORD_BOUND = re.compile(
     r"""(?ix)
       \b dated? \s+ \d

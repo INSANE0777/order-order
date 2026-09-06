@@ -798,6 +798,9 @@ def eval_contrary(
     read: int = typer.Option(
         0, "--read", help="Also have a model read this many pairs. 0 runs no model at all."
     ),
+    pace: float = typer.Option(
+        0.0, help="Seconds between model calls. A free tier at 10 a minute wants 7."
+    ),
 ) -> None:
     """Measure the contrary search: the same holding put both ways, and what comes back.
 
@@ -842,7 +845,7 @@ def eval_contrary(
                     console.print(f"  [dim]read {done}/{total}[/dim]")
 
                 contrary_eval.read_pairs(
-                    session, scored, model, limit=read, on_item=reading_progress
+                    session, scored, model, limit=read, pace=pace, on_item=reading_progress
                 )
 
     lines = contrary_eval.format_contrary(scored) + contrary_eval.format_reading(scored)

@@ -21,9 +21,12 @@ from orderorder.evaluation.contrary import (
     ContraryItem,
     build_items,
     format_contrary,
+    format_reading,
     negate,
+    read_pairs,
     run_contrary,
     run_item,
+    source_lead,
 )
 from orderorder.ingest.pdf import ExtractedJudgment
 from orderorder.ingest.store import store_extracted
@@ -175,6 +178,55 @@ def test_the_source_paragraph_is_retrieved_either_way(corpus) -> None:
     for query, kind in ((negate(HOLDING), OPPOSED), (HOLDING, AGREED)):
         outcome = run_item(corpus, ContraryItem("INSC:2019:1", "3", HOLDING, query, kind))
         assert outcome.source_retrieved, kind
+
+
+class StubModel:
+    """Answers the same relation to everything, which is the failure the control exists to catch."""
+
+    def __init__(self, *relations: str):
+        self.relations = list(relations)
+        self.calls = 0
+
+    def invoke(self, prompt: str):
+        from orderorder.engine.schemas import OppositionAssessment
+
+        relation = self.relations[min(self.calls, len(self.relations) - 1)]
+        self.calls += 1
+        # A quote that will ground: the prompt carries the paragraph, so copy from it.
+        line = prompt.split("copied from paragraph")[-1].split("\n")[1] if "copied from" in prompt else ""
+        return OppositionAssessment(relation=relation, quote=line.strip() or None)
+
+
+def test_the_source_paragraph_is_found_without_a_search(corpus) -> None:
+    """The pair is known: this sentence, that paragraph. Nothing needs retrieving to ask about it."""
+    item = ContraryItem("INSC:2019:1", "3", HOLDING, negate(HOLDING), OPPOSED)
+    lead = source_lead(corpus, item)
+    assert lead is not None
+    assert lead.sentence == HOLDING
+    assert HOLDING in lead.authority.body
+    assert lead.authority.canonical_key == "INSC:2019:1"
+
+
+def test_a_model_that_says_opposite_to_everything_is_caught(corpus) -> None:
+    """The whole point of the control: it scores 1 of 2, and the report names the half it failed."""
+    items = build_items(corpus, judgments=2, per_judgment=1)
+    report = run_contrary(corpus, items)
+    read_pairs(corpus, report, StubModel("opposite"), limit=1)
+
+    text = "\n".join(format_reading(report))
+    assert "1 of 2 answers were the expected one" in text
+    assert "of the 1 controls" in text or "controls" in text
+    read = [o for o in report.outcomes if o.reading is not None]
+    assert [o.reading for o in read] == ["opposite", "opposite"]
+    assert sum(1 for o in read if o.reading == o.reading_expected) == 1
+
+
+def test_a_model_that_reads_the_texts_scores_both(corpus) -> None:
+    items = build_items(corpus, judgments=2, per_judgment=1)
+    report = run_contrary(corpus, items)
+    read_pairs(corpus, report, StubModel("opposite", "same"), limit=1)
+    read = [o for o in report.outcomes if o.reading is not None]
+    assert sum(1 for o in read if o.reading == o.reading_expected) == 2
 
 
 def test_the_report_says_which_number_is_circular(corpus) -> None:

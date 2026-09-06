@@ -375,7 +375,13 @@ def source_lead(session: Session, item: ContraryItem) -> ContraryLead | None:
 
 
 def read_pairs(
-    session: Session, report: ContraryEvalReport, model: StructuredModel, *, limit: int = 20, on_item=None
+    session: Session,
+    report: ContraryEvalReport,
+    model: StructuredModel,
+    *,
+    limit: int = 20,
+    pace: float = 0.0,
+    on_item=None,
 ) -> None:
     """Put the same two texts to the model twice, differing only in the proposition's polarity.
 
@@ -385,8 +391,13 @@ def read_pairs(
     are the *same paragraph and the same sentence*. Only the proposition changes, by one word, and
     the correct answers are opposite and same. A model that says `opposite` to both has told us
     nothing except that it agrees with whoever is asking.
+
+    `pace` is seconds between calls, for the reason it exists in `evaluation.run`: a free tier
+    answering ten requests a minute turns an unpaced run into a blend of whatever the fallback chain
+    reached, and a run whose numbers describe a mixture is not a measurement.
     """
     done = 0
+    calls = 0
     for opposed, agreed in report.pairs():
         if done >= limit:
             break
@@ -394,6 +405,9 @@ def read_pairs(
             lead = source_lead(session, outcome.item)
             if lead is None:
                 continue
+            if pace and calls:
+                time.sleep(pace)
+            calls += 1
             reading = assess_opposition(outcome.item.query, lead, model)
             outcome.reading = reading.relation
             outcome.reading_grounded = reading.grounded
