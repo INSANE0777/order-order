@@ -231,7 +231,9 @@ def _appendix_entry(point: Point, number: int) -> list[Block]:
         lines = [f"{number}. {chosen.authority.title}", f"   {chosen.pinpoint}"]
         treatment = chosen.authority.treatment or (chosen.verdict.treatment if chosen.verdict else None)
         if treatment is not None:
-            lines.append("   subsequent history: " + treatment.status.replace("_", " "))
+            # `describe`, not `status`. "good law" for a judgment nothing has ever cited reads
+            # as a finding, and in this corpus that is four authorities in five.
+            lines.append("   subsequent history: " + treatment.describe())
         if binding.quote:
             lines.append('   verified words: "' + binding.quote.strip() + '"')
         elif chosen.authority.line:

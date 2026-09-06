@@ -111,6 +111,32 @@ it stay here.
 
 `uv run pytest` runs the suite; it uses an in-memory database and never touches the network.
 
+### On a box that is not this laptop
+
+```bash
+docker build -t orderorder .
+ORDERORDER_API_TOKEN=$(openssl rand -hex 32) \
+  ORDERORDER_DATA_DIR=/srv/orderorder-data \
+  docker compose -f infra/docker-compose.yml --profile serve up -d
+```
+
+Two things stay outside the image, and both are deliberate. **The corpus**, because 1.2 GB of SQLite
+is state that outlives any version of this code and baking it in would mean rebuilding the image to
+ingest one judgment; it arrives as a volume at `/data`. **Keys**, because a key in a layer is a key
+published to everyone who can pull the image, and `docker history` shows it even after a later layer
+deletes the file; they arrive as environment at run time.
+
+The token is required and has no default. A container publishes a port by definition, so the
+in-process rule — bound to anything but loopback, a bearer token or the server does not start — is
+what stands between a `docker compose up` and nine thousand judgments, an upload endpoint and a
+billable model key answering to whatever can route to the host. Compose substitutes an empty string
+for a variable nobody set, an empty token is no token, and `serve` refuses to boot. The stack fails
+at start rather than coming up open, which is the whole intent: an open server looks exactly like a
+closed one until somebody finds it.
+
+The published port is `127.0.0.1:8000`. Anything beyond that host wants a reverse proxy in front,
+so that TLS is somebody's decision rather than a port that happened to be open.
+
 ### What it scores
 
 The engine is measured in all three directions, against ground truth the corpus supplies rather than

@@ -46,10 +46,10 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
+# The page is data inside the package, and hatchling ships every file under a packaged directory. A
+# force-include of the same directory adds it a second time and the build fails outright, which is
+# how the container build first found this.
 packages = ["src/orderorder"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"src/orderorder/web/static" = "orderorder/web/static"
 
 [tool.ruff]
 line-length = 110

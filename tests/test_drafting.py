@@ -266,7 +266,33 @@ def test_the_appendix_carries_the_words_that_were_verified() -> None:
     appendix = to_markdown(draft).split("APPENDIX: VERIFICATION")[1]
     assert 'verified words: "mandatory before eviction"' in appendix
     assert "(2019) 4 SCC 118, para 12" in appendix
-    assert "subsequent history: good law" in appendix
+
+
+def test_an_authority_nothing_has_cited_is_not_called_good_law() -> None:
+    """`status` is `good_law` whether forty benches followed it or nothing ever cited it.
+
+    Only the first is a finding, and 79% of this corpus is the second. Printing the status alone turns
+    "we found nothing against it" into "we checked and it is sound", in the appendix a lawyer reads
+    before signing.
+    """
+    treatment = TreatmentReport(judgment_id="j1", status="good_law", citing_count=0)
+    draft = assemble(
+        parse_plan(PLAN),
+        {NOTICE + ".": _bound(NOTICE + ".", "mandatory before eviction", treatment=treatment)},
+    )
+    appendix = to_markdown(draft).split("APPENDIX: VERIFICATION")[1]
+    assert "no citing judgment in the corpus" in appendix
+    assert "subsequent history: good law;" not in appendix
+
+
+def test_an_authority_later_judgments_have_followed_is_called_good_law() -> None:
+    treatment = TreatmentReport(judgment_id="j1", status="good_law", citing_count=7)
+    draft = assemble(
+        parse_plan(PLAN),
+        {NOTICE + ".": _bound(NOTICE + ".", "mandatory before eviction", treatment=treatment)},
+    )
+    appendix = to_markdown(draft).split("APPENDIX: VERIFICATION")[1]
+    assert "good law; 7 later judgment(s) cite it, none negatively" in appendix
 
 
 def test_a_refusal_names_what_was_looked_at_and_rejected() -> None:

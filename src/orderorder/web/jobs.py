@@ -214,7 +214,11 @@ def as_json(verdict: CitationVerdict) -> dict:
         },
         "treatment": None if verdict.treatment is None else {
             "status": verdict.treatment.status,
+            "described": verdict.treatment.describe(),
             "note": verdict.treatment.note,
             "doubtful": verdict.treatment.is_doubtful,
+            # The page shows a green badge on `good_law`. Two very different situations wear it, and
+            # only one of them was checked.
+            "unchecked": verdict.treatment.is_unchecked,
         },
     }

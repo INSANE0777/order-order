@@ -289,6 +289,28 @@ class TreatmentReport:
         return self.status == UNDERMINED
 
     @property
+    def is_unchecked(self) -> bool:
+        """Good law by default rather than by evidence: nothing in the corpus has cited it.
+
+        `status` is `good_law` in two very different situations -- a judgment forty later benches have
+        followed, and one nothing has ever cited -- and only the first is a finding. The note has said
+        so all along; this is the same fact in a form a caller can branch on, because a caller that
+        prints `status` alone turns "we found nothing against it" into "we checked and it is sound".
+
+        It matters more here than the wording suggests. 79% of this corpus has never been cited by
+        anything in it, so the second situation is the common one.
+        """
+        return self.status == GOOD_LAW and not self.citing_count
+
+    def describe(self) -> str:
+        """The status as a phrase that does not claim more than was established."""
+        if self.is_unchecked:
+            return "no citing judgment in the corpus, so nothing is known either way"
+        if self.status == GOOD_LAW:
+            return f"good law; {self.citing_count} later judgment(s) cite it, none negatively"
+        return self.status.replace("_", " ")
+
+    @property
     def worst(self) -> TreatmentEdge | None:
         for label in ("overruled", "reversed", "partly_overruled", "referred_to_larger_bench", "doubted"):
             for edge in self.edges:
