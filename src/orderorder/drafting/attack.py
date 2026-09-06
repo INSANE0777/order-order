@@ -16,7 +16,8 @@ So the attacks here are precisely the ones the gate cannot make:
     the draft did not cite. This is a lead and is written as one: all that is known is that it matched
     the same words. It is still the first thing an opponent's researcher will find.
   * **Thin.** An authority no later judgment in the corpus has cited at all. Not a defect. Something an
-    opponent will say out loud.
+    opponent will say out loud -- but only where being uncited is unusual, which in this corpus it is
+    not, so the check measures the graph before it trusts it. See `MIN_CITED_SHARE`.
   * **Narrowed.** The court stated the point more narrowly than the advocate wanted, the draft says so,
     and the opponent will say it louder.
   * **Unsupported.** The propositions carrying no verified authority. These are already marked in the
@@ -32,8 +33,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
+from orderorder.db.models import CitationEdge, Judgment
 from orderorder.drafting.assemble import Draft, Point
 from orderorder.engine.authority import NARROWED
 from orderorder.engine.search import Authority, find_authorities, index_exists
@@ -52,6 +55,13 @@ ORDER = [UNSUPPORTED, DISTINGUISHED, OUTRANKED, NARROWED_ATTACK, THIN]
 # retrieval score has usually fallen far enough that a bench-strength comparison is comparing a
 # holding with a passing mention.
 FIELD = 8
+# Below this share of the corpus ever being cited by anything else in it, "nothing has cited this
+# authority" is the ordinary state of a judgment rather than a fact about the one in hand. Measured on
+# the corpus as it stands: 8,716 edges over 9,429 judgments, and 79% of them have never been cited. At
+# that density the observation fired on four authorities in five and told an advocate nothing, which
+# is worse than not firing -- a section of noise is a section that gets skipped, taking the real
+# attacks with it.
+MIN_CITED_SHARE = 0.5
 # What the gate never looks at, whatever the model says, because it has no way to. Said once, at the
 # foot of the section, because a list of attacks that stops here reads as though this is all of them.
 NOT_CHECKED = (
@@ -73,9 +83,29 @@ class Attack:
     fix: str
 
 
+def cited_share(session: Session) -> float:
+    """What share of the corpus has ever been cited by something else in the corpus.
+
+    The denominator for every claim this module makes about a citation graph. Cheap -- one count over
+    a table with a few thousand rows -- and it decides whether "nothing has cited this" is a finding
+    or a description of the corpus.
+    """
+    judgments = session.scalar(select(func.count()).select_from(Judgment)) or 0
+    if not judgments:
+        return 0.0
+    cited = (
+        session.scalar(
+            select(func.count(distinct(CitationEdge.cited_id))).where(CitationEdge.cited_id.is_not(None))
+        )
+        or 0
+    )
+    return cited / judgments
+
+
 def attack_draft(session: Session, draft: Draft) -> list[Attack]:
     """Every attack the gate could not make, worst first."""
     attacks: list[Attack] = []
+    informative = cited_share(session) >= MIN_CITED_SHARE
     for point in draft.points:
         if not point.is_cited:
             attacks.append(_unsupported(point))
@@ -84,7 +114,8 @@ def attack_draft(session: Session, draft: Draft) -> list[Attack]:
         attacks.extend(_outranked(session, point))
         if point.status == NARROWED:
             attacks.append(_narrowed(point))
-        attacks.extend(_thin(point))
+        if informative:
+            attacks.extend(_thin(point))
     return sorted(attacks, key=lambda a: ORDER.index(a.kind))
 
 

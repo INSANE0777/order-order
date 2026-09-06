@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from orderorder.drafting.plan import Issue, Plan
 from orderorder.engine.authority import BOUND, NARROWED, REFUSED, UNCHECKED, Binding
 from orderorder.engine.hierarchy import HIGH_COURT, SUPREME_COURT, court_of
+from orderorder.ingest.metadata import tidy_title
 
 # Court order in the table of authorities: the Supreme Court first, then High Courts, then anything
 # whose court could not be read. Within a court, oldest first, which is how a line of authority reads.
@@ -106,7 +107,10 @@ class AuthorityEntry:
     def render(self) -> str:
         paragraphs = ", ".join(self.paragraphs)
         tail = f" (para{'s' if len(self.paragraphs) > 1 else ''} {paragraphs})" if paragraphs else ""
-        return f"{self.title}, {self.citation}{tail}"
+        # `ingest.metadata` tidies this on the way in; the guard is here because a corpus imported
+        # before that fix still holds eighteen titles ending in a bare "versus", and a table of
+        # authorities is the last place to show one.
+        return f"{tidy_title(self.title)}, {self.citation}{tail}"
 
 
 @dataclass

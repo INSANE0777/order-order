@@ -16,11 +16,13 @@ from orderorder.db.models import CitationAlias, CitationEdge, Judgment
 from orderorder.drafting.assemble import Point, assemble
 from orderorder.drafting.attack import (
     DISTINGUISHED,
+    MIN_CITED_SHARE,
     NOT_CHECKED,
     OUTRANKED,
     THIN,
     UNSUPPORTED,
     attack_draft,
+    cited_share,
 )
 from orderorder.drafting.plan import parse_plan
 from orderorder.drafting.render import to_markdown
@@ -98,6 +100,21 @@ def corpus(session):
     return session
 
 
+@pytest.fixture
+def well_cited(corpus):
+    """A corpus where being uncited is unusual, so the thin attack has something to stand on.
+
+    Two judgments and an edge between them: half the corpus has been cited, which clears
+    `MIN_CITED_SHARE`. The real corpus does not clear it -- 79% of it has never been cited -- and
+    `test_a_sparse_citation_graph_says_nothing` is that case.
+    """
+    alpha = corpus.query(Judgment).filter_by(canonical_key="INSC:2019:1").one()
+    gamma = corpus.query(Judgment).filter_by(canonical_key="INSC:2022:9").one()
+    corpus.add(CitationEdge(citing_id=gamma.id, cited_id=alpha.id, treatment="referred"))
+    corpus.commit()
+    return corpus
+
+
 def _authority(session=None, key: str = "INSC:2019:1", **kwargs) -> Authority:
     judgment_id = "j1"
     if session is not None:
@@ -167,15 +184,30 @@ def test_a_case_held_inapplicable_on_its_facts_is_an_attack_not_a_defect(session
     assert "2023" in attacks[0].says
 
 
-def test_an_authority_nobody_has_cited_is_worth_saying_out_loud(session) -> None:
+def test_an_authority_nobody_has_cited_is_worth_saying_out_loud(well_cited) -> None:
     treatment = TreatmentReport(judgment_id="j1", status="good_law", citing_count=0)
     draft = _bound_draft(_authority(treatment=treatment))
-    assert [a.kind for a in attack_draft(session, draft) if a.kind == THIN]
+    assert [a.kind for a in attack_draft(well_cited, draft) if a.kind == THIN]
 
 
-def test_a_well_cited_authority_is_not_called_thin(session) -> None:
+def test_a_sparse_citation_graph_says_nothing_about_one_authority(corpus) -> None:
+    """The bug this guard exists for.
+
+    `corpus` has two judgments and no edges, so nothing in it has ever been cited -- which is the
+    shape of the real corpus, where 8,716 edges over 9,429 judgments leave 79% never cited. At that
+    density "no later judgment has cited this" describes the corpus, not the authority, and it fired
+    on four authorities in five. A section of noise is a section that gets skipped, and it takes the
+    real attacks with it.
+    """
+    treatment = TreatmentReport(judgment_id="j1", status="good_law", citing_count=0)
+    draft = _bound_draft(_authority(corpus, treatment=treatment))
+    assert cited_share(corpus) < MIN_CITED_SHARE
+    assert not [a for a in attack_draft(corpus, draft) if a.kind == THIN]
+
+
+def test_a_well_cited_authority_is_not_called_thin(well_cited) -> None:
     draft = _bound_draft(_authority())
-    assert not [a for a in attack_draft(session, draft) if a.kind == THIN]
+    assert not [a for a in attack_draft(well_cited, draft) if a.kind == THIN]
 
 
 def test_a_larger_bench_on_the_same_words_is_surfaced_as_a_lead(corpus) -> None:
@@ -260,10 +292,10 @@ def test_every_attack_names_the_proposition_it_is_about(session) -> None:
         assert attack.fix
 
 
-def test_a_point_that_is_cited_carries_its_pinpoint_into_the_attack(session) -> None:
+def test_a_point_that_is_cited_carries_its_pinpoint_into_the_attack(well_cited) -> None:
     treatment = TreatmentReport(judgment_id="j1", status="good_law", citing_count=0)
     draft = _bound_draft(_authority(treatment=treatment))
-    thin = [a for a in attack_draft(session, draft) if a.kind == THIN][0]
+    thin = [a for a in attack_draft(well_cited, draft) if a.kind == THIN][0]
     assert thin.citation == "(2019) 4 SCC 118, para 2"
 
 

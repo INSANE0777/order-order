@@ -52,6 +52,20 @@ class ImportStats:
         }
 
 
+# A cause title with nothing after the "versus". The open data carries eighteen of them and they are
+# all the same shape: a suo motu or reference matter -- "IN RE : SECTION 6A OF THE CITIZENSHIP ACT
+# 1955 versus" -- which has a subject and no respondent. Left alone it reaches the table of
+# authorities in a draft as "... versus," which reads as a bug in the tool rather than in the data.
+DANGLING_VERSUS = re.compile(r"(?i)\s+(?:versus|vs\.?|v\.)\s*$")
+
+
+def tidy_title(title: str | None) -> str | None:
+    """A cause title with no party dangling off the end of it."""
+    if not title:
+        return title
+    return DANGLING_VERSUS.sub("", title).strip() or title
+
+
 def parse_judges(raw: str | None) -> list[str]:
     """Split the judge field into names. Bench strength is the length of this list."""
     if not raw or not str(raw).strip():
@@ -101,7 +115,7 @@ def row_to_judgment(row: pd.Series) -> tuple[Judgment, list[tuple[str, str, str]
         return None
 
     judges = parse_judges(_clean(row.get("judge")))
-    title = _clean(row.get("title"))
+    title = tidy_title(_clean(row.get("title")))
     if not title:
         petitioner = _clean(row.get("petitioner")) or "Unknown"
         respondent = _clean(row.get("respondent")) or "Unknown"
