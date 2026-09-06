@@ -1,0 +1,464 @@
+/* OrderOrder — the look of a law report, and the manners of one.
+ *
+ * The reference is not a dashboard. It is the printed page an advocate already trusts: a Supreme
+ * Court Report, set in a serif, ruled with hairlines, generous in the margin and severe about
+ * hierarchy. Everything here follows from that, because the product's whole claim is that it will not
+ * overstate, and a page that looks like a growth-metrics dashboard is overstating before it has said
+ * anything.
+ *
+ * Three rules the palette obeys:
+ *
+ *   1. Ink on paper, not text on a surface. The light theme is warm bone rather than #fff, because a
+ *      law report is printed on stock and because a pure-white field beside a serif reads clinical.
+ *   2. Colour means a finding. The greens and reds are reserved for grades and flags; nothing
+ *      decorative is allowed to borrow them, or a red would stop meaning "this citation is wrong".
+ *   3. Three states, three treatments. Supported, checked-and-not-supported, and not-checked are the
+ *      distinction the engine exists to keep, so "not checked" gets its own muted, hatched-looking
+ *      badge rather than a paler version of a failure.
+ *
+ * No inline style attributes anywhere, in this file's markup or in what app.js builds. That is what
+ * lets the Content-Security-Policy be `style-src 'self'` with no `unsafe-inline`, which is asserted in
+ * tests/test_hardening.py.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --paper: #f7f4ee;
+  --paper-raised: #fffdf8;
+  --ink: #1a1714;
+  --ink-soft: #45403a;
+  --muted: #6b645b;
+  --faint: #918a80;
+  --rule: #ddd6c9;
+  --rule-strong: #c6bdac;
+
+  /* Oxblood: the colour of a bound reporter's spine. Used for the mark, and for nothing else. */
+  --seal: #7b2233;
+  --seal-soft: #a33c4e;
+
+  --good: #2f6b45;
+  --good-bg: #e6efe7;
+  --warn: #8a5a12;
+  --warn-bg: #f6eddb;
+  --bad: #9d2f28;
+  --bad-bg: #f6e5e2;
+  --unchecked: #6b645b;
+  --unchecked-bg: #ebe6dc;
+
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --sans: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+
+  --radius: 3px;
+  --shadow: 0 1px 2px rgba(26, 23, 20, .05), 0 8px 24px -12px rgba(26, 23, 20, .12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #14120f;
+    --paper-raised: #1c1a16;
+    --ink: #ece7dd;
+    --ink-soft: #cbc4b8;
+    --muted: #9a9287;
+    --faint: #756e64;
+    --rule: #2c2822;
+    --rule-strong: #413b32;
+
+    --seal: #c9697a;
+    --seal-soft: #d98a98;
+
+    --good: #7fbf95;
+    --good-bg: #1b2a20;
+    --warn: #d3a253;
+    --warn-bg: #2a2216;
+    --bad: #e08b82;
+    --bad-bg: #2c1c1a;
+    --unchecked: #9a9287;
+    --unchecked-bg: #23201b;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .6);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- masthead ---------- */
+
+header {
+  border-bottom: 1px solid var(--rule-strong);
+  background: var(--paper-raised);
+  padding: 20px 32px 16px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: -.015em;
+}
+
+/* The rule under the mark is the reporter's device: a short heavy stroke, not a full border. */
+header h1 .mark {
+  position: relative;
+  padding-bottom: 6px;
+  color: var(--seal);
+}
+header h1 .mark::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 34px;
+  height: 2px;
+  background: var(--seal);
+}
+
+header h1 span.strap {
+  font-size: 15px;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--muted);
+  margin-left: 10px;
+}
+
+#status {
+  font-family: var(--sans);
+  font-size: 12px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: var(--paper);
+}
+
+main { max-width: 1240px; margin: 0 auto; padding: 26px 32px 72px; }
+
+/* ---------- tabs ---------- */
+
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--rule); margin-bottom: 22px; }
+
+.tabs button {
+  appearance: none;
+  border: 0;
+  background: none;
+  font-family: var(--sans);
+  font-size: 13.5px;
+  letter-spacing: .01em;
+  color: var(--muted);
+  padding: 9px 16px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color .15s ease, border-color .15s ease;
+}
+.tabs button:hover { color: var(--ink); }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--seal); font-weight: 600; }
+.tabs button:focus-visible { outline: 2px solid var(--seal); outline-offset: 2px; border-radius: 2px; }
+
+/* ---------- cards ---------- */
+
+.card {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 22px 24px;
+}
+
+.card h2 {
+  margin: 0 0 14px;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.row { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 22px; }
+@media (max-width: 940px) { .row { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- inputs ---------- */
+
+textarea {
+  width: 100%;
+  min-height: 190px;
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.62;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 13px 14px;
+}
+textarea:focus { outline: none; border-color: var(--seal-soft); box-shadow: 0 0 0 3px rgba(123, 34, 51, .1); }
+textarea::placeholder { color: var(--faint); }
+
+#query { min-height: 82px; }
+
+.controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 13px; }
+
+button {
+  appearance: none;
+  font-family: var(--sans);
+  font-size: 13.5px;
+  font-weight: 550;
+  color: var(--paper-raised);
+  background: var(--seal);
+  border: 1px solid var(--seal);
+  border-radius: var(--radius);
+  padding: 8px 15px;
+  cursor: pointer;
+  transition: background .15s ease, transform .06s ease;
+}
+button:hover { background: var(--seal-soft); }
+button:active { transform: translateY(1px); }
+button:focus-visible { outline: 2px solid var(--seal); outline-offset: 2px; }
+button[disabled] { opacity: .5; cursor: not-allowed; }
+
+button.quiet { background: transparent; color: var(--ink-soft); border-color: var(--rule-strong); }
+button.quiet:hover { background: var(--paper); border-color: var(--faint); color: var(--ink); }
+
+label.check {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+label.check input { accent-color: var(--seal); }
+
+.hint { font-family: var(--sans); font-size: 12.5px; line-height: 1.6; color: var(--muted); margin: 11px 0 0; }
+.hint em { color: var(--ink-soft); font-style: italic; }
+
+.none { font-family: var(--sans); font-size: 13px; color: var(--faint); font-style: italic; margin: 6px 0; }
+
+/* ---------- the verdict board ---------- */
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+thead th {
+  font-family: var(--sans);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  text-align: left;
+  padding: 0 8px 7px;
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+tbody tr { border-bottom: 1px solid var(--rule); cursor: pointer; transition: background .12s ease; }
+tbody tr:hover { background: var(--paper); }
+tbody tr.on { background: var(--paper); box-shadow: inset 3px 0 0 var(--seal); }
+tbody td { padding: 11px 8px; vertical-align: top; }
+
+/* A grade is the one thing read at a glance, so it is a seal rather than a word in a cell. */
+.g {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 2px;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+.g.A, .g.B { color: var(--good); background: var(--good-bg); border-color: color-mix(in srgb, var(--good) 26%, transparent); }
+.g.C      { color: var(--warn); background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 26%, transparent); }
+.g.D, .g.E, .g.F { color: var(--bad); background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
+
+/* "Not checked" is not a weaker failure, so it does not get a paler red. It gets its own mark: a
+ * dashed edge, which reads as provisional rather than as bad. */
+.g.part {
+  border-style: dashed;
+  border-color: var(--faint);
+  color: var(--unchecked);
+  background: var(--unchecked-bg);
+}
+
+.mode, .review {
+  display: inline-block;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  line-height: 1.5;
+  padding: 2px 8px;
+  margin: 0 5px 4px 0;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.mode { color: var(--bad); background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 24%, transparent); }
+.review { color: var(--unchecked); background: var(--unchecked-bg); border-color: var(--rule-strong); border-style: dashed; }
+
+.sub { color: var(--faint); font-size: 12.5px; }
+.title { font-size: 13.5px; }
+.case { font-size: 13.5px; color: var(--muted); }
+.attrib { color: var(--muted); font-size: 12px; }
+.instead, .instead-inline { font-size: 13.5px; }
+.instead-inline { color: var(--muted); font-size: 12.5px; }
+
+/* ---------- the verdict panel ---------- */
+
+.claim {
+  font-size: 15.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  border-left: 2px solid var(--rule-strong);
+  padding: 2px 0 2px 15px;
+  margin: 13px 0;
+}
+
+blockquote {
+  margin: 14px 0;
+  padding: 13px 16px;
+  background: var(--good-bg);
+  border-left: 2px solid var(--good);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.finding {
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--bad);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 11px 14px;
+  margin: 9px 0;
+  background: var(--paper);
+}
+.finding b { display: block; font-family: var(--sans); font-size: 12.5px; margin-bottom: 3px; color: var(--bad); }
+.finding span { font-size: 13.5px; color: var(--ink-soft); }
+
+pre {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.62;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 15px 16px;
+  margin: 0;
+  max-height: 620px;
+  overflow: auto;
+}
+
+/* ---------- the judgment viewer ---------- */
+
+#para { max-height: 560px; overflow: auto; margin-top: 12px; padding-right: 6px; }
+
+.p {
+  font-size: 14.5px;
+  line-height: 1.68;
+  padding: 9px 0 9px 14px;
+  border-left: 2px solid transparent;
+}
+.p b { font-family: var(--sans); font-size: 11.5px; color: var(--faint); margin-right: 9px; }
+
+/* The paragraph the engine actually read. The point of the whole viewer. */
+.p.here {
+  border-left-color: var(--seal);
+  background: color-mix(in srgb, var(--seal) 6%, transparent);
+}
+
+.op {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--warn);
+  background: var(--warn-bg);
+  border-radius: 2px;
+  padding: 1px 6px;
+  margin-right: 8px;
+}
+
+mark { background: color-mix(in srgb, var(--seal) 22%, transparent); color: inherit; padding: 1px 0; }
+
+/* ---------- search results and bindings ---------- */
+
+.st {
+  display: inline-block;
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--rule-strong);
+  color: var(--muted);
+  background: var(--paper);
+  margin-right: 8px;
+}
+.st.bound { color: var(--good); background: var(--good-bg); border-color: color-mix(in srgb, var(--good) 26%, transparent); }
+.st.refused { color: var(--bad); background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 26%, transparent); }
+
+.pick { padding: 13px 0; border-bottom: 1px solid var(--rule); }
+.pick:last-child { border-bottom: 0; }
+
+/* What the other side will say. Warned rather than failed: everything in the draft already passed
+ * the gate, so these are the attacks the gate cannot make, and the colour has to say "read this"
+ * rather than "this is wrong". */
+.attack {
+  margin: 11px 0;
+  padding: 10px 0 10px 14px;
+  border-left: 2px solid var(--warn);
+  background: color-mix(in srgb, var(--warn) 5%, transparent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.attack b { display: block; font-family: var(--sans); font-size: 13px; margin-bottom: 3px; }
+.attack span { color: var(--muted); font-size: 12.5px; }
+
+a { color: var(--seal); text-underline-offset: 2px; }
+a:hover { color: var(--seal-soft); }
+
+footer {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 32px 44px;
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--faint);
+  border-top: 1px solid var(--rule);
+  padding-top: 20px;
+}
+footer strong { color: var(--muted); font-weight: 600; }
+
+::selection { background: color-mix(in srgb, var(--seal) 24%, transparent); }
+
+@media (max-width: 620px) {
+  header, main, footer { padding-left: 18px; padding-right: 18px; }
+  header h1 { font-size: 21px; }
+  header h1 span.strap { display: block; margin-left: 0; }
+}
+
+/* Spacing between the input card and the results below it. A class rather than a style attribute,
+ * because a style attribute would need `unsafe-inline` in the policy and that is the whole point. */
+.row-spaced { margin-top: 24px; }
