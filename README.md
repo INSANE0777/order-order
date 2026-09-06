@@ -20,12 +20,14 @@ Suggested reading order: PRD §1-6, then ARCHITECTURE §1-4, then TECH_STACK §4
 
 ## Running it
 
-Requires [uv](https://docs.astral.sh/uv/) and Python 3.12. Every cache, the interpreter and the
-virtualenv are pointed at one data directory by the environment script, to keep them off the system drive.
+Requires [uv](https://docs.astral.sh/uv/) and Python 3.12. The environment script points every
+cache, the interpreter and the virtualenv at one data directory, so that the corpus, the model
+caches and the build caches — several gigabytes between them — stay off the system drive. Set
+`ORDERORDER_DATA_DIR` to choose where; it defaults to `./data`.
 
 ```bash
 source scripts/dev-env.sh        # PowerShell: . .\scripts\dev-env.ps1
-uv sync                          # installs into data\venv
+uv sync                          # installs into $ORDERORDER_DATA_DIR/venv
 cp .env.example .env             # optional; defaults work for everything below
 
 uv run orderorder doctor                          # check the environment
@@ -111,7 +113,7 @@ it stay here.
 
 `uv run pytest` runs the suite; it uses an in-memory database and never touches the network.
 
-### On a box that is not this laptop
+### On a box that is not a development machine
 
 ```bash
 docker build -t orderorder .
@@ -159,13 +161,13 @@ Verification, 270 planted items, **no model configured**:
 With a model, over the modes that need one and 25 clean citations: obiter as ratio 3/3, false
 positives 0/25, **quote grounding 100%**, abstention 68%, six seconds a citation.
 
-Six seconds is a hosted model. The same checks against `qwen3:4b` run locally on four
-CPU cores, no usable GPU — take **247 seconds a call**, measured. The model is not the problem: every
-answer came back as a filled schema and every quote verified. The machine is. Prompt processing runs
-at 8-9 tokens a second cold against 5 for generation, which is backwards, and the cause is memory:
-once the weights are loaded there is too little memory left to hold the prompt, so the OS pages it. Two thirds of
-each call is the model reading the prompt off disk. A local model is therefore good for `doctor
---probe` and a handful of propositions, and not for a brief.
+Six seconds is a hosted model. The same checks against `qwen3:4b` run locally on four CPU cores with
+no usable GPU take **247 seconds a call**, measured. The model is not the problem: every answer came
+back as a filled schema and every quote verified. The hardware is. Prompt processing ran at 8-9
+tokens a second cold against 5 for generation, which is backwards, and the cause is memory: once the
+weights are loaded there is not enough left to hold the prompt, so the OS pages it and two thirds of
+each call is the model reading its own input back off disk. A local model on a machine like that is
+therefore good for `doctor --probe` and a handful of propositions, and not for a brief.
 
 Search, 148 queries over all 409,499 paragraphs:
 
@@ -213,8 +215,8 @@ All three questions the product asks about a citation: **does the case exist**, 
 being relied on**, and **does that paragraph support the claim to the extent claimed** — and, once a
 paragraph is fixed, **whose words they are** and **whether they carried the decision**. Between them
 these detect **all twelve** failure modes in the taxonomy in [docs/PRD.md](docs/PRD.md). Eight of the
-twelve are decided without a language model at all, which is why the whole of the demo above runs on a
-laptop with no key configured.
+twelve are decided without a language model at all, which is why the whole of the demo above runs on
+an ordinary CPU with no key configured.
 
 And the same machinery run backwards: **given a proposition and no citation, which judgment backs it,
 and which line**. Search drops any passage that is not the court speaking before it ever reaches the
@@ -302,7 +304,7 @@ Measured on the real corpus, which is now the whole of it:
 | Separate opinions | 109: 47 dissents and 62 concurrences |
 
 - Importing metadata takes about 15 seconds a year and parses every citation in the source.
-- Ingesting the text of the whole corpus takes about 0.4 seconds a judgment on a CPU-only laptop with
+- Ingesting the text of the whole corpus takes about 0.4 seconds a judgment on four CPU cores with
   eight worker processes. Of 9,381 judgments, 194 failed on the first pass; 189 of those were transient
   network failures and recovered on the retry, leaving 5 genuine losses: two PDFs the bucket does not
   have and three that yield no text after cleaning.

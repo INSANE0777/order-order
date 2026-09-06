@@ -140,7 +140,7 @@ For each PDF page: extract the text layer; if characters per page are below a th
 ### 3.3 Parsing
 
 - **Born-digital pages**: Docling produces layout blocks (headings, paragraphs, footnotes, tables) in reading order. Footnotes are kept and linked to their anchors because Indian briefs cite in footnotes.
-- **Scanned pages**: PaddleOCR-VL-1.6 on GPU (109 languages including Hindi/Devanagari); PP-OCRv6 on CPU for the laptop path. Blocks carry per-line confidence. Pages under a confidence threshold are flagged for the user in the UI.
+- **Scanned pages**: PaddleOCR-VL-1.6 on GPU (109 languages including Hindi/Devanagari); PP-OCRv6 on CPU for the local path. Blocks carry per-line confidence. Pages under a confidence threshold are flagged for the user in the UI.
 - **DOCX and pasted text**: direct extraction preserving paragraph breaks and footnotes.
 
 ### 3.4 Paragraph segmentation and canonical IDs
@@ -714,7 +714,7 @@ stateDiagram-v2
 
 ```mermaid
 flowchart TB
-    subgraph free["Hackathon profile: zero cost (laptop + free tiers, demo data only)"]
+    subgraph free["Hackathon profile: zero cost (local machine + free tiers, demo data only)"]
         f1["web: Next.js dev server<br/>Vercel Hobby if a public link is needed"]
         f2["api + LangGraph engine<br/>FastAPI, background tasks, jobs table"]
         f3["postgres + pgvector<br/>Docker, volume on drive G"]
@@ -744,7 +744,7 @@ flowchart TB
     p2 --> p6
 ```
 
-**Diagram 9.** Two profiles of the same code. The hackathon profile costs nothing: the laptop runs the app and the database, free API tiers serve the language model behind LangChain fallbacks, a free GPU notebook does the batch work, and only demo data flows through it. The production profile brings every model onto a self-hosted GPU box because privileged documents must not leave it.
+**Diagram 9.** Two profiles of the same code. The hackathon profile costs nothing: the development machine runs the app and the database, free API tiers serve the language model behind LangChain fallbacks, a free GPU notebook does the batch work, and only demo data flows through it. The production profile brings every model onto a self-hosted GPU box because privileged documents must not leave it.
 
 ---
 

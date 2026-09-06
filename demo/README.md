@@ -188,13 +188,13 @@ GOOGLE_API_KEY=...      # or GROQ_API_KEY, or CEREBRAS_API_KEY — all have free
 or run a local model with no key at all:
 
 ```bash
-OLLAMA_MODELS=data/ollama ollama serve
+OLLAMA_MODELS="$ORDERORDER_DATA_DIR/ollama" ollama serve
 ollama pull qwen3:4b     # qwen3.5:4b needs a newer ollama than 0.11.4
 uv run orderorder doctor          # should now show ollama configured
 uv run orderorder doctor --probe  # and that something answers, with a filled schema not prose
 ```
 
-`qwen3:4b` answers correctly on a CPU-only laptop — filled schema, quote verifies — but it answers
-slowly: 247 seconds a call on four cores with 16 GB of RAM, two thirds of which is the model reading
-the prompt while the machine pages. Use it to prove the wiring works. Use a hosted key, or a rented
-GPU, to run a brief.
+`qwen3:4b` answers correctly on CPU — filled schema, quote verifies — but it answers slowly: 247
+seconds a call on four cores with 16 GB of RAM, two thirds of which is the model reading the prompt
+back while the machine pages. Use it to prove the wiring works. Use a hosted key, or a rented GPU,
+to run a brief.

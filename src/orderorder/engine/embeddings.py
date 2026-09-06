@@ -29,7 +29,8 @@ same order. Not pgvector, because the corpus is in SQLite; not a vector database
 rows is a 300 MB matrix and a matrix multiply, and adding a service to do that would be adding a
 service. Float16 halves the file and costs nothing measurable in ranking, since only the order of the
 scores matters. It is memory-mapped and read in blocks so that searching does not require the whole
-matrix resident, because holding all of it at once is enough to get the process killed on a machine with no memory to spare.
+matrix resident, because holding all of it at once is enough to get the process killed on a machine
+with no memory to spare.
 """
 
 from __future__ import annotations
