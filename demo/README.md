@@ -189,7 +189,7 @@ or run a local model with no key at all:
 
 ```bash
 OLLAMA_MODELS=data/ollama ollama serve
-ollama pull qwen3.5:4b
+ollama pull qwen3:4b     # qwen3.5:4b needs a newer ollama than 0.11.4
 uv run orderorder doctor          # should now show ollama configured
 uv run orderorder doctor --probe  # and that something answers, with a filled schema not prose
 ```

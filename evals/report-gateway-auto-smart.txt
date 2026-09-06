@@ -1,0 +1,9 @@
+67 calls, 8 failed (12%)
+
+  served by                               calls  failed   rate
+  big-pickle                                 63       4     6%
+  auto/smart                                  4       4   100%
+
+  status codes on failures: {'499': 8}
+
+  prompt tokens: median 1,517, 43 calls over 800 (the engine's own prompts)
