@@ -346,12 +346,21 @@ def ingest_repair_trailers(
     The SCR volumes end a judgment with the editors' own words, running on from the court's last
     paragraph. Extraction now stops at them; this removes them from what was stored earlier, without
     re-reading nine thousand PDFs.
+
+    This rewrites paragraph bodies under the same ids, which is the one change `orderorder index`
+    cannot detect: nothing about the row's identity changes, so reconciling finds nothing to do and
+    the index keeps serving the publisher's words as the court's. Rebuild it afterwards.
     """
     init_db()
     prefix = "[yellow]would remove[/yellow]" if dry_run else "[green]removed[/green]"
     with get_session() as session:
         console.print(f"{prefix}: {repair.strip_publisher_trailers(session, dry_run=dry_run)}")
         console.print(f"{prefix}: {repair.strip_signoffs(session, dry_run=dry_run)}")
+    if not dry_run:
+        console.print(
+            "[yellow]the full-text index is now stale[/yellow]: this rewrote paragraphs in place, "
+            "which reconciling cannot see. Run [bold]orderorder index --rebuild[/bold]."
+        )
 
 
 @ingest_app.command("mark-opinions")
@@ -904,9 +913,19 @@ def serve_command(
 
 @app.command("index")
 def index_command(
-    rebuild: bool = typer.Option(False, help="Drop and rebuild, after ingesting more judgments."),
+    rebuild: bool = typer.Option(
+        False, help="Drop and re-tokenise everything. Needed only after text was rewritten in place."
+    ),
 ) -> None:
-    """Build the full-text index that authority search runs against."""
+    """Bring the full-text index level with the paragraphs that are stored.
+
+    Run it after every batch of ingestion. It adds what is missing and removes what no longer belongs,
+    so running it twice does nothing the second time and a judgment ingested later is picked up
+    without re-tokenising the corpus.
+
+    `--rebuild` is for the one thing reconciling cannot see: a paragraph whose text was rewritten
+    under the same id, which is what `ingest repair-trailers` does.
+    """
     init_db()
     with get_session() as session:
         rows = search.build_index(session, rebuild=rebuild)

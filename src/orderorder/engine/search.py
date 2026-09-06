@@ -115,11 +115,40 @@ def index_exists(session: Session) -> bool:
 
 
 def build_index(session: Session, *, rebuild: bool = False) -> int:
-    """Create the full-text index over every stored paragraph. Returns how many rows it holds.
+    """Bring the full-text index level with the paragraphs. Returns how many rows it holds.
 
-    The index is a standalone FTS5 table rebuilt from `paragraph`, not a table kept in step by
-    triggers. The corpus arrives in batches from `ingest bulk-text` and is otherwise static, so a
-    rebuild after ingestion is simpler than triggers and cannot drift half-updated.
+    The index is a standalone FTS5 table built from `paragraph`, not a table kept in step by triggers.
+    The corpus arrives in batches and is otherwise static, so reconciling after ingestion is simpler
+    than triggers and cannot drift half-updated.
+
+    **Reconciling, rather than all-or-nothing.** This used to return early the moment the table held
+    any rows, which made `orderorder index` a no-op on every run after the first: a second batch of
+    judgments was ingested and never indexed, and the only way to see it was `--rebuild`, which
+    re-tokenises the entire corpus. That is affordable at four hundred thousand paragraphs and it is
+    the whole cost of ingestion again at a hundred million, which is exactly the corpus that has to be
+    ingested in batches. So each run now removes the rows that no longer belong and adds the ones
+    missing, and running it twice changes nothing the second time.
+
+    Removing matters as much as adding. `store_extracted` deletes a judgment's paragraphs and writes
+    new ones when a text version is replaced, so re-ingesting anything left the index holding rows
+    whose `paragraph_id` no longer exists — and `_match` reads the body straight out of the index, so
+    a stale row serves superseded text under a dead id. Marking an opinion as a headnote after the
+    fact had the same effect, in the direction that matters most: the publisher's summary staying
+    searchable as though it were the court.
+
+    **What this does not catch** is a body rewritten in place under the same id, which is what
+    `ingest repair-trailers` does. Nothing in the row's identity changes, so reconciliation cannot see
+    it and `--rebuild` is still required after a repair. The repair command says so.
+
+    **What it still costs.** Measured on 409,499 paragraphs: 48 seconds with nothing to do, against 87
+    for a rebuild. Both scans read `paragraph_fts`, and reading any column of an FTS5 table reads its
+    content rows -- 468 MB here, which is where the time goes. `EXCEPT` in place of `NOT IN` measured
+    worse, at 35 and 37 seconds, for the same reason: the set arithmetic is not the cost, the scan is.
+    So this is still O(corpus) per run, and over a corpus ingested in a hundred batches it is a
+    hundred scans. What removes that is recording which text version of each judgment is indexed in an
+    ordinary table and reconciling over the nine thousand versions instead of the four hundred
+    thousand paragraphs, deleting and reinserting by judgment only where the version has changed. That
+    needs a schema and a migration for indexes built before it, so it is named here rather than done.
     """
     if rebuild and index_exists(session):
         session.execute(sql_text(f"DROP TABLE {FTS_TABLE}"))
@@ -137,24 +166,29 @@ def build_index(session: Session, *, rebuild: bool = False) -> int:
             """
         )
     )
-    count = session.execute(sql_text(f"SELECT count(*) FROM {FTS_TABLE}")).scalar() or 0
-    if count:
-        return count
+    # Only the preferred text version of each judgment belongs in the index: the same judgment held
+    # twice would otherwise return the same holding twice, from two numberings, as if they were two
+    # authorities. The headnote is excluded at the index, not at query time, because it is the
+    # publisher's summary and no amount of ranking should ever surface it as the court's authority.
+    belongs = """
+        SELECT p.id AS id, p.body AS body, v.judgment_id AS judgment_id
+        FROM paragraph p
+        JOIN judgment_text_version v ON v.id = p.text_version_id
+        LEFT JOIN opinion o ON o.id = p.opinion_id
+        WHERE v.preferred = 1
+          AND (o.kind IS NULL OR o.kind != 'headnote')
+    """
 
-    # Only the preferred text version of each judgment is indexed: the same judgment held twice would
-    # otherwise return the same holding twice, from two numberings, as if they were two authorities.
-    # The headnote is excluded at the index, not at query time, because it is the publisher's summary
-    # and no amount of ranking should ever surface it as the court's authority.
+    session.execute(
+        sql_text(f"DELETE FROM {FTS_TABLE} WHERE paragraph_id NOT IN (SELECT id FROM ({belongs}))")
+    )
     session.execute(
         sql_text(
             f"""
             INSERT INTO {FTS_TABLE} (body, paragraph_id, judgment_id)
-            SELECT p.body, p.id, v.judgment_id
-            FROM paragraph p
-            JOIN judgment_text_version v ON v.id = p.text_version_id
-            LEFT JOIN opinion o ON o.id = p.opinion_id
-            WHERE v.preferred = 1
-              AND (o.kind IS NULL OR o.kind != 'headnote')
+            SELECT body, id, judgment_id
+            FROM ({belongs})
+            WHERE id NOT IN (SELECT paragraph_id FROM {FTS_TABLE})
             """
         )
     )
