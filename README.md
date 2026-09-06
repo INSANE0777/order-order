@@ -51,6 +51,7 @@ uv run orderorder index                              # full-text index over ever
 uv run orderorder citator                            # who cited whom, and what they did with it
 uv run orderorder embed                              # vectors for every paragraph (see the numbers first)
 uv run orderorder find "a misrepresentation vitiates consent only where it induced the contract"
+uv run orderorder contrary "a notice under Section 106 is mandatory before a suit for eviction"
 uv run orderorder argue propositions.txt             # bind each proposition to an authority, or refuse
 uv run orderorder draft demo/plan.txt --docx out.docx  # assemble a written submission from a case plan
 uv run orderorder treatment INSC:2019:770            # is this authority still good law?
@@ -59,11 +60,12 @@ uv run orderorder eval generate --seeds 40 --rng-seed 1729   # plant known failu
 uv run orderorder eval run --no-model --detail               # score every check that needs no model
 uv run orderorder eval search --judgments 40                 # score the other direction
 uv run orderorder eval gate --judgments 40 --no-model        # what the drafting gate is filtering
+uv run orderorder eval contrary --judgments 40               # one holding put both ways
 
 uv run orderorder serve                              # all of it in a browser, on localhost
 ```
 
-The engine runs in two directions.
+The engine runs in two directions, and then reads the second one for the opposite sign.
 
 `verify` starts from a citation the brief already gives. It resolves it, loads the judgment, ranks the
 paragraphs, asks how far they support the claim, works out whose words the relied-on paragraph carries
@@ -75,6 +77,19 @@ starts. It searches every paragraph of every judgment held, drops anything that 
 speaking, weighs bench strength and recency beside relevance, and names the sentence to read. With a
 model configured it then runs each authority back through `verify`, because retrieval proposes and
 only the verifier confirms.
+
+`contrary` asks the question the other two cannot: not which judgment supports you, but which one says
+the other thing. The instinct is that a contrary holding is far away in the retrieval field and needs
+some other kind of search to reach, and it is the opposite — a paragraph that contradicts a
+proposition is the *nearest* text in the corpus to it, because it is about the same subject in almost
+the same words. "A notice under Section 106 is mandatory" and "the requirement of notice under Section
+106 is directory" share every distinctive term. BM25 cannot separate them and neither can a dense
+encoder trained to put sentences about one subject in one place. What separates them is polarity,
+which is grammar rather than ranking, so the retrieval is the ordinary one and all the work is in what
+happens to the field afterwards: whether the negation in a court's sentence governs the clause the
+proposition is about, or the condition attached to it, or something else in the same breath. What
+comes back is a lead — a court, in its own voice, wrote a sentence on this subject with the opposite
+sign — and the fix it carries is "read it", never "drop the point".
 
 `argue` is the two of them composed, and is the drafting surface's gate. For each proposition a
 lawyer intends to advance it searches, verifies, and then refuses everything that is not the court's
@@ -204,6 +219,26 @@ What that measurement cannot do is tell you the voice detector is right: the sam
 item and drops the paragraph. What it does tell you is the size of the field it is working over, which
 is a fact about the corpus rather than about the detector. `evals/report-gate.txt` has the run.
 
+The contrary search, 40 holdings from the same forty judgments, each put to the engine twice — once
+negated, which is what the other side argues, and once as the court wrote it, which is what the side
+relying on it argues. Same paragraph, same retrieval; the only difference is the polarity of the
+sentence put to it:
+
+| the proposition put | the source paragraph was retrieved | it was called contrary | leads returned |
+|---|---|---|---|
+| the holding, negated | 100% | 55% | 2.5 |
+| the holding, as written | 100% | **8%** | 1.4 |
+
+The gap between those two middle numbers is the measurement, and it is the only one here that is not
+circular: the negation that builds the query and the negation the detector reads are the same idea, so
+the 55% is a property of the construction and is printed because a low one would mean something broke.
+Nineteen of the forty were called contrary for the negated proposition and not for the court's own
+words; **none** went the other way. The 1.4 is the floor — passages offered against a proposition that
+was never in doubt, an upper bound rather than a count, since courts do disagree and this corpus holds
+nine thousand of them. `evals/report-contrary.txt` has the run and the leads themselves, which is the
+part worth reading: what is left is a lead to check, and the report says so rather than calling it a
+contradiction.
+
 What these numbers do not say — and the limits matter more than the figures — is set out
 in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §11.4.
 
@@ -219,6 +254,10 @@ laptop with no key configured.
 And the same machinery run backwards: **given a proposition and no citation, which judgment backs it,
 and which line**. Search drops any passage that is not the court speaking before it ever reaches the
 lawyer, so the tool cannot suggest as authority the kind of passage the verifier exists to catch.
+
+And the same retrieval read for the opposite sign: **which judgment says the other thing**. No model
+is involved and none is needed to find them, because what distinguishes a contradiction from a
+restatement is the polarity of a clause and not the ranking of a paragraph.
 
 **The model is never believed, only checked.** It is asked to name a paragraph and copy a sentence
 from it. That sentence is then string-matched against the stored judgment. A quote that does not match
@@ -272,6 +311,7 @@ which the corpus does not yet hold.
 | Weight: ratio versus obiter, with abstention as the default | `engine/weight.py` |
 | Sentence boundaries that survive "Kasturi v. Iyyamperumal" and "[2019] 9 S.C.R. 593" | `engine/sentences.py` |
 | Corpus-wide authority search: which judgment backs a proposition, and which line | `engine/search.py` |
+| The opposite direction: which judgment says the other thing, by clause polarity rather than by ranking | `engine/contrary.py` |
 | The citator: treatment of one judgment by later ones, and the bench-strength rule | `engine/citator.py` |
 | Court and bench attribution: what the brief claims against what the record says | `engine/hierarchy.py` |
 | Applicability: whether the cited case governs the facts of this matter | `engine/facts.py` |
@@ -287,7 +327,7 @@ which the corpus does not yet hold.
 | One page for all of it: verdict board, judgment viewer, authority search, drafting workspace | `web/` |
 | Verdict assembly and the grading rubric | `engine/verdict.py` |
 | The engine as a LangGraph state graph | `engine/graph.py` |
-| The evaluation harness: plant known failures, score all three directions | `evaluation/` |
+| The evaluation harness: plant known failures, score all four directions | `evaluation/` |
 | Repairs to stored text when extraction is corrected after the fact | `ingest/repair.py` |
 
 Measured on the real corpus, which is now the whole of it:
@@ -365,11 +405,13 @@ characters of publisher's text came out of judgments already stored.
 
 A strong encoder on a GPU. The hybrid retrieval seam is built and measured; what is missing is a
 model good enough to use it, and BGE-M3 on a borrowed GPU session is the experiment the numbers point
-at. Counter-authorities in the strong sense (PRD B8, P1): the draft is checked against the citation
-graph and against what else the same words retrieve, but nothing yet searches the corpus for a
-judgment stating the *opposite* of what it argues, which needs the model and a way to score a
-contradiction. OCR, so a brief filed as a scan is read rather than reported as having no text layer.
-See
+at. The contrary search is a *lead* generator and not yet a finding: `orderorder contrary` establishes
+that a court wrote a sentence on the subject with the opposite polarity, and only a reading can say
+whether that sentence denies the proposition or merely confines the rule to other facts. The second
+reading is written and is off by default until the number beside it is measured on something other
+than a laptop. Nothing yet runs the contrary search over an assembled draft, which is ten lines and
+belongs beside the rest of the self-attack. OCR, so a brief filed as a scan is read rather than
+reported as having no text layer. See
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Status
