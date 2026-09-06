@@ -12,6 +12,7 @@ one careless or automated client cannot take the queue away from the person wait
 
 from __future__ import annotations
 
+import ast
 import re
 import time
 from pathlib import Path
@@ -271,3 +272,40 @@ def test_the_stylesheet_and_script_are_served(client) -> None:
         assert response.status_code == 200, path
         assert kind in response.headers["content-type"]
         assert response.headers["Content-Security-Policy"]
+
+
+# --- the queries ------------------------------------------------------------------------------------
+
+SRC = Path(__file__).resolve().parents[1] / "src"
+
+# Names that may be built into a SQL string, because they are module constants written here rather
+# than anything a caller supplies. Adding to this list is a decision; growing it by accident is what
+# this test exists to stop.
+SQL_SAFE_INTERPOLATIONS = {"FTS_TABLE", "belongs"}
+
+
+def test_no_caller_value_is_ever_formatted_into_sql() -> None:
+    """Parameterisation, checked by reading the code rather than by trusting the habit.
+
+    SQLAlchemy does the binding everywhere it is used as an ORM, and the handful of raw statements
+    bind their parameters too. What a grep cannot see is the difference between interpolating a table
+    name -- a constant in this module -- and interpolating a search term. So this walks the syntax
+    tree, finds every SQL string built with an f-string, and asserts that what goes into the braces is
+    on a list of things that are ours.
+    """
+    offenders: list[str] = []
+    for path in sorted(SRC.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and getattr(node.func, "id", "") in {"sql_text", "text"}):
+                continue
+            for argument in node.args:
+                if not isinstance(argument, ast.JoinedStr):
+                    continue
+                for piece in argument.values:
+                    if not isinstance(piece, ast.FormattedValue):
+                        continue
+                    name = ast.unparse(piece.value)
+                    if name not in SQL_SAFE_INTERPOLATIONS:
+                        offenders.append(f"{path.name}:{node.lineno} interpolates {name!r}")
+    assert not offenders, "SQL built from something that is not a constant:\n  " + "\n  ".join(offenders)

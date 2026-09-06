@@ -173,6 +173,50 @@ after a later layer deletes the file.
 
 ---
 
+## 3a. The security posture, item by item
+
+Against the standard web-application checklist. The honest half of this table is the **not
+applicable** column: a control that does not apply is not a control that has been passed, and writing
+"n/a" without a reason is how a gap gets filed as a pass.
+
+The shape of the thing decides most of it. There are no accounts, no passwords, no sessions and no
+cookies; there is one bearer token that the operator generates, and one process that reads a corpus
+of public judgments. What is genuinely sensitive is the brief an advocate uploads, and the answer for
+that is that it is never stored.
+
+| | control | where |
+|---|---|---|
+| 1 | **Keys are never in the image or the repo.** No `ARG`, no `COPY` of `.env`, `.dockerignore` excludes it; they arrive as environment at run time. `docker history` would show a key baked into a layer even after a later layer deleted it. | `Dockerfile`, `.dockerignore` |
+| 2 | **History is scanned for secrets**, whole history rather than the diff — a key committed and later deleted is still published. | `.github/workflows/ci.yml` |
+| 6 | **Authorisation is server-side and central**, in one middleware ahead of every route rather than per-route. A per-route check is a check somebody forgets on the route added next week, and the route added next week is the upload endpoint. | `web/api.py`, `web/auth.py` |
+| 6 | **The binding decides.** Loopback asks for nothing; bound anywhere else a token is *required* and the server refuses to start without one, rather than coming up open with a warning nobody rereads. | `web/auth.py` |
+| 11 | **Failed authentication is rate-limited hard** (5/min), separately from ordinary traffic. | `web/limits.py` |
+| 12 | **Ordinary traffic is rate-limited too**, and starting work harder than reading a result — the resource being protected is one worker, not a bill. `X-Forwarded-For` is deliberately not trusted. | `web/limits.py` |
+| 13 | **Every query is parameterised.** SQLAlchemy throughout; the two places that use raw SQL bind their parameters and interpolate only a module constant for the table name. | `engine/search.py` |
+| 14 | **Input is validated and bounded** — Pydantic models on every body, a character cap on briefs and plans, and a declared-length cap refused before the body is parsed. | `web/api.py` |
+| 15 | **User content is escaped at the last step before the DOM**, covering `& < > " '`. | `static/app.js` |
+| 16 | **Uploads are bounded and named.** The read stops at 25 MB rather than checking the size after spending the memory, and only a brief's formats are accepted. | `web/api.py` |
+| 17 | **Responses carry what the page needs and no internals.** A 401 does not say which half was wrong; a failed parse returns the exception's *type*, never its message or a path. | `web/api.py` |
+| 18 | **Security headers on every response, refusals included** — CSP with no `unsafe-inline`, nosniff, DENY, no-referrer, and the cross-origin isolation pair. | `web/api.py` |
+| 20 | **Dependencies are audited** on every push and weekly, against the locked production set. | `.github/workflows/ci.yml` |
+
+| | not applicable, and why |
+|---|---|
+| 3 | **No public database key.** Nothing in the browser talks to a database. The page calls this API and this API alone; the corpus is a file the server opens. |
+| 4 | **No row-level security**, because there are no rows belonging to anyone. The corpus is public case law, identical for every reader, and read-only over HTTP. Uploaded briefs never reach a table — they are parsed in memory and handed straight back. The day matters become multi-tenant this becomes the first item on the list, and ARCHITECTURE §4.13 is where it starts. |
+| 5 | **No encryption at rest of "sensitive data"**, because the data at rest is published judgments. The genuinely privileged thing is the brief, and it is not stored at all, which is a stronger guarantee than encrypting it would be. Disk encryption on the host is the operator's call and the right layer for it. |
+| 7, 8 | **No per-record access control or field-tampering surface.** There is no record a user owns and no field a user can write. Every route is read-only against the knowledge base. |
+| 9, 10 | **No cookies, sessions or passwords.** Authentication is one bearer token the operator generates and compares with `hmac.compare_digest`. Nothing to hash, nothing to set `Secure` and `SameSite` on. |
+| 19 | **HTTPS is not forced here, deliberately.** This binds to loopback and expects a reverse proxy to terminate TLS (§2.2). A service that cannot see whether it is on HTTPS should not be the one sending HSTS — that header belongs in the proxy, and asserting it from behind one that is misconfigured locks users out of a host that never served TLS. |
+
+What is **not** covered and should be said plainly: there is no audit log of who asked what, no CSRF
+token (the API is token-authenticated and takes no cookies, so a browser cannot be made to speak for a
+user it is not already carrying a token for), and the rate limiter counts in one process, so it is
+exactly as durable as the process — a restart forgives everyone. All three are consequences of the
+single-process design in §2.3 and change together with it.
+
+---
+
 ## 4. Before anyone else uses it
 
 - **Attribution.** Judgment data is CC-BY-4.0 from AWS Open Data. The attribution is in the README and
