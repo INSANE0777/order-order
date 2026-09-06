@@ -77,7 +77,7 @@ from orderorder.engine.citator import corpus_size
 from orderorder.engine.lexical import tokenize
 from orderorder.engine.quotes import normalized
 from orderorder.engine.search import Authority, find_authorities, index_exists
-from orderorder.engine.sentences import split_sentences
+from orderorder.engine.sentences import inside_quotation, split_sentences
 
 # How wide a field to look across, and how deep the raw retrieval goes to fill it. Wider than the
 # supporting search by an order of magnitude, and deliberately: a supporting authority only has to be
@@ -93,6 +93,35 @@ DEFAULT_TOP = 5
 # still be four words long.
 MIN_SHARED_TERMS = 4
 MIN_SHARED_SHARE = 0.30
+# And how many of those shared terms have to be something other than the name of a statute. Every
+# arbitration judgment says "the Arbitration and Conciliation Act" and every eviction judgment says
+# "Section 106 of the Transfer of Property Act", so an overlap made of those words says only that two
+# sentences are about the same Act -- which, on the first run over the real corpus, is what every
+# false lead had in common: `act, arbitration, conciliation, limitation, section`, and a negation
+# attached to something else entirely.
+MIN_SUBSTANTIVE_TERMS = 2
+# One is enough where the flip is a term of art. "A notice under Section 106 of the Transfer of
+# Property Act is mandatory" against "...is directory" shares only `notice` once the statute's name is
+# discounted -- because the two words that carry the opposition are, by definition, the two words the
+# sentences do *not* share. Naming a doctrine and its opposite is itself evidence of a shared subject
+# in a way that sharing "Act" and "Section" is not.
+MIN_SUBSTANTIVE_FOR_ANTONYM = 1
+# Past this a "sentence" is a table. An enumerated holding -- "a writ petition would be maintainable
+# against (i) the Government; (ii) an authority; ..." -- runs to a hundred words and is exactly the
+# passage an opponent cites, so the cap has to sit well above a sentence rather than at one.
+MAX_SENTENCE_WORDS = 120
+
+# What a statute reference looks like, so its words can be discounted. Section and article numbers,
+# and the capitalised run that ends in Act, Code, Rules or the Constitution.
+STATUTE_REFERENCE = re.compile(
+    r"""(?x)
+      \b(?: [Ss]ections? | [Aa]rticles? | [Rr]ules? | [Oo]rders? | [Cc]lauses? )
+        \s+ \d+ [A-Za-z-]*
+    | (?: \b[A-Z][A-Za-z]+ \s+ (?: and \s+ | of \s+ | the \s+ )? )*
+      \b(?: Act | Code | Rules | Constitution | Ordinance | Regulations ) \b
+      (?: ,? \s* \d{4} )?
+    """
+)
 
 # Words that appear in most paragraphs of most judgments, and so are evidence of nothing. This list is
 # short on purpose: legal vocabulary is what makes two sentences about the same subject, and stripping
@@ -107,8 +136,14 @@ UBIQUITOUS = frozenset(
 
     before after under over upon into within during against between among through above below
     where when whether while since because therefore thus hence merely even still already further
+
+    cannot never nor neither nothing unable without
     """.split()  # noqa: SIM905 - a readable block beats a 60-element list literal
 )
+# The last line of that block is the one worth explaining. A negation word is a polarity marker, not a
+# subject: counting `cannot` as a shared term lets two sentences qualify as being about one thing
+# because both of them deny something, which is the one coincidence this module must not treat as
+# evidence.
 
 # What negates a clause. Written as whole words with boundaries, because "cannot" is a negation and
 # "canon" is not, and because "no" inside "notice" has ended more than one regex.
@@ -124,8 +159,22 @@ NEGATORS = re.compile(
       | far \s+ from
       | devoid \s+ of
       | without
-      | refuse[ds]? \s+ to | declined? \s+ to
-      | rejected? | repelled
+    )\b
+    """
+)
+# Rejection is a negation of something *asserted*, so it counts only where the clause names the thing
+# asserted. "The contention was rejected" denies the contention; "a final bill is rejected by making
+# deductions" denies nothing, and counting it flipped a real sentence's polarity on the first run.
+REJECTION = re.compile(
+    r"""(?ix)
+    \b(?: rejected? | repelled | refuse[ds]? | declined? | did \s+ not \s+ accept | negatived )\b
+    """
+)
+CLAIM_WORD = re.compile(
+    r"""(?ix)
+    \b(?: contention | contentions | submission | submissions | argument | arguments | plea | pleas
+        | proposition | propositions | claim | claims | ground | grounds | view | views | stand
+        | case | contended | argued | urged | submitted | suggestion | request | prayer
     )\b
     """
 )
@@ -159,10 +208,15 @@ CLAUSE_BREAK = re.compile(
         )\s+that\b
     | \s\b whether \b
     | \s\b(?: but | however | whereas | although | though | because | since | unless | until | while
-            | where | when | if | once | provided | except | save | and | or | before | after )\b
+            | where | when | if | once | provided | except | save | before | after )\b
     )
     """
 )
+# "And" and "or" are deliberately not joints. They coordinate noun phrases at least as often as
+# clauses, and one of the two things they most often coordinate is the name of a statute: splitting
+# "the Arbitration and Conciliation Act" leaves "cannot be extended" in a clause of its own, the
+# proposition's own terms in the other, and the proposition reads as unnegated. That inverted a real
+# search on the first run over the corpus.
 # Joints that introduce a complement rather than a clause of its own. "It cannot be said that the
 # notice is mandatory" holds the proposition in the complement and the negation in the matrix around
 # it, and the sentence denies the proposition.
@@ -293,6 +347,31 @@ def distinctive_terms(text: str) -> list[str]:
     return [t for t in dict.fromkeys(tokenize(text)) if t not in UBIQUITOUS and len(t) > 2]
 
 
+def reference_terms(text: str) -> set[str]:
+    """The words that are part of a statute reference, which two sentences can share for free."""
+    found: set[str] = set()
+    for match in STATUTE_REFERENCE.finditer(text):
+        found.update(tokenize(match.group(0)))
+    return found
+
+
+# A sentence that asks a question decides nothing. Judgments open by framing the issue -- "the question
+# that falls for consideration is whether a writ petition is maintainable against a private body" --
+# and the framing carries the proposition's every word with the polarity of whichever side lost. Read
+# as authority it is worse than noise, because it reads exactly like a holding.
+FRAMING = re.compile(
+    r"""(?ix)
+    ^\s*whether\b
+  | \?\s*$
+  | \b(?: question | questions | issue | issues | point | points | controversy )\b
+    [^.]{0,80}? \b(?: is | are | arising | arises | arose | raised | involved | framed )\b
+    [^.]{0,40}? \bwhether\b
+  | \b(?: falls | fell | arises | arose | come[s]? ) \s+ for \s+ (?:our\s+)? consideration \b
+  | \b the \s+ following \s+ (?: question | questions | issue | issues ) \b
+    """
+)
+
+
 @dataclass(frozen=True)
 class Clause:
     """One clause of a sentence, and the joint that introduced it."""
@@ -322,14 +401,22 @@ def clauses(text: str) -> list[str]:
     return [part.text for part in clause_parts(text)]
 
 
+def negators_in(clause: str) -> list[str]:
+    """Every word in one clause that negates it, in the order they appear.
+
+    `findall` on a pattern with no groups returns the whole matches, which is what should be quoted
+    back: a reader checking the finding wants the word that is actually in the judgment.
+    """
+    found = [m.strip() for m in NEGATORS.findall(clause)]
+    if CLAIM_WORD.search(clause):
+        found += [m.strip() for m in REJECTION.findall(clause)]
+    return found
+
+
 def negated(clause: str) -> tuple[bool, str | None]:
     """Whether a clause is negated, and by which word. Two negations cancel, as they do in English."""
-    found = NEGATORS.findall(clause)
-    if not found:
-        return False, None
-    # `findall` on a pattern with no groups returns the whole matches, which is what should be quoted
-    # back: a reader checking the finding wants the word that is actually in the judgment.
-    return len(found) % 2 == 1, found[0].strip()
+    found = negators_in(clause)
+    return (len(found) % 2 == 1, found[0]) if found else (False, None)
 
 
 def is_complement(part: Clause) -> bool:
@@ -355,9 +442,9 @@ def negated_at(parts: list[Clause], index: int) -> tuple[bool, str | None]:
     backwards costs them their confidence in every other one.
     """
     if is_complement(parts[index]):
-        cues = [c.strip() for part in parts for c in NEGATORS.findall(part.text)]
+        cues = [cue for part in parts for cue in negators_in(part.text)]
     else:
-        cues = [c.strip() for c in NEGATORS.findall(parts[index].text)]
+        cues = negators_in(parts[index].text)
     return len(cues) % 2 == 1, (cues[0] if cues else None)
 
 
@@ -433,6 +520,9 @@ def opposes(proposition: str, sentence: str) -> Opposition | None:
     shared = wanted & set(distinctive_terms(sentence))
     if len(shared) < MIN_SHARED_TERMS or len(shared) / len(wanted) < MIN_SHARED_SHARE:
         return None
+    substantive = len(shared - reference_terms(proposition))
+    if substantive < MIN_SUBSTANTIVE_FOR_ANTONYM:
+        return None
 
     proposition_parts = clause_parts(proposition)
     sentence_parts = clause_parts(sentence)
@@ -444,7 +534,7 @@ def opposes(proposition: str, sentence: str) -> Opposition | None:
 
     proposition_negated, proposition_cue = negated_at(proposition_parts, proposition_at)
     sentence_negated, cue = negated_at(sentence_parts, sentence_at)
-    if proposition_negated != sentence_negated:
+    if proposition_negated != sentence_negated and substantive >= MIN_SUBSTANTIVE_TERMS:
         # Where the court's sentence carries the negation, quote the court's word. Where the
         # proposition is the negated one and the court asserted what the advocate denies, there is
         # nothing in the judgment to quote, so the finding names the proposition's own negator rather
@@ -480,8 +570,24 @@ def contrary_queries(proposition: str) -> list[str]:
 
 
 def _sentence_leads(proposition: str, authority: Authority) -> ContraryLead | None:
-    """The first sentence of a retrieved paragraph that reads against the proposition."""
+    """The first sentence of a retrieved paragraph that reads against the proposition.
+
+    Two kinds of sentence are passed over before the polarity test runs at all, and both would
+    otherwise be found constantly, because both carry the proposition's words with the opposite sign:
+
+      * a question, which decides nothing -- see `FRAMING`;
+      * a sentence inside a block quotation, which is an earlier court speaking. `engine.search` has
+        already dropped paragraphs that are somebody else's words, but a paragraph can be the court's
+        own and still quote three sentences of the judgment under appeal in the middle of it.
+    """
     for sentence, offset in split_sentences(authority.body):
+        if len(sentence.split()) > MAX_SENTENCE_WORDS:
+            # Not a sentence. Bail conditions, lists of dates and tables of figures come out of the
+            # reports as one run of two hundred words with a full stop at the end, and one of them
+            # contains a negation for every line it has.
+            continue
+        if FRAMING.search(sentence) or inside_quotation(authority.body, offset):
+            continue
         opposition = opposes(proposition, sentence)
         if opposition is not None:
             return ContraryLead(
@@ -542,15 +648,24 @@ def find_contrary(
 
     report.paragraphs_examined = examined
     # A larger bench saying the opposite is worse news than a smaller one, and that is what `score`
-    # already carries: relevance plus standing. One lead per judgment, because the same court making
-    # the same point twice is one thing to read.
+    # already carries: relevance plus standing.
     leads.sort(key=lambda lead: -lead.authority.score)
+
+    # One lead per judgment, because the same court making the same point twice is one thing to read.
+    # And one per *sentence*, across judgments, which matters more than it sounds: the reports are full
+    # of formulae every later bench repeats word for word -- "reappreciation of evidence would not be
+    # permissible on the ground of patent illegality" came back three times from three judgments on the
+    # first real run, filling a list of three leads with one lead. The earliest bench to say it keeps
+    # the slot, since the ranking has already put standing ahead of recency.
     best: list[ContraryLead] = []
     taken: set[str] = set()
+    said: set[str] = set()
     for lead in leads:
-        if lead.authority.judgment_id in taken:
+        line = normalized(lead.sentence)
+        if lead.authority.judgment_id in taken or line in said:
             continue
         taken.add(lead.authority.judgment_id)
+        said.add(line)
         best.append(lead)
     report.leads = best[:top]
     return report

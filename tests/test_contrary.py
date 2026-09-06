@@ -39,7 +39,8 @@ from orderorder.ingest.pdf import ExtractedJudgment
 from orderorder.ingest.store import store_extracted
 
 MANDATORY = "A notice under Section 106 of the Transfer of Property Act is mandatory before a suit for eviction."
-DIRECTORY = "The requirement of notice under Section 106 of the Transfer of Property Act is directory and not mandatory."
+DIRECTORY = "The requirement of notice under Section 106 of the Transfer of Property Act is directory."
+BOTH = "The requirement of notice under Section 106 of the Transfer of Property Act is directory and not mandatory."
 
 
 # --- the string test --------------------------------------------------------------------------------
@@ -90,8 +91,19 @@ def test_nothing_is_the_opposite_of_itself() -> None:
 
 def test_a_sentence_carrying_both_words_is_not_its_own_opposite() -> None:
     """`directory and not mandatory` holds both halves of an antonym pair. Exclusivity is why."""
-    assert antonym_between(DIRECTORY, DIRECTORY) is None
-    assert opposes(DIRECTORY, DIRECTORY) is None
+    assert antonym_between(BOTH, BOTH) is None
+    assert opposes(BOTH, BOTH) is None
+
+
+def test_the_same_sentence_said_both_ways_is_still_opposed() -> None:
+    """A court that says "directory and not mandatory" has both a term of art and a negation.
+
+    Either alone would find it. The negation is reported, because it is the one that can be quoted
+    back word for word out of the judgment.
+    """
+    opposition = opposes(MANDATORY, BOTH)
+    assert opposition is not None
+    assert opposition.kind == "negation"
 
 
 def test_a_different_subject_is_not_an_opposition() -> None:
