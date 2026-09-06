@@ -109,6 +109,25 @@ about ingestion order, which is currently newest-first and load-bearing for a de
 The queue in front of the workers is already bounded and does not grow with the corpus: four
 judgments per worker are submitted ahead, rather than one `Future` per judgment for the whole run.
 
+**On disk**, measured on the same corpus — 9,429 judgments, 409,499 paragraphs, 1.22 GB:
+
+| | size | share | |
+|---|---|---|---|
+| `paragraph` | 493 MB | 40% | the text itself |
+| `paragraph_fts_content` | 468 MB | 38% | **a second copy of the same text** |
+| `paragraph_fts_data` | 144 MB | 12% | the inverted index, the part that does the work |
+| indexes on `paragraph` | 89 MB | 7% | |
+| everything else | 28 MB | 2% | judgments, aliases, opinions, citations |
+
+That is **2.9 KB per paragraph**, of which 1.1 KB is the duplicate. The full-text index is a standalone
+FTS5 table, so it keeps its own copy of every paragraph body. An external-content table
+(`content='paragraph'`) would not, at the cost of a join to read a body back and of the `judgment_id`
+column the queries currently take from the index for free. It is a real 38% of the database and it is
+worth doing before the corpus is large, not after; it is not done here because it changes the shape of
+the search query and every index built so far would need rebuilding.
+
+Budget **~3 KB a paragraph** until then, and remember the corpus is one SQLite file: §2.4.
+
 ---
 
 ## 3. A first deployment
