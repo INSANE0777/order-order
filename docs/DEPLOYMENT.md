@@ -1,0 +1,125 @@
+# OrderOrder — deployment
+
+| | |
+|---|---|
+| **Version** | 0.1 |
+| **Date** | 6 September 2026 |
+| **Companion documents** | [ARCHITECTURE.md](ARCHITECTURE.md) §10 · [TECH_STACK.md](TECH_STACK.md) |
+
+[ARCHITECTURE.md](ARCHITECTURE.md) §10 describes the topology this is heading for. This document is
+narrower and more useful: what is actually built, what will stop you, and in what order to fix it.
+
+---
+
+## 1. What is ready and what is not
+
+| | state |
+|---|---|
+| **Verification (Surface A)** | Deployable. Eight of twelve failure modes need no model at all, measured on held-out data, and a provider outage degrades to *not checked* rather than to a wrong answer. |
+| **Search** | Deployable. Lexical, no model, 91% case@1 on a quoted line. Weak on paraphrases (33%) and that limit is documented rather than hidden. |
+| **Drafting (Surface B)** | **Not for production.** The gate refuses to bind anything it has doubts about, which is a structural guarantee. Whether it *has* doubts about extent of support depends on the model, and a fast model gets that wrong. Ship it behind a flag, as an artefact to read, not a document to file. |
+
+Deploy verification first. It is a product a lawyer can use this month, and the claim it makes is one
+the numbers support.
+
+---
+
+## 2. The five things that will stop you
+
+### 2.1 A model that answers — the only real blocker
+
+Everything else on this list is an afternoon's work. This one is a decision.
+
+| option | latency | verdict |
+|---|---|---|
+| Gemini free tier | 10 requests/minute | 18 minutes for a three-proposition draft. Unusable for serving. |
+| `qwen3:4b`, local, CPU | **247 s per call**, measured | Proves the wiring. Not a service. |
+| A routed gateway on free endpoints | 80% `429`, measured | Answers the health probe and then fails four calls in five. |
+| A paid API tier | seconds | The only one that serves. |
+
+Two things to know before choosing. The engine is schema-bound everywhere, so an endpoint that accepts
+requests but will not fill a JSON schema is useless to it — `orderorder doctor --probe` makes one real
+call and tells you. And with a router in front, run
+`scripts/gateway-failure-rate.py --marker <file>` over a real workload: a route can pass the probe and
+still be mostly rate-limited, which produces a report full of *not assessed* that looks like data.
+
+### 2.2 Exposure
+
+`orderorder serve` binds `127.0.0.1` and asks for nothing, because on one laptop there is nothing to
+protect. Bound anywhere else it **requires** `ORDERORDER_API_TOKEN` and refuses to start without one:
+
+```bash
+export ORDERORDER_API_TOKEN=$(openssl rand -hex 32)
+orderorder serve --host 0.0.0.0
+```
+
+The compose `serve` profile declares the same variable with no default, so a stack brought up without
+one fails while compose is still interpolating. `/api/health` is the one route that answers without a
+token — a load balancer needs it and it gives nothing away.
+
+Put a reverse proxy in front for TLS. The container publishes to `127.0.0.1:8000` deliberately, so
+exposure stays an explicit decision.
+
+### 2.3 Jobs live in one process
+
+`web/jobs.py` is a dictionary. Verdicts stream to the page from the process that started the job, so
+**run exactly one worker.** With two, requests land on whichever worker answers and job lookups 404 at
+random. `orderorder serve` never passes `--workers`; the trap is running uvicorn directly.
+
+A single process is fine for a pilot — a job is worthless once the tab closes, which is why it was
+built this way. It is not fine for horizontal scaling, and the jobs table in ARCHITECTURE §4.13 is the
+fix when that day comes.
+
+### 2.4 SQLite is one writer
+
+The corpus is a 1.2 GB SQLite file. Reads are fine and concurrent; writes are not. Ingestion, the
+full-text index rebuild and `orderorder embed` all write, so do not run them against a database that
+is serving. `infra/docker-compose.yml` has Postgres with pgvector ready for when that matters —
+`DATABASE_URL` switches it, and the corpus must be re-ingested rather than copied.
+
+### 2.5 No migrations
+
+`init_db()` calls `create_all()`, which creates missing tables and never alters an existing one. The
+first schema change after you deploy is therefore manual. Alembic is in `pyproject.toml` and unused;
+wiring it, with the current schema stamped as the baseline, is the prerequisite for a second release.
+
+---
+
+## 3. A first deployment
+
+```bash
+# On the box, with the corpus already ingested onto a volume:
+export ORDERORDER_API_TOKEN=$(openssl rand -hex 32)
+export LLM_PRIMARY=... OPENAI_API_KEY=...          # or GOOGLE_API_KEY, GROQ_API_KEY
+
+docker compose -f infra/docker-compose.yml --profile serve up -d --build
+curl -s localhost:8000/api/health                   # no token needed
+curl -s -H "Authorization: Bearer $ORDERORDER_API_TOKEN" \
+     "localhost:8000/api/search?q=a+misrepresentation+vitiates+consent"
+```
+
+The image has never been built — see the commit that added it. Expect the first `--build` to surface
+something.
+
+**The corpus is not in the image.** It is 1.2 GB of state that outlives any version of this code, and
+it mounts at `/data`. Build it on the box, or copy the SQLite file in, and check
+`orderorder stats` before serving.
+
+**Keys never enter a layer.** No `ARG`, no `COPY` of `.env`, and `.dockerignore` excludes it — a
+secret baked into an image is published to whoever can pull it, and `docker history` shows it even
+after a later layer deletes the file.
+
+---
+
+## 4. Before anyone else uses it
+
+- **Attribution.** Judgment data is CC-BY-4.0 from AWS Open Data. The attribution is in the README and
+  belongs anywhere the corpus is served.
+- **The disclaimer is not decoration.** Every export carries it and every claim about a citation is
+  three-state: supported, checked-and-not-supported, or *not checked*. A deployment that flattens that
+  third state into either of the others is the failure this whole engine exists to prevent.
+- **Uploaded briefs are privileged.** Nothing is sent anywhere except the model calls, and
+  `LLM_SENSITIVE` names the provider allowed to see text that is not demo data. Honour it.
+- **Rate limits are a correctness problem, not just a speed one.** When a provider fails, the engine
+  records *not assessed* — correct, and it means a throttled deployment quietly checks less than it
+  appears to. Watch the abstention rate.

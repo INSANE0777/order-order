@@ -425,7 +425,12 @@ def _of_kind(jobs: JobStore, job_id: str, kind: type) -> Watched:
     """One store holds both sorts of job, so the id has to name the right one."""
     job = jobs.get(job_id)
     if job is None:
-        raise HTTPException(404, "no such job; it may have been dropped when the server restarted")
+        raise HTTPException(
+            404,
+            "no such job. Jobs live in the memory of one process, so this means the server "
+            "restarted, the job aged out, or the request reached a different worker than the "
+            "one that started it -- run a single worker until jobs are persisted.",
+        )
     if not isinstance(job, kind):
         raise HTTPException(404, "that job is not of this kind")
     return job
