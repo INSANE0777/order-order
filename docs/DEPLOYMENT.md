@@ -149,8 +149,16 @@ curl -s -H "Authorization: Bearer $ORDERORDER_API_TOKEN" \
      "localhost:8000/api/search?q=a+misrepresentation+vitiates+consent"
 ```
 
-The image has never been built — see the commit that added it. Expect the first `--build` to surface
-something.
+**The image builds, and CI is where that is known.** It went unbuilt for as long as this document
+existed, because the machine it was written on had no room for a Python base image. A runner has room,
+so `.github/workflows/ci.yml` builds it on every push and then runs it: bound to `0.0.0.0` with no
+token it must *fail to start*, with a token it must answer `/api/health`, `/api/search` must be 401
+without one, and the security headers must be on the response. Those are the guarantees in
+`web/auth.py` and `web/api.py` checked against the artefact that ships rather than against the source.
+
+What has still never been done is running it against a real corpus volume. The container starts with
+an empty database, which is enough to prove it boots and refuses correctly, and not enough to prove
+ingestion works inside it.
 
 **The corpus is not in the image.** It is 1.2 GB of state that outlives any version of this code, and
 it mounts at `/data`. Build it on the box, or copy the SQLite file in, and check

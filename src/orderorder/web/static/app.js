@@ -110,8 +110,12 @@ function listen(id) {
 
 function drawBoard() {
   const rows = verdicts.map((v, i) => {
-    const modes = [...new Set(v.findings.map(f => f.mode))]
-      .map(m => `<span class="mode">${m}</span>`).join("");
+    // One badge per failure mode, carrying what the finding says rather than its number. "5" tells
+    // a reader nothing; "not the court's words" is the whole point of having looked.
+    const byMode = new Map(v.findings.map(f => [f.mode, f]));
+    const modes = [...byMode.values()]
+      .map(f => `<span class="mode" title="mode ${escape(String(f.mode))}">${escape(f.label)}</span>`)
+      .join("");
     const review = !modes && v.needs_review ? '<span class="review">needs review</span>' : "";
     // A grade earned with checks that could not run is not the same as one earned with all of them,
     // and on a board that is read at a glance the badge has to say so.

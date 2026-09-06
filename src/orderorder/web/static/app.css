@@ -83,6 +83,11 @@
 
 * { box-sizing: border-box; }
 
+/* `hidden` is how the page shows and conceals its three surfaces, its tabs and its export buttons,
+ * and any rule that sets `display` beats it -- `.controls { display: flex }` was quietly showing the
+ * download buttons before there was anything to download. The attribute has to win. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background: var(--paper);
@@ -258,6 +263,12 @@ label.check input { accent-color: var(--seal); }
 /* ---------- the verdict board ---------- */
 
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+/* The findings column carries wrapped badges of real text, so it needs room; the grade seal needs
+ * almost none. Fixing both leaves the citation the flexible one, which is the right thing to give
+ * the slack to. */
+thead th:first-child, tbody td:first-child { width: 1%; padding-right: 4px; }
+thead th:last-child, tbody td:last-child { width: 42%; }
 
 thead th {
   font-family: var(--sans);
