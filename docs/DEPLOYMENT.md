@@ -128,6 +128,12 @@ the search query and every index built so far would need rebuilding.
 
 Budget **~3 KB a paragraph** until then, and remember the corpus is one SQLite file: §2.4.
 
+**None of this reaches the High Courts yet**, and that is a feature rather than a bigger disk.
+`ingest/corpus.py` reads one bucket, `indian-supreme-court-judgments`. The High Court corpus is a
+second public bucket in the same region whose keys carry a `court=` partition under the year that
+nothing here composes, and whose years run back to 1950. Pointing `BUCKET` at it does not work. The
+module docstring says what would have to change; PRD phase 3 is where it is planned.
+
 ---
 
 ## 3. A first deployment
