@@ -1,0 +1,28 @@
+# Line endings, decided here rather than per developer.
+#
+# Without this file the rule is whatever each person's `core.autocrlf` happens to be, and one commit
+# made with it off puts CRLF into the repository, where it stays. That is survivable for prose and not
+# for the files that run on the server: a shell script with CRLF does not fail as a syntax error on
+# Linux, it fails as `bad interpreter: /usr/bin/env bash^M`, which reads as a missing interpreter and
+# sends you looking in the wrong place entirely.
+#
+# Everything is currently stored LF, so this pins what is already true rather than rewriting anything.
+
+* text=auto
+
+# These are read by a Linux kernel, a shell, or Docker. Their line endings are not a preference.
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+.dockerignore text eol=lf
+
+# Data the tools must not touch, if any of it ever lands in the repository. The corpus and the model
+# caches are gitignored, but a stray one should be left alone rather than line-ending-converted.
+*.parquet  binary
+*.sqlite   binary
+*.sqlite3  binary
+*.db       binary
+*.npy      binary
+*.pdf      binary
+*.docx     binary
