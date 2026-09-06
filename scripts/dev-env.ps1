@@ -14,6 +14,14 @@ $env:UV_PYTHON_INSTALL_DIR  = Join-Path $data "uv-python"
 $env:UV_PROJECT_ENVIRONMENT = Join-Path $data "venv"
 $env:HF_HOME                = Join-Path $data "hf"
 $env:OLLAMA_MODELS          = Join-Path $data "ollama"
+# The virtualenv holds one editable install, and `uv sync` writes into it the absolute path of
+# whichever checkout ran it last. A second checkout of this repository -- a git worktree, a clone
+# beside it -- then gets an `orderorder` on the PATH that runs the *first* checkout's code, and it
+# fails in the way that costs the most time: the command exists, and the subcommand just added to it
+# does not. `pyproject.toml` pins this for pytest; this is the same fix for the CLI.
+$repo = Split-Path -Parent $PSScriptRoot
+$env:PYTHONPATH = Join-Path $repo "src"
 Write-Host "OrderOrder dev environment: data and caches under $data"
+Write-Host "                            source read from $env:PYTHONPATH"
 Write-Host "Next: uv sync        (installs into $data\venv)"
 Write-Host "      uv run orderorder --help"

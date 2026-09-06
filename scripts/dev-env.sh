@@ -15,6 +15,17 @@ export HF_HOME="$DATA/hf"
 export HF_HUB_DISABLE_SYMLINKS=1
 export HF_HUB_DISABLE_SYMLINKS_WARNING=1
 export OLLAMA_MODELS="$DATA/ollama"
+# The virtualenv holds one editable install, and `uv sync` writes into it the absolute path of
+# whichever checkout ran it last. A second checkout of this repository -- a git worktree, a clone
+# beside it -- then gets an `orderorder` on the PATH that runs the *first* checkout's code, and it
+# fails in the way that costs the most time: the command exists, and the subcommand just added to it
+# does not. `pyproject.toml` pins this for pytest; this is the same fix for the CLI.
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SRC="$REPO/src"
+# Windows Python cannot read a /c/... path, and Git Bash is where this is usually sourced.
+command -v cygpath >/dev/null 2>&1 && SRC="$(cygpath -w "$SRC")"
+export PYTHONPATH="$SRC"
 echo "OrderOrder dev environment: data and caches under $DATA"
+echo "                            source read from $SRC"
 echo "Next: uv sync        (installs into $DATA/venv)"
 echo "      uv run orderorder --help"
