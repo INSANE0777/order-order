@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable, Iterator
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -35,6 +35,11 @@ from orderorder.ingest.pdf import ExtractedJudgment
 from orderorder.ingest.store import store_extracted
 
 DEFAULT_WORKERS = 8
+# How many judgments to keep submitted per worker. Enough that a slow fetch cannot starve the pool,
+# few enough that the queue is a function of the workers and not of the corpus.
+_QUEUE_DEPTH = 4
+# How many rows the resume query reads at a time when it has to scan rather than limit.
+_SCAN_CHUNK = 1000
 
 
 @dataclass
@@ -85,18 +90,35 @@ def judgments_needing_text(
     years: list[int] | None = None,
     limit: int | None = None,
 ) -> list[Judgment]:
-    """Judgments with a source path but no text of this version yet. The resume list."""
+    """Judgments with a source path but no text of this version yet. The resume list.
+
+    `limit` is a bound on the work, so it has to be a bound on the query too. Slicing the list
+    afterwards reads the same and costs the whole corpus: at 3.1 KB of ORM object per judgment,
+    measured, `--limit 100` over the Supreme Court alone materialised every row to keep a hundred, and
+    over the High Courts it would want tens of gigabytes before fetching a single PDF. So the limit is
+    pushed into SQL where nothing else filters, and where `years` does filter — that test reads
+    `extra['year']` before falling back to the date, which is not a column and not portable across
+    SQLite and Postgres as one expression — the rows are streamed and the scan stops at the limit
+    instead. Same order, same judgments, same count as before; only the reading is lazy.
+    """
     have = select(JudgmentTextVersion.judgment_id).where(JudgmentTextVersion.version_key == version_key)
     query = (
         select(Judgment)
         .where(Judgment.source_id.is_not(None), Judgment.id.not_in(have))
         .order_by(Judgment.decided_on.desc())
     )
-    rows = list(session.scalars(query).all())
-    if years:
-        wanted = {str(y) for y in years}
-        rows = [j for j in rows if _year_of(j) in wanted]
-    return rows[:limit] if limit else rows
+    if limit and not years:
+        query = query.limit(limit)
+
+    wanted = {str(y) for y in years} if years else None
+    rows: list[Judgment] = []
+    for judgment in session.scalars(query).yield_per(_SCAN_CHUNK):
+        if wanted is not None and _year_of(judgment) not in wanted:
+            continue
+        rows.append(judgment)
+        if limit and len(rows) >= limit:
+            break
+    return rows
 
 
 def _year_of(judgment: Judgment) -> str | None:
@@ -143,12 +165,57 @@ def _fetched(
     # More processes than cores buys nothing once parsing saturates them, and each one costs a Python
     # interpreter's memory.
     pool_size = max(1, min(workers, (os.cpu_count() or 4)))
-    with ProcessPoolExecutor(max_workers=pool_size) as pool:
-        futures = [
-            pool.submit(_fetch_and_parse, j.canonical_key, j.source_id or "", _year_of(j), corpus_dir)
-            for j in judgments
-        ]
-        yield (future.result() for future in as_completed(futures))
+
+    def stream() -> Iterator[tuple[str, ExtractedJudgment | None, str | None]]:
+        with ProcessPoolExecutor(max_workers=pool_size) as pool:
+            def submit(judgment: Judgment) -> Future:
+                return pool.submit(
+                    _fetch_and_parse,
+                    judgment.canonical_key,
+                    judgment.source_id or "",
+                    _year_of(judgment),
+                    corpus_dir,
+                )
+
+            yield from _as_they_finish(submit, judgments, pool_size * _QUEUE_DEPTH)
+
+    yield stream()
+
+
+def _as_they_finish(
+    submit: Callable[[Judgment], Future],
+    judgments: list[Judgment],
+    depth: int,
+) -> Iterator[tuple[str, ExtractedJudgment | None, str | None]]:
+    """Results as they finish, with at most `depth` judgments submitted ahead of the workers.
+
+    Submitting the whole run at once queues one Future and one pickled call per judgment before any
+    work starts. Eight workers cannot be busy with more than eight judgments, so the rest is a queue
+    that is only paid for: 1.6 KB a Future, measured, which is nothing across nine thousand and tens
+    of gigabytes across the High Courts. Keeping a few per worker in flight holds them saturated -- a
+    slow fetch cannot starve the pool while others wait behind it -- and makes the queue a function of
+    the workers rather than of the corpus.
+
+    Taking `submit` rather than the pool is what makes the schedule testable. The pool itself cannot
+    be: its workers are fresh interpreters that cannot see a stand-in fetcher, which is the same
+    reason the single-worker path above exists.
+    """
+    queued: set[Future] = set()
+    remaining = iter(judgments)
+
+    def submit_next() -> None:
+        judgment = next(remaining, None)
+        if judgment is not None:
+            queued.add(submit(judgment))
+
+    for _ in range(max(1, depth)):
+        submit_next()
+    while queued:
+        done, _ = wait(queued, return_when=FIRST_COMPLETED)
+        for future in done:
+            queued.discard(future)
+            yield future.result()
+            submit_next()
 
 
 def ingest_text_bulk(

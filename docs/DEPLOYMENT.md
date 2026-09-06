@@ -24,7 +24,7 @@ the numbers support.
 
 ---
 
-## 2. The five things that will stop you
+## 2. The six things that will stop you
 
 ### 2.1 A model that answers — the only real blocker
 
@@ -82,6 +82,32 @@ is serving. `infra/docker-compose.yml` has Postgres with pgvector ready for when
 `init_db()` calls `create_all()`, which creates missing tables and never alters an existing one. The
 first schema change after you deploy is therefore manual. Alembic is in `pyproject.toml` and unused;
 wiring it, with the current schema stamped as the baseline, is the prerequisite for a second release.
+
+### 2.6 The resume list is held in memory, so a bigger corpus is a bigger box
+
+Ingestion loads the judgments still needing text into a list before it fetches anything. A `Judgment`
+ORM object measured **3.1 KB** on the Supreme Court corpus, so the list alone is:
+
+| corpus | judgments | the resume list |
+|---|---|---|
+| Supreme Court 2013-2025, what is held today | 9,429 | 30 MB |
+| Supreme Court 1950-2025 | ~50,000 | ~0.2 GB |
+| One large High Court | ~1,000,000 | ~3 GB |
+| All 25 High Courts | ~17,800,000 | ~56 GB |
+
+Up to the whole Supreme Court this does not matter. Past it, ingest in batches: `--limit` now bounds
+the *query* rather than slicing the list afterwards, so `--limit 20000` reads twenty thousand rows and
+not the corpus, and the run is resumable, so repeating it walks the corpus a batch at a time. `--year`
+does the same by year, and is the better handle when the source data arrives that way.
+
+What is not yet fixed is that the list exists at all, and that `BulkResult` keeps one `Outcome` per
+judgment for the closing report. Both are bounded by the batch rather than by the corpus once you use
+`--limit`, which is why batching is the answer here rather than a rewrite. Streaming the resume list
+by keyset and reporting incrementally is the change that removes the ceiling; it needs a decision
+about ingestion order, which is currently newest-first and load-bearing for a demo.
+
+The queue in front of the workers is already bounded and does not grow with the corpus: four
+judgments per worker are submitted ahead, rather than one `Future` per judgment for the whole run.
 
 ---
 
