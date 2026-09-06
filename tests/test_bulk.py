@@ -270,3 +270,35 @@ def _immediate(judgment):
     future = bulk.Future()
     future.set_result((judgment.canonical_key, None, "stub"))
     return future
+
+
+def test_the_real_pool_returns_every_judgment(session, tmp_path) -> None:
+    """The pool path itself, once, with real processes and real pickling.
+
+    The scheduling above is tested against a stand-in `submit`, which is the only way to test the
+    schedule -- but it leaves the seam where the schedule meets `ProcessPoolExecutor` uncovered, and
+    that seam is production-only code. A judgment with no year is the way in without a network: the
+    worker rejects it on the first line, before it reaches out for anything.
+    """
+    judgments = []
+    # More than `pool_size * _QUEUE_DEPTH`, so the refill after each completion is what is under test
+    # and not just the priming loop.
+    for n in range(2 * bulk._QUEUE_DEPTH + 8):
+        judgment = Judgment(
+            canonical_key=f"INSC:2019:{n}",
+            court="Supreme Court of India",
+            title=f"INSC:2019:{n} versus SOMEBODY",
+            source="aws_open_data",
+            source_id="2019_1_1_1",
+            decided_on=None,
+            extra={},
+        )
+        session.add(judgment)
+        judgments.append(judgment)
+    session.commit()
+
+    with bulk._fetched(judgments, tmp_path, workers=2) as stream:
+        results = list(stream)
+
+    assert sorted(key for key, _, _ in results) == sorted(j.canonical_key for j in judgments)
+    assert all(extracted is None and "no year" in (error or "") for _, extracted, error in results)
