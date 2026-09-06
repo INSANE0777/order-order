@@ -245,3 +245,44 @@ attaches a condition, the restatement attaches the same condition.
 The proposition, in the court's words:
 {sentence}
 """
+
+
+OPPOSITION_VERSION = "opposition-v1"
+OPPOSITION_PROMPT = """A search has found a sentence in a judgment that may state the opposite of what an
+advocate intends to argue. Decide how the two stand to each other.
+
+The proposition the advocate intends to argue:
+{proposition}
+
+The sentence, copied from paragraph {label} of the judgment:
+{sentence}
+
+The paragraph it sits in, which is the only other text you may use:
+{paragraph}
+
+You have no knowledge of this case beyond that paragraph. Do not reason about what the law probably
+is, or what the judgment as a whole must have decided. Compare the two texts in front of you.
+
+Four answers, and the middle two matter as much as the first:
+
+- **opposite**: the two cannot both be true. A court holding this sentence would have to reject the
+  proposition as put.
+- **narrower**: the sentence states the same rule, confined to circumstances the proposition does not
+  name, or subject to a condition it leaves out. A rule stated narrowly does not deny a wider one; it
+  says less. Most sentences that *look* opposed belong here.
+- **same**: the sentence asserts the proposition, in the same words or different ones.
+- **unrelated**: the sentence is about a different question, however many words the two share.
+
+Two traps this search walks into, and you are the check on both:
+
+1. The sentence may negate something *else* in the same breath — "reappreciation of evidence would
+   not be permissible on the ground of patent illegality" negates reappreciation, not the ground.
+   Ask what the negation is attached to before answering.
+2. The sentence may be the court reciting an argument it went on to reject, or reject one it went on
+   to accept. Read the paragraph around it.
+
+If you answer "opposite" or "narrower", quote the sentence that carries it, copied word for word from
+the paragraph, at least six words long. The quote is checked against the judgment automatically: a
+quote that is remembered, tidied or paraphrased fails that check, and the answer is then recorded as
+unread rather than as a finding. If you cannot copy such a sentence, answer "unrelated".
+"""

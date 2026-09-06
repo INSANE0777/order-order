@@ -26,6 +26,7 @@ from orderorder.engine.contrary import (
     ANTONYMS,
     MIN_SHARED_TERMS,
     antonym_between,
+    assess_opposition,
     clauses,
     contrary_queries,
     dissents_in,
@@ -33,7 +34,9 @@ from orderorder.engine.contrary import (
     find_contrary,
     negated,
     opposes,
+    read_leads,
 )
+from orderorder.engine.schemas import OppositionAssessment
 from orderorder.engine.search import build_index
 from orderorder.ingest.pdf import ExtractedJudgment
 from orderorder.ingest.store import store_extracted
@@ -285,6 +288,98 @@ def test_a_lead_is_not_called_confirmed(corpus) -> None:
     assert not report.read_by_model
     assert all(not lead.is_confirmed for lead in report.leads)
     assert "lead" in report.describe()
+
+
+# --- the second reading ------------------------------------------------------------------------------
+
+
+class StubModel:
+    """Returns a prepared answer and records the prompt it was given."""
+
+    def __init__(self, answer):
+        self.answer = answer
+        self.prompts: list[str] = []
+
+    def invoke(self, prompt: str):
+        self.prompts.append(prompt)
+        return self.answer
+
+
+def _lead(corpus):
+    return find_contrary(corpus, PROPOSITION).leads[0]
+
+
+def test_an_ungrounded_opposition_is_not_a_finding(corpus) -> None:
+    """The same rule as everywhere else in this engine: a quote that is not in the text fails."""
+    lead = _lead(corpus)
+    model = StubModel(
+        OppositionAssessment(
+            relation="opposite",
+            quote="the requirement of notice is wholly irrelevant to a suit for eviction",
+            reason="invented",
+        )
+    )
+    reading = assess_opposition(PROPOSITION, lead, model)
+    assert reading.relation == "opposite"
+    assert not reading.grounded
+    assert not reading.contradicts
+    assert "not in the judgment" in reading.describe()
+
+
+def test_a_grounded_opposition_is_confirmed(corpus) -> None:
+    lead = _lead(corpus)
+    model = StubModel(
+        OppositionAssessment(relation="opposite", quote=lead.sentence, reason="the opposite rule")
+    )
+    reading = assess_opposition(PROPOSITION, lead, model)
+    assert reading.grounded
+    assert reading.contradicts
+
+
+def test_narrower_is_available_so_that_opposite_is_not_the_only_answer(corpus) -> None:
+    """A court confining a rule has not denied it, and the reading has somewhere to say so."""
+    lead = _lead(corpus)
+    model = StubModel(OppositionAssessment(relation="narrower", quote=lead.sentence))
+    reading = assess_opposition(PROPOSITION, lead, model)
+    assert not reading.contradicts
+    assert "confined" in reading.describe()
+
+
+def test_a_provider_failure_is_unread_not_unopposed(corpus) -> None:
+    class Failing:
+        def invoke(self, _prompt):
+            raise RuntimeError("429")
+
+    reading = assess_opposition(PROPOSITION, _lead(corpus), Failing())
+    assert reading.relation == "unread"
+    assert not reading.contradicts
+    assert "not read" in reading.describe()
+
+
+def test_with_no_model_nothing_is_read(corpus) -> None:
+    report = find_contrary(corpus, PROPOSITION)
+    read_leads(PROPOSITION, report, None)
+    assert not report.read_by_model
+    assert all(lead.reading is None for lead in report.leads)
+
+
+def test_a_lead_the_model_calls_narrower_is_kept(corpus) -> None:
+    """It is still what the other side will put to the court, and the reading names the argument."""
+    report = find_contrary(corpus, PROPOSITION)
+    before = len(report.leads)
+    read_leads(PROPOSITION, report, StubModel(OppositionAssessment(relation="narrower")))
+    assert len(report.leads) == before
+    assert report.read_by_model
+    assert all(lead.reading is not None for lead in report.leads)
+
+
+def test_the_prompt_carries_the_paragraph_and_not_only_the_sentence(corpus) -> None:
+    """The commonest false lead is a negation attached to something else in the same paragraph."""
+    lead = _lead(corpus)
+    model = StubModel(OppositionAssessment(relation="unrelated"))
+    assess_opposition(PROPOSITION, lead, model)
+    assert lead.authority.body[:60] in model.prompts[0]
+    assert lead.sentence in model.prompts[0]
 
 
 # --- the dissent in the very case relied on -----------------------------------------------------------

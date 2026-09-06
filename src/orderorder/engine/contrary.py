@@ -67,6 +67,7 @@ Supreme Court are different sentences.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from sqlalchemy import select
@@ -75,7 +76,10 @@ from sqlalchemy.orm import Session
 from orderorder.db.models import Judgment, JudgmentTextVersion, Opinion, Paragraph
 from orderorder.engine.citator import corpus_size
 from orderorder.engine.lexical import tokenize
-from orderorder.engine.quotes import normalized
+from orderorder.engine.prompts import OPPOSITION_PROMPT, OPPOSITION_VERSION
+from orderorder.engine.providers import StructuredModel
+from orderorder.engine.quotes import find_quote, normalized
+from orderorder.engine.schemas import OppositionAssessment
 from orderorder.engine.search import Authority, find_authorities, index_exists
 from orderorder.engine.sentences import inside_quotation, split_sentences
 
@@ -110,6 +114,17 @@ MIN_SUBSTANTIVE_FOR_ANTONYM = 1
 # against (i) the Government; (ii) an authority; ..." -- runs to a hundred words and is exactly the
 # passage an opponent cites, so the cap has to sit well above a sentence rather than at one.
 MAX_SENTENCE_WORDS = 120
+
+# What the second reading may answer. `narrower` is where most of the string test's false leads
+# belong: a court confining a rule to particular facts has not denied the wider one.
+OPPOSITE = "opposite"
+NARROWER = "narrower"
+SAME = "same"
+UNRELATED = "unrelated"
+# And the fifth state, which is not one of the model's answers: nobody read it. A lead with no reading
+# is not a lead the model dismissed, and collapsing the two is the failure this engine is built to
+# avoid everywhere else.
+UNREAD = "unread"
 
 # What a statute reference looks like, so its words can be discounted. Section and article numbers,
 # and the capitalised run that ends in Act, Code, Rules or the Constitution.
@@ -293,11 +308,28 @@ class ContraryLead:
 class OppositionReading:
     """A second reading of one lead: does that sentence actually contradict the proposition?"""
 
-    contradicts: bool
+    relation: str  # opposite | narrower | same | unrelated | unread
     grounded: bool
     quote: str | None = None
     reason: str | None = None
-    model: str | None = None
+    prompt_version: str | None = None
+
+    @property
+    def contradicts(self) -> bool:
+        """Only an opposition that could be grounded in the judgment's own text counts as one."""
+        return self.relation == OPPOSITE and self.grounded
+
+    def describe(self) -> str:
+        if self.relation == UNREAD:
+            return "not read: no model was configured, or it did not answer"
+        if self.relation == OPPOSITE and not self.grounded:
+            return "called opposite, but the sentence it quoted is not in the judgment"
+        return {
+            OPPOSITE: "the two cannot both be true",
+            NARROWER: "the same rule, confined to circumstances the proposition does not name",
+            SAME: "it asserts the proposition rather than denying it",
+            UNRELATED: "a different question",
+        }.get(self.relation, self.relation)
 
 
 @dataclass
@@ -609,11 +641,17 @@ def find_contrary(
     field_size: int = DEFAULT_FIELD,
     candidates: int = DEFAULT_CANDIDATES,
     expand: bool = True,
+    on_candidate: Callable[[Authority], None] | None = None,
 ) -> ContraryReport:
     """Search the corpus for a court saying the opposite of this proposition.
 
     `exclude` names judgments to leave out, which is how the drafting surface keeps the authority the
     draft already cites from being reported as an attack on itself.
+
+    `on_candidate` sees every paragraph the retrieval put in the field, before the polarity test runs.
+    The evaluation uses it to keep two questions apart that would otherwise arrive as one number —
+    whether the paragraph was found at all, and whether it was then called contrary — without paying
+    for a second search over the corpus.
     """
     report = ContraryReport(proposition=proposition, judgments_searched=corpus_size(session))
     if not index_exists(session):
@@ -642,6 +680,8 @@ def find_contrary(
                 continue
             seen.add(key)
             examined += 1
+            if on_candidate is not None:
+                on_candidate(authority)
             lead = _sentence_leads(proposition, authority)
             if lead is not None:
                 leads.append(lead)
@@ -668,6 +708,63 @@ def find_contrary(
         said.add(line)
         best.append(lead)
     report.leads = best[:top]
+    return report
+
+
+def assess_opposition(
+    proposition: str, lead: ContraryLead, model: StructuredModel | None
+) -> OppositionReading:
+    """Read one lead against the proposition with a model, and check what it quotes.
+
+    Off by default, and the reason is in `evals/report-contrary.txt`. The string test finds sentences
+    whose *form* is opposed; only a reader can say whether a sentence denies a proposition or merely
+    states the rule more narrowly, and a model is a reader whose answer can be checked. Two things
+    check it: the answer is one of four relations rather than a yes, so agreeing costs the model
+    something; and an `opposite` that cannot be grounded in a verbatim quote from the paragraph is
+    downgraded to unread, exactly as an ungrounded support claim is elsewhere in this engine.
+    """
+    if model is None:
+        return OppositionReading(relation=UNREAD, grounded=False)
+    prompt = OPPOSITION_PROMPT.format(
+        proposition=proposition.strip(),
+        label=lead.authority.paragraph_label or lead.authority.paragraph_seq,
+        sentence=lead.sentence.strip(),
+        paragraph=lead.authority.body.strip(),
+    )
+    try:
+        answer = model.invoke(prompt)
+    except Exception:  # noqa: BLE001 - a provider failure is "not read", never "not opposed"
+        return OppositionReading(relation=UNREAD, grounded=False)
+    if not isinstance(answer, OppositionAssessment):
+        return OppositionReading(relation=UNREAD, grounded=False)
+
+    grounded = False
+    quote = (answer.quote or "").strip() or None
+    if quote:
+        grounded = find_quote(quote, lead.authority.body).found
+    return OppositionReading(
+        relation=answer.relation,
+        grounded=grounded,
+        quote=quote,
+        reason=answer.reason,
+        prompt_version=OPPOSITION_VERSION,
+    )
+
+
+def read_leads(
+    proposition: str, report: ContraryReport, model: StructuredModel | None
+) -> ContraryReport:
+    """Have every lead read, and say on the report that they were. Leads are not dropped.
+
+    A lead the model called `narrower` is still a passage an opponent will put to the court, and the
+    reading is the useful part of it -- it names what the argument will be. Dropping it would hide
+    the one thing this pass adds.
+    """
+    if model is None:
+        return report
+    for lead in report.leads:
+        lead.reading = assess_opposition(proposition, lead, model)
+    report.read_by_model = True
     return report
 
 
