@@ -588,8 +588,16 @@ def eval_run(
     detail: bool = typer.Option(
         False, "--detail", help="Print every item the engine disagreed with the gold label about."
     ),
+    pace: float = typer.Option(
+        0.0, help="Seconds between items. Use it on a free tier: 12 keeps two calls under 10/minute."
+    ),
 ) -> None:
-    """Run the engine over the gold set and report what it caught and what it invented."""
+    """Run the engine over the gold set and report what it caught and what it invented.
+
+    On a rate-limited provider, pass `--pace`. Without it the quota is exhausted in the first minute,
+    every call after that is a 429, the fallback chain answers them with the next provider in the
+    list, and the report describes a blend of two models rather than either one.
+    """
     items = read_gold(Path(gold))
     if not items:
         console.print(f"[red]no gold set at {gold}[/red]; run [bold]orderorder eval generate[/bold]")
@@ -618,6 +626,7 @@ def eval_run(
             voice_model=None if no_model else build_structured(VoiceAssessment),
             weight_model=None if no_model else build_structured(WeightAssessment),
             facts_model=None if no_model else build_structured(ApplicabilityAssessment),
+            pace=pace,
             on_result=progress,
         )
 
