@@ -3,7 +3,7 @@
 #
 #   docker compose -f infra/docker-compose.yml --profile hackathon up -d postgres
 #
-# Serving profile: the engine in a container too, for a box that is not this laptop.
+# Serving profile: the engine in a container too, for a box that is not a development machine.
 #
 #   ORDERORDER_API_TOKEN=$(openssl rand -hex 32) \
 #     docker compose -f infra/docker-compose.yml --profile serve up -d
@@ -22,7 +22,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - "${ORDERORDER_DATA_DIR:-data}/postgres:/var/lib/postgresql/data"
+      - "${ORDERORDER_DATA_DIR:-../data}/postgres:/var/lib/postgresql/data"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U orderorder -d orderorder"]
       interval: 5s
@@ -55,7 +55,7 @@ services:
     volumes:
       # The corpus is state and lives outside the image. Read-write because ingestion, the full-text
       # index and the vector store all write here.
-      - "${ORDERORDER_DATA_DIR:-data}:/data"
+      - "${ORDERORDER_DATA_DIR:-../data}:/data"
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,4 +68,4 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      - "${ORDERORDER_DATA_DIR:-data}/ollama:/root/.ollama"
+      - "${ORDERORDER_DATA_DIR:-../data}/ollama:/root/.ollama"

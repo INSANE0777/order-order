@@ -197,11 +197,21 @@ def run_gold(
     voice_model: StructuredModel | None = None,
     weight_model: StructuredModel | None = None,
     facts_model: StructuredModel | None = None,
+    pace: float = 0.0,
     on_result=None,
 ) -> Report:
-    """Score the engine over a whole gold set."""
+    """Score the engine over a whole gold set.
+
+    `pace` is seconds to wait between items, and it exists because a free tier makes an unpaced run
+    measure the wrong thing. Ten requests a minute against an item that makes two or three of them
+    means most calls come back 429; the fallback chain then answers them with whatever is next in the
+    list, and the report becomes a blend of two models with no way to tell which answered what. A run
+    that is slow is fine. A run whose numbers describe a mixture is not a measurement.
+    """
     report = Report(model_configured=model is not None)
     for index, item in enumerate(items, start=1):
+        if pace and index > 1:
+            time.sleep(pace)
         result = run_item(
             session,
             item,

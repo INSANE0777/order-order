@@ -30,7 +30,8 @@ load_dotenv(find_dotenv(usecwd=True), override=False)
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    # Storage. Large things live here, off the system drive.
+    # Storage. The corpus, caches and database volume live here; it grows to a few gigabytes, so
+    # point ORDERORDER_DATA_DIR at somewhere with room rather than accepting the default.
     orderorder_data_dir: Path = Field(default=Path("data"))
     database_url: str = ""
 

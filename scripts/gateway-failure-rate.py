@@ -24,7 +24,7 @@ import json
 import os
 from pathlib import Path
 
-DEFAULT_LOGS = Path("data/omniroute/call_logs")
+DEFAULT_LOGS = Path(os.environ.get("ORDERORDER_DATA_DIR", "data")) / "omniroute" / "call_logs"
 
 
 def read(directory: Path, since: float) -> list[dict]:

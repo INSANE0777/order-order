@@ -30,7 +30,7 @@ Phase 0 is the hackathon sprint. Phases 1-3 take the same engine to a startup. D
 | **5** | Voice and opinion attribution; weight classifier (rule-assisted LLM); scope comparator: claim decomposition, NLI first pass, adjudicator schema with dropped qualifiers, modality, generality, narrowed proposition; selective-quotation check. | Review 20 engine verdicts against own judgment; write the opposing-counsel memo style guide with three worked examples. | Overstatement recall measured on gold v1 |
 | **6** | Citator: own edges from ingested judgments + Indian Kanoon cited-by; treatment cue phrases + LLM; grade rubric; memo generation; first full eval run and retrieval tuning. | Label treatment for the gold set's mode-10 items; check the memo tone on 10 verdicts. | Eval report v1 with all P0 metrics |
 | **7** | Drafting engine: case digest from uploaded documents (born-digital and one scanned page via PP-OCRv6), issue framing, authority retrieval and ranking, proposition drafting bound to paragraphs, gate policy, assembly from L's template, DOCX export with verification appendix. | Prepare the demo matter's documents (a contract, a notice, a reply, one scanned annexure) and the facts narrative; review the generated draft. | Draft exports with zero unverified propositions |
-| **8** | Web UI: upload, verdict board with live progress, annotated brief, judgment viewer with paragraph highlight and version badge, memo panel, export; minimal drafting workspace (digest confirm, issues confirm, draft view, export). | Usability pass with two classmates on the stress-test flow; log confusions. | The demo script runs in the browser end to end on the laptop with the 4B model |
+| **8** | Web UI: upload, verdict board with live progress, annotated brief, judgment viewer with paragraph highlight and version badge, memo panel, export; minimal drafting workspace (digest confirm, issues confirm, draft view, export). | Usability pass with two classmates on the stress-test flow; log confusions. | The demo script runs in the browser end to end on the development machine with the 4B model |
 | **9** | Full run on the free tiers with all three providers and fallbacks configured; rebuild digests for the demo judgments on Kaggle; count the demo's model calls against each provider's daily limit; run the full eval; fix failures; verification report PDF; rehearsal 1 with timing. | Rehearsal 1 as presenter; tighten the narrative; prepare the hook slide (the July 2026 Supreme Court judgment; the "para 73 of 27" incident). | Demo under 7 minutes on free tiers; eval report v2 |
 | **10** | Polish; rehearsals 2 and 3; record a backup video of the full run; submission package (repo, docs, eval report, video). | Final Q&A prep: what the engine cannot do, why self-hosted, data sources and licences, roadmap. | Submitted |
 
@@ -59,9 +59,9 @@ Phase 0 is the hackathon sprint. Phases 1-3 take the same engine to a startup. D
 | Risk | Mitigation |
 |---|---|
 | A free tier rate-limits or goes down during the demo | Three providers behind LangChain fallbacks; digests precomputed on day 9; local Ollama as the last resort; backup video |
-| CPU embedding of the subset takes too long | Use a Kaggle T4 session on day 2; embed only judgments from 2018 onward if it must stay on the laptop |
+| CPU embedding of the subset takes too long | Use a Kaggle T4 session on day 2; embed only judgments from 2018 onward if it must stay on CPU |
 | Citation grammar misses formats in the memorials | L's format list on day 0; tests drive the grammar; NER catches names without citations |
-| Demo network failure | Backup video recorded on day 10; the whole stack runs on the laptop with reduced quality as a second fallback |
+| Demo network failure | Backup video recorded on day 10; the whole stack runs locally with reduced quality as a second fallback |
 
 ---
 
@@ -170,7 +170,7 @@ gantt
 | 2026-09-04 | Docling + PaddleOCR-VL; no PyMuPDF, MinerU, Marker, Surya | Licences |
 | 2026-09-04 | Rhetorical roles by local LLM now, retrained InLegalBERT later | OpenNyAI package unmaintained; label set retained |
 | 2026-09-04 | Postgres + pgvector only; Qdrant deferred | Corpus fits; one system for a team of two |
-| 2026-09-04 | Hackathon build is ₹0: free LLM API tiers behind LangChain fallbacks, free GPU notebooks for batch work, laptop for the app; the self-hosted GPU box is deferred to production | Laptop is CPU-only; no budget now; the demo processes no privileged data |
+| 2026-09-04 | Hackathon build is ₹0: free LLM API tiers behind LangChain fallbacks, free GPU notebooks for batch work, the development machine for the app; the self-hosted GPU box is deferred to production | Development hardware is CPU-only; no budget now; the demo processes no privileged data |
 | 2026-09-04 | LangChain + LangGraph as the orchestration layer, replacing the earlier Pydantic AI plan | Provider swapping across free tiers, a state graph that matches the verdict state machine, ready integrations for Docling, pgvector and tracing, LangSmith's free plan |
 | 2026-09-04 | Named OrderOrder, repository `order-order` | The courtroom call to order; replaced the first draft's working name |
 | Open | Trademark, domain and Bar Council advertising checks for the name | Needed before public launch, not before the hackathon |

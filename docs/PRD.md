@@ -144,7 +144,7 @@ Each failure mode has a detector in the engine and a label in the evaluation gol
 
 The Princeton benchmark's five hallucination types (non-existent citation, name/reporter mismatch, incorrect pincite, verbatim misquote, content misrepresentation) map onto items 1, 2, 12, 9 and 8 respectively; the taxonomy here is a superset.
 
-**Which of these cost anything to check.** Modes 1, 2, 3, 5, 6, 9, 10 and 12 are settled by the record and the structure of the judgment — who decided it, how many judges sat, whose words a paragraph carries, what later courts did with it, whether the pinpointed paragraph is where the words are. None of them needs a language model, so they run in milliseconds, for nothing, on a laptop, and they are the ones measured in `docs/ARCHITECTURE.md` section 11.4: recall between 20/20 and 40/40 on a held-out set, with no clean citation flagged.
+**Which of these cost anything to check.** Modes 1, 2, 3, 5, 6, 9, 10 and 12 are settled by the record and the structure of the judgment — who decided it, how many judges sat, whose words a paragraph carries, what later courts did with it, whether the pinpointed paragraph is where the words are. None of them needs a language model, so they run in milliseconds, for nothing, on an ordinary CPU, and they are the ones measured in `docs/ARCHITECTURE.md` section 11.4: recall between 20/20 and 40/40 on a held-out set, with no clean citation flagged.
 
 Modes 4, 7, 8 and 11 turn on what a passage *means* — whether it supports the proposition, whether the court was deciding or observing, whether a qualification was dropped — and those need a model. They are the expensive half in every sense, and where no model is configured the engine reports them as not checked rather than as passed.
 
@@ -225,7 +225,7 @@ Priority: **P0** = hackathon MVP; **P1** = phase 1 (first three months after); *
 |---|---|
 | **Accuracy** | Targets in §12; quote-grounding rate is 100% by construction (a verdict cannot say "supported" without a string-matched quote) |
 | **Latency** | A 30-citation brief verified in under 10 minutes on the production GPU box; under 60 seconds for a single citation whose judgment is already digested |
-| **Self-hosting** | The production requirement: every component can run on hardware the team controls, from a laptop (reduced models) to a rented India-resident GPU server, with no mandatory external API. The hackathon build instead runs the language model on free cloud API tiers with fallbacks and uses free GPU notebooks for batch work, on non-privileged demo data only; the provider is a configuration value, so the switch to self-hosted models is not a code change |
+| **Self-hosting** | The production requirement: every component can run on hardware the team controls, from a CPU-only machine (reduced models) to a rented India-resident GPU server, with no mandatory external API. The hackathon build instead runs the language model on free cloud API tiers with fallbacks and uses free GPU notebooks for batch work, on non-privileged demo data only; the provider is a configuration value, so the switch to self-hosted models is not a code change |
 | **Confidentiality** | Per-matter isolation, encryption at rest, TLS in transit, audit log of every access and export, delete-on-request, no training on user data, upload malware scanning |
 | **Auditability** | Every verdict stores its evidence (paragraph IDs, quotes, offsets, text version, source URL, model and prompt version) |
 | **Determinism** | Same brief, same corpus, same model version gives the same verdicts; all LLM calls use schema-constrained output and are logged |
@@ -353,7 +353,7 @@ The demo memorial's eight citations produce the eight expected verdicts, each wi
 | Corpus text quality (OCR of old scanned judgments) | Medium | Medium | Prefer official born-digital PDFs; PaddleOCR-VL for scans; OCR-derived flag lowers confidence; fuzzy quote match only for OCR text |
 | Indian Kanoon terms on caching are unwritten | Medium | Medium | Bulk corpus from AWS Open Data instead; Indian Kanoon lookup-only with attribution; get written confirmation in phase 1 |
 | Self-hosted models weaker than frontier cloud models | Medium | Medium | 2026 open models at 27-31B are strong on long-context reading; batching and the digest cache make the 120B-class affordable on one 80 GB card; cloud toggle exists for consenting users |
-| The laptop cannot run demo-quality models | Certain | Medium | Free API tiers serve 70B-120B-class open models for the live demo; a free Kaggle or Colab GPU does the batch work; the laptop runs the app and offline development |
+| The development hardware cannot run demo-quality models | Certain | Medium | Free API tiers serve 70B-120B-class open models for the live demo; a free Kaggle or Colab GPU does the batch work; the development machine runs the app and offline work |
 | A free tier rate-limits or goes down during the demo | High | Medium | Three providers configured behind LangChain fallbacks; digests precomputed and cached; local Ollama as the last resort; backup video |
 | Scope creep between verify and draft | High | Medium | Draft surface reuses the verify engine unchanged; the gate is the only new logic |
 | Legal liability / unauthorised practice | Low | High | Research-aid positioning; disclaimers; lawyer remains responsible; no outcome prediction; aligns with draft regulations |
@@ -378,7 +378,7 @@ The demo memorial's eight citations produce the eight expected verdicts, each wi
 
 | Phase | Window | Scope | Exit criterion |
 |---|---|---|---|
-| **0. Hackathon MVP** | 10 working days (compressible) | SC-only subset corpus; Surface A for modes 1, 2, 4, 5, 6, 8, 10, 12; Surface B for one matter type with the gate; DOCX export; minimal UI; 50-claim gold set; ₹0 stack on free tiers | Demo script runs end to end on the laptop against free tiers |
+| **0. Hackathon MVP** | 10 working days (compressible) | SC-only subset corpus; Surface A for modes 1, 2, 4, 5, 6, 8, 10, 12; Surface B for one matter type with the gate; DOCX export; minimal UI; 50-claim gold set; ₹0 stack on free tiers | Demo script runs end to end on the development machine against free tiers |
 | **1. Foundation** | Months 1-3 after | Full SC corpus; own citator graph; retrained role classifier; 2-3 High Courts; gold set 500+; teams; Word add-in spike; Indian Kanoon written terms | Phase-1 metric targets met; 3 moot societies onboarded |
 | **2. Practitioner product** | Months 4-9 | BYO-login connectors; moot-court mode; pricing and billing; DPDP-ready handling; on-prem package | Paying practitioners; firm pilot |
 | **3. Coverage** | Months 10-18 | All High Courts; tribunals; statutes and amendments; statutory-provision verification; regional-language OCR | — |

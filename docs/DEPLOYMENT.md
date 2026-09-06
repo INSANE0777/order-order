@@ -45,7 +45,7 @@ still be mostly rate-limited, which produces a report full of *not assessed* tha
 
 ### 2.2 Exposure
 
-`orderorder serve` binds `127.0.0.1` and asks for nothing, because on one laptop there is nothing to
+`orderorder serve` binds `127.0.0.1` and asks for nothing, because on a single-user machine there is nothing to
 protect. Bound anywhere else it **requires** `ORDERORDER_API_TOKEN` and refuses to start without one:
 
 ```bash

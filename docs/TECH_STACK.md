@@ -6,9 +6,9 @@
 | **Date** | 4 September 2026 |
 | **Companion documents** | [PRD.md](PRD.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [ROADMAP.md](ROADMAP.md) |
 
-Constraints this stack satisfies: **₹0 for the hackathon**, **open and official data only**, **permissive licences only in the product path**, a **CPU-only Windows laptop**, **LangChain + LangGraph** as the orchestration layer, **self-hosting as the production target** for privileged documents, and a team of two.
+Constraints this stack satisfies: **₹0 for the hackathon**, **open and official data only**, **permissive licences only in the product path**, a **CPU-only development machine**, **LangChain + LangGraph** as the orchestration layer, **self-hosting as the production target** for privileged documents, and a team of two.
 
-The version 0.1 stack assumed a rented GPU for the demo and Pydantic AI for orchestration. Both are gone. Every provider, model and service below is either free of charge within a published allowance or runs on the laptop; the paid and self-hosted pieces are kept only as the production profile, reachable by changing environment variables.
+The version 0.1 stack assumed a rented GPU for the demo and Pydantic AI for orchestration. Both are gone. Every provider, model and service below is either free of charge within a published allowance or runs on the development machine; the paid and self-hosted pieces are kept only as the production profile, reachable by changing environment variables.
 
 ---
 
@@ -19,7 +19,7 @@ The version 0.1 stack assumed a rented GPU for the demo and Pydantic AI for orch
 3. **Boring infrastructure.** One database (PostgreSQL with pgvector, which also stores LangGraph checkpoints), no queue for the hackathon, Docker only for Postgres. Add components when a measurement demands them.
 4. **Deterministic pipeline, model at the leaves.** The verification engine is a LangGraph state graph whose nodes are typed Python functions. Language-model calls sit inside specific nodes with a Pydantic output schema. No node runs a ReAct-style agent loop.
 5. **Permissive licences.** MIT, Apache-2.0, BSD and CC-BY only in the product path (§3).
-6. **Same code, three profiles.** Laptop-offline (Ollama, small model), hackathon-free (free API tiers with fallbacks, free GPU notebooks for batch work), production-self-hosted (SGLang, TEI, PaddleOCR-VL on a rented GPU box).
+6. **Same code, three profiles.** Local-offline (Ollama, small model), hackathon-free (free API tiers with fallbacks, free GPU notebooks for batch work), production-self-hosted (SGLang, TEI, PaddleOCR-VL on a rented GPU box).
 
 ---
 
@@ -34,14 +34,14 @@ The version 0.1 stack assumed a rented GPU for the demo and Pydantic AI for orch
 | API | Python 3.12 via `uv`, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic; FastAPI background tasks with a jobs table | Same, plus arq workers on Redis | No queue needed for a two-person demo |
 | Parsing | Docling (MIT) through `langchain-docling`; pypdfium2 for text-layer detection | Same | Permissive; layout and footnotes |
 | OCR | PP-OCRv6 on CPU (PaddleOCR 3.7); PaddleOCR-VL-1.6 on a Kaggle GPU for scanned batches | PaddleOCR-VL service | Apache-2.0; Hindi/Devanagari |
-| Embeddings | BGE-M3 (Apache-2.0): corpus embedded on Kaggle, queries on the laptop CPU; Voyage's free allowance for an embedder bake-off on the gold set | Qwen3-Embedding-8B via Text Embeddings Inference | No token cap, no data terms for local models |
+| Embeddings | BGE-M3 (Apache-2.0): corpus embedded on Kaggle, queries on a local CPU; Voyage's free allowance for an embedder bake-off on the gold set | Qwen3-Embedding-8B via Text Embeddings Inference | No token cap, no data terms for local models |
 | Reranker | bge-reranker-v2-m3 on CPU (top-20, about a second) | Same via TEI | Permissive |
 | Vector + full-text | PostgreSQL 17 + pgvector 0.8 in Docker, hybrid search in SQL with reciprocal rank fusion, exact citation lookup by index | Same on the GPU box; Qdrant past ~10M chunks | One system of record; free hosted databases are too small for the corpus (§8) |
 | Checkpoints | `langgraph-checkpoint-postgres` in the same database | Same | Resumable runs, human-in-the-loop interrupts, free |
 | Tracing and eval | LangSmith Developer plan (5,000 traces/month, 14-day retention) with the gold set as a LangSmith dataset; DeepEval in CI | Langfuse self-hosted (privileged text must not leave the box) | One environment variable turns tracing on |
 | Storage | Local disk under `ORDERORDER_DATA_DIR` | MinIO | — |
 | Auth | Auth.js | Keycloak or Ory | — |
-| Hosting | The laptop (localhost) for the demo; Vercel Hobby for the frontend and Render free or Hugging Face Spaces for the API only if a public link is required | Docker Compose on one GPU box, Caddy TLS | Free hosts spin down; the corpus lives on the laptop anyway |
+| Hosting | The development machine (localhost) for the demo; Vercel Hobby for the frontend and Render free or Hugging Face Spaces for the API only if a public link is required | Docker Compose on one GPU box, Caddy TLS | Free hosts spin down; the corpus lives on the development machine anyway |
 
 ---
 
@@ -129,7 +129,7 @@ Sources: [1.0 announcement](https://blog.langchain.com/langchain-langgraph-1dot0
 | **Groq** | `openai/gpt-oss-120b`, Llama 3.3 70B, gpt-oss-20b | 30 RPM, 1,000 RPD, **8K TPM, 200K TPD** ([rate limits](https://console.groq.com/docs/rate-limits)); the console labels this the Developer plan and adding a card raises limits, which is not a ₹0 option | 131K | JSON schema and tool calling | States it does not train on inputs or outputs and offers zero data retention; confirm in the console terms | **Privacy-safe path** for anything resembling real text; too little token throughput to carry a whole brief alone |
 | **Cerebras** | `gpt-oss-120b`, `zai-glm-4.7` | 5-15 RPM (sources differ), 30K TPM, **1M tokens/day**; an 8,192-token context cap on the free tier is reported ([free endpoint notes](https://pricepertoken.com/endpoints/cerebras/free)) | 8K (free) | Tool calling | No-training policy claimed; one source says the larger "Experiment" allowance requires opting into training; verify in the console | Fastest fallback for short verification prompts; unusable for digests |
 | **Mistral La Plateforme** | Mistral Small, Medium, Magistral | "Experiment" tier, roughly 1B tokens/month at about 1 request/s; exact numbers are no longer published (see Admin Console › Limits) | 128K | Tool calling, JSON schema | **Trains on free-tier data by default** since 12 Mar 2026; opt out under Admin › Privacy ([data controls](https://docs.mistral.ai/admin/monitor-comply/privacy-data-controls)) | Large bulk allowance once opted out; second bulk provider for eval runs |
-| Ollama on the laptop | Qwen3.5-4B Q4 | Unlimited; slow on CPU | 8-16K working | Native JSON schema | Local | Offline development and last-resort fallback; not trusted for verdict quality |
+| Ollama, run locally | Qwen3.5-4B Q4 | Unlimited; slow on CPU | 8-16K working | Native JSON schema | Local | Offline development and last-resort fallback; not trusted for verdict quality |
 | SambaNova | Llama 3.x, Llama 4 Maverick preview | 20 RPM, 200K tokens/day per model ([docs](https://docs.sambanova.ai/docs/en/models/rate-limits)) | varies | Tool calling | Free-tier data policy not documented | Optional extra fallback, demo data only |
 | Not used | OpenRouter `:free` (50 requests/day and you must allow training and publishing of prompts), GitHub Models (8K input / 4K output caps), Hugging Face Inference Providers ($0.10/month credit), Cloudflare Workers AI (small models; possible embedding fallback only) | | | | | |
 
@@ -159,7 +159,7 @@ Sprint-day eval runs (50 gold items × 5 calls, about 750K tokens) fit inside a 
 
 ### 5.4 Local and self-hosted models
 
-The laptop runs Ollama with Qwen3.5-4B at 4-bit for offline development and code-path testing; it is not used for verdict quality. The production profile serves open-weight models on a self-hosted GPU box, unchanged from version 0.1:
+Development runs Ollama with Qwen3.5-4B at 4-bit for offline work and code-path testing; it is not used for verdict quality. The production profile serves open-weight models on a self-hosted GPU box, unchanged from version 0.1:
 
 | Tier | Hardware | Model | Notes |
 |---|---|---|---|
@@ -176,7 +176,7 @@ Claude through the official `anthropic` SDK, model `claude-opus-5`; its citation
 
 ## 6. Free GPU compute for batch work
 
-The laptop cannot embed a million paragraphs or run PaddleOCR-VL. Free GPU notebooks can, as batch jobs whose outputs are imported into the local database.
+A CPU-only machine cannot embed a million paragraphs or run PaddleOCR-VL. Free GPU notebooks can, as batch jobs whose outputs are imported into the local database.
 
 | Service | Free allowance | Use |
 |---|---|---|
@@ -196,7 +196,7 @@ The laptop cannot embed a million paragraphs or run PaddleOCR-VL. Free GPU noteb
 
 - **Per-page routing** (ARCHITECTURE.md §3.2): text-layer pages go to Docling, image-only pages to OCR. Text-layer detection uses pypdfium2, not PyMuPDF.
 - **Docling** (MIT) through `langchain-docling` for born-digital PDFs and DOCX; its layout models run on CPU.
-- **PaddleOCR 3.7**: PP-OCRv6 on the laptop CPU for light scans; **PaddleOCR-VL-1.6** (0.9B parameters, 109 languages including Hindi/Devanagari, Apache-2.0) on a Kaggle GPU for batches and as a production container. It wants 8 GB VRAM minimum and compute capability 8.0 for the vLLM-based path, which a T4 lacks; use the standard PaddlePaddle inference path on Kaggle.
+- **PaddleOCR 3.7**: PP-OCRv6 on a local CPU for light scans; **PaddleOCR-VL-1.6** (0.9B parameters, 109 languages including Hindi/Devanagari, Apache-2.0) on a Kaggle GPU for batches and as a production container. It wants 8 GB VRAM minimum and compute capability 8.0 for the vLLM-based path, which a T4 lacks; use the standard PaddlePaddle inference path on Kaggle.
 - **Tesseract** as a last resort only.
 - **Evaluate before committing**: run Docling, PP-OCRv6 and PaddleOCR-VL over ~200 Indian judgment and annexure pages and pick per page type by measured character accuracy; vendor benchmarks do not include Indian court documents.
 - Paid OCR APIs are not part of the hackathon build.
@@ -208,7 +208,7 @@ The laptop cannot embed a million paragraphs or run PaddleOCR-VL. Free GPU noteb
 **Chunk = paragraph** with a judgment-context prefix (title, court, year, opinion type, role) prepended before embedding.
 
 **Embeddings.**
-- Corpus: BGE-M3 (1024 dimensions, Apache-2.0) on a Kaggle GPU (§6), no token cap and no data terms. Queries: the same model on the laptop CPU through `langchain-huggingface`, fast enough for single claims.
+- Corpus: BGE-M3 (1024 dimensions, Apache-2.0) on a Kaggle GPU (§6), no token cap and no data terms. Queries: the same model on a local CPU through `langchain-huggingface`, fast enough for single claims.
 - Bake-off on the gold set, free of charge: Voyage gives 200M free tokens for the voyage-4 family and 50M for `voyage-law-2` ([pricing](https://docs.voyageai.com/docs/pricing)); Jina gives 10M shared tokens; Cohere's trial key allows 1,000 calls/month. Enough to compare embedders on pinpoint hit@k, not enough to embed the corpus (1-1.5M paragraphs is roughly 250-375M tokens), and the corpus embedder decides the query embedder.
 
 **Reranker.** bge-reranker-v2-m3 on CPU over the top 20-40 candidates, about a second per citation. Jina's hosted reranker (within the same 10M free tokens, 100 RPM) is a drop-in alternative if CPU latency bites during the demo.
@@ -246,26 +246,28 @@ Citation lookup is never vector search: normalised citation strings hit a unique
 | Full Supreme Court 1950-2025 | ~40-50k | ~3-5M | ~4-5 GB | ~6-10 GB (+ HNSW) | A 32-64 GB RAM box |
 | High Courts (all 25) | ~17.8M | hundreds of millions | ~1 TB+ | ~1 TB | Phase 3: shard by court |
 
-**Why not a free hosted database.** Neon's free plan is 0.5 GB and Supabase's is 500 MB (and pauses after a week without requests); Qdrant Cloud's free cluster has 1 GB of RAM. None holds the hackathon subset's vectors. If judges need a public link, either the corpus is shrunk to a few hundred judgments for a Neon or Qdrant demo instance, or the API stays on the laptop.
+**Why not a free hosted database.** Neon's free plan is 0.5 GB and Supabase's is 500 MB (and pauses after a week without requests); Qdrant Cloud's free cluster has 1 GB of RAM. None holds the hackathon subset's vectors. If judges need a public link, either the corpus is shrunk to a few hundred judgments for a Neon or Qdrant demo instance, or the API stays on the development machine.
 
 ---
 
 ## 9. Developer machine setup
 
-What the build assumes: an x86-64 machine with four cores or more, about 16 GB of RAM, and no NVIDIA GPU. The constraint worth planning around is disk: the corpus, the Postgres volume, the model weights and the build caches together want tens of gigabytes, and every tool involved defaults to putting its share on the system drive. Choose a location with room and export it as `ORDERORDER_DATA_DIR`.
+What the build assumes: an x86-64 machine with four cores or more, about 16 GB of RAM, and no NVIDIA GPU — the GPU work is deferred to free notebooks (§6) and, in production, to a rented box. Windows, macOS and Linux all serve; the Windows notes below are the ones that catch people out.
 
-Do these before the sprint (day 0):
+The constraint worth planning around is **disk**. Between the corpus, the Postgres volume, the model weights and the build caches this project wants tens of gigabytes, and every tool involved defaults to putting its share on the system drive. Choose a location with room, export it as `ORDERORDER_DATA_DIR`, and point the rest at it: `scripts/dev-env.sh` and `scripts/dev-env.ps1` do that for uv, Hugging Face and Ollama in one step. The two they cannot reach are Docker and a system-wide Ollama service, which are configured in their own settings.
+
+Do these before the sprint (day 0). `$DATA` below is the directory chosen above.
 
 1. **Check free space on the system drive.** A drive close to full will destabilise Windows updates and Docker, and the caches below are exactly what fills it.
-2. **Move Docker's disk image off the system drive.** Docker Desktop → Settings → Resources → Advanced → Disk image location. Cap WSL memory in `%UserProfile%\.wslconfig` with `[wsl2]` and `memory=8GB`.
-3. **Point Ollama's model store at the data directory.** User environment variable `OLLAMA_MODELS=$DATA/ollama`, restart Ollama, pull the Qwen3.5-4B Q4 tag.
-4. **Model caches under the data directory.** `HF_HOME` (BGE-M3, reranker, PaddleOCR models) and `UV_CACHE_DIR`.
-5. **Python 3.12 via uv.** `winget install astral-sh.uv`, then `uv python install 3.12`; `uv sync` creates the environment from `pyproject.toml`.
-6. **Project data directory.** `ORDERORDER_DATA_DIR` holds corpus files and the Postgres volume. Keep the code wherever you like, though a path outside a downloads folder is safer against cleanup tools.
+2. **Move Docker's disk image off the system drive.** Docker Desktop → Settings → Resources → Advanced → Disk image location. On Windows, cap WSL memory in `%UserProfile%\.wslconfig` with `[wsl2]` and `memory=8GB`.
+3. **Point Ollama's model store at `$DATA/ollama`.** Set `OLLAMA_MODELS` as a user environment variable, restart Ollama, and pull the Qwen3.5-4B Q4 tag. It has to be set before the server starts, or the pull lands on the system drive.
+4. **Model caches under `$DATA`.** `HF_HOME` (BGE-M3, reranker, PaddleOCR models) and `UV_CACHE_DIR`.
+5. **Python 3.12 via uv.** `winget install astral-sh.uv`, or the installer for your platform, then `uv python install 3.12`; `uv sync` creates the environment from `pyproject.toml`.
+6. **Project data directory.** `ORDERORDER_DATA_DIR=$DATA` holds corpus files and the Postgres volume. Keep the code wherever you like, though a path outside a downloads folder is safer against cleanup tools.
 7. **Node.** Node 22, with `corepack enable` for pnpm.
 8. **Free accounts and keys** (both team members, one key each per provider): Google AI Studio (`GOOGLE_API_KEY`), Groq (`GROQ_API_KEY`), Cerebras (`CEREBRAS_API_KEY`), Mistral (`MISTRAL_API_KEY`, then opt out of training under Admin › Privacy), LangSmith (`LANGSMITH_TRACING=true`, `LANGSMITH_API_KEY`), Kaggle (phone-verify to unlock GPU and internet), Hugging Face (model downloads), Indian Kanoon (`INDIANKANOON_TOKEN`, then apply for the non-commercial allowance). Optional: Voyage and Jina for the embedder bake-off. Verify each key with one call on day 0; keys live in `.env`, never in git.
 
-What the laptop can and cannot do: run the whole application, the database, ingestion of the subset (minus embeddings), the engine end to end against free tiers or the local 4B model, the web UI and the evaluation harness. It cannot produce demo-quality verdicts locally or run PaddleOCR-VL; those go through the free tiers and Kaggle.
+What such a machine can and cannot do: run the whole application, the database, ingestion of the subset (minus embeddings), the engine end to end against free tiers or the local 4B model, the web UI and the evaluation harness. It cannot produce demo-quality verdicts locally or run PaddleOCR-VL; those go through the free tiers and Kaggle.
 
 ---
 
@@ -345,9 +347,9 @@ order-order/
 | LLM, privacy-safe | Groq, gpt-oss-120b | 30 RPM, 1,000 RPD, 8K TPM, 200K TPD | TPM and TPD | No training; ZDR available |
 | LLM, fallback | Cerebras, gpt-oss-120b | 5-15 RPM, 30K TPM, 1M tokens/day | 8K context | Verify training opt-in |
 | LLM, bulk | Mistral Experiment tier | ~1B tokens/month, ~1 rps (unpublished) | RPS | Opt out of training first |
-| LLM, offline | Ollama, Qwen3.5-4B Q4 on the laptop | Unlimited | Quality and speed | Local |
+| LLM, offline | Ollama, Qwen3.5-4B Q4, run locally | Unlimited | Quality and speed | Local |
 | Corpus embeddings | BGE-M3 on Kaggle 2×T4 | 30 GPU-hours/week | Session length | Local model |
-| Query embeddings, reranker | BGE-M3, bge-reranker-v2-m3 on the laptop CPU | Unlimited | ~1 s per rerank | Local |
+| Query embeddings, reranker | BGE-M3, bge-reranker-v2-m3 on a local CPU | Unlimited | ~1 s per rerank | Local |
 | Embedder bake-off | Voyage (200M / 50M tokens), Jina (10M), Cohere trial (1,000 calls/month) | As listed | Tokens | API; public judgment text only |
 | OCR | PP-OCRv6 on CPU; PaddleOCR-VL on Kaggle | Unlimited / 30 GPU-hours | — | Local |
 | Scheduled batch | Modal | $30/month credit | Credit | — |
