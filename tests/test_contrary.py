@@ -24,10 +24,12 @@ import pytest
 from orderorder.db.models import CitationAlias, Judgment, Opinion
 from orderorder.engine.contrary import (
     ANTONYMS,
+    MAX_IDF,
     MIN_SHARED_TERMS,
     RECORD_BOUND,
     antonym_between,
     assess_opposition,
+    carries_the_subject,
     clauses,
     contrary_queries,
     dissents_in,
@@ -36,6 +38,7 @@ from orderorder.engine.contrary import (
     negated,
     opposes,
     read_leads,
+    term_weights,
 )
 from orderorder.engine.schemas import OppositionAssessment
 from orderorder.engine.search import build_index
@@ -429,3 +432,51 @@ def test_the_dissent_in_the_case_relied_on_is_contrary(corpus) -> None:
 def test_a_judgment_with_no_dissent_yields_nothing(corpus) -> None:
     judgment = corpus.query(Judgment).filter_by(canonical_key="INSC:2019:1").one()
     assert dissents_in(corpus, judgment.id, PROPOSITION) == []
+
+
+# --- the subject test, weighed by rarity ------------------------------------------------------------
+
+
+def test_a_stock_phrase_is_not_a_shared_subject() -> None:
+    """The overlap that started this rule: the phrase every judgment in the field contains.
+
+    A count cannot tell "suit for specific performance" from a subject, because it is three shared
+    terms either way. What separates them is that those three carry almost none of the proposition's
+    information, and the three that would have — `subsequent`, `purchaser`, `necessary` — are exactly
+    the ones not shared.
+    """
+    weights = {
+        "suit": 0.4,
+        "specific": 0.5,
+        "performance": 0.6,
+        "subsequent": 6.0,
+        "purchaser": 6.5,
+        "necessary": 5.5,
+    }
+    wanted = set(weights)
+    assert not carries_the_subject(wanted, {"suit", "specific", "performance"}, weights)
+    assert carries_the_subject(wanted, {"subsequent", "purchaser", "necessary"}, weights)
+
+
+def test_without_weights_the_subject_test_stands_aside() -> None:
+    """No index means no rarity to measure. It must not silently drop every lead instead."""
+    assert carries_the_subject({"notice", "mandatory"}, {"notice"}, {})
+
+
+def test_a_word_the_corpus_has_never_seen_outweighs_one_it_repeats(corpus) -> None:
+    """Rarity is the whole point, and nothing may exceed the cap that keeps one word from deciding."""
+    weights = term_weights(corpus, ["notice", "chlorofluorocarbon"])
+    assert weights["chlorofluorocarbon"] > weights["notice"]
+    assert all(weight <= MAX_IDF for weight in weights.values())
+
+
+def test_a_term_the_index_cannot_parse_does_not_sink_the_search(corpus) -> None:
+    """One word whose rarity cannot be measured tells us nothing; failing the search is the worse trade."""
+    weights = term_weights(corpus, ['"', "notice"])
+    assert "notice" in weights
+
+
+def test_the_weighting_can_be_turned_off(corpus) -> None:
+    """`--no-weighted` is the row the evaluation compares against, so it has to keep working."""
+    assert find_contrary(corpus, PROPOSITION, weighted=False).found
+    assert find_contrary(corpus, PROPOSITION, weighted=True).found

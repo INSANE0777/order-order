@@ -4,9 +4,11 @@ Each holding is a sentence a court wrote. It is put to the engine twice: negated
 what the other side argues, and as written, which is what the side relying on it argues.
 Only sentences that state law were drawn; the ones that decide a case are left out.
 
+Shared terms are weighted by rarity.
+
   proposition                n  source in field  source flagged   leads  seconds
-  the holding, negated      40            100%             55%     2.5      1.0
-  the holding, as written   40            100%              8%     1.4      1.1
+  the holding, negated      40            100%             55%     1.4      1.5
+  the holding, as written   40            100%              5%     0.7      1.5
 
 The `source flagged` column on the first row is not a finding. The negation that built the
 proposition and the negation the detector reads are the same idea, so a high number there is
@@ -17,32 +19,17 @@ paragraph, the same retrieval, and the only difference is the polarity of the se
 it. A tool that answered the same way to both would be reading the words and not the sense.
 
   the source paragraph was called contrary ...        
-    for the negated proposition only                  19 of 40
-    for both                                           3
+    for the negated proposition only                  20 of 40
+    for both                                           2
     for neither                                       18
     for the court's own words only                     0
 
-The floor: 24 of 40 propositions that are a court's own holding came
-back with a contrary lead from some other judgment, 1.4
+The floor: 12 of 40 propositions that are a court's own holding came
+back with a contrary lead from some other judgment, 0.7
 per proposition. Some of those are real, because courts disagree and this corpus holds
 nine thousand of them, so the number is an upper bound on what is wrong rather than a
 count of what is wrong. It is also what a user feels: passages to read for a proposition
 that was never in doubt.
-
-The second reading, over the same paragraph and the same sentence, with only the
-proposition's polarity changed. The correct answers are `opposite` for the negated
-proposition and `same` for the court's own words.
-
-  proposition                n  opposite  narrower    same  unrelated  unread  grounded
-  the holding, negated      20        10         0       0          0      10        10
-  the holding, as written   20         0         0       9          0      11         7
-
-19 of 40 answers were the expected one.
-0 of the 40 controls -- where the proposition is the
-sentence itself -- came back as `opposite`. That is the number to read first. A model that
-calls a sentence the opposite of a proposition copied out of it is answering the question it
-was asked to look for rather than the two texts in front of it, and no positive score it
-produces means anything.
 
 leads returned for a proposition the court itself stated
   (several of these answer a sentence that is not a proposition of law at all -- a
@@ -56,27 +43,27 @@ leads returned for a proposition the court itself stated
     held    The chemical name for charas and hashish is "extracts and tinctures of cannabis".
     lead    The only drugs for which the entry in column (4) for chemical name is not given in the 2001 notification are ‘natural/plant-based drugs’ namely, Canna
     from    INSC:2017:583
-  INSC:2018:615 para 23
-    held    However, after an inspection is made, action has to be taken on the basis of the report as provided under the Act and the Regulations by the Central G
-    lead    In case the Central Government does not accept the recommendation, there will be no further action on the recommendation of the Central Board of the B
-    from    INSC:2023:2
-  INSC:2020:249 para 2
-    held    The booster pump/motor installed at ground floor shall be used by both the children without any interference/obstruction by any of them in any manner 
-    lead    The ground floor of the building comprised a parking lot besides three separate rooms on the western side, one of which was used for placing a 500 KVA
-    from    INSC:2014:168
-  INSC:2018:359 para 14
-    held    The discrepancies in the evidence of eyewitnesses, if found not to be minor in nature, may be a ground for disbelieving and discrediting their evidenc
-    lead    Applying these principles, we are of the view that the minor discrepancies in the evidence of the prosecution witnesses are not of such a nature which
-    from    INSC:2021:851
-  INSC:2015:767 para 39
-    held    It will not make a good story for them, but, make the print media to take notice of your affidavit and finally force the hand of amicus and Supreme Co
-    lead    Similarly, the allegation No. (xvii) about failure to take action against the print media has been discarded by the SIT153 being insufficient evidence
-    from    INSC:2022:653
-  INSC:2024:984 para 8
-    held    Therein, it has been held that the exercise of taking out ‘Tanti’ from the EBC (‘Extremely Backward Classes’) list issued under the Bihar Reservation 
-    lead    Parliament may by law include in or exclude from the Central List of socially and educationally backward classes specified in a notification issued un
-    from    INSC:2024:562
-  INSC:2017:1263 para 18
-    held    Similarly, the law also permits the parties to file additional· evidence at any stage of the trial [Order 7 Rule 14 (3)] including at the first or/and
-    lead    The D Trial Court will allow the parties to lead oral evidence to prove additional documentary evidence and then decide the suit afresh on merits stri
-    from    INSC:2017:386
+  INSC:2019:25 para 30
+    held    The grant and rejection of such prayer by the Trial Court is confined only up to the disposal of the suit.
+    lead    Although the adequate liberty was given to the defendant to cross examine the plaintiff’s witness, they never availed of the same and went on delaying
+    from    INSC:2021:502
+  INSC:2016:254 para 4
+    held    But the writ petition having been admitted by the Court is still pending before the High Court.
+    lead    Similarly, we do not wish to expand the scope of the present proceedings as the main writ petition is still pending before the High Court of Delhi, wh
+    from    INSC:2019:610
+  INSC:2016:524 para 25
+    held    Keeping in view the law laid down in the aforementioned three cases quoted supra which does not need any more elaboration by us, we H A have no hesita
+    lead    The case is remanded to the learned designate Judge to decide the question of legality, validity and genuineness of the agreement/(MoU) in question on
+    from    INSC:2016:524
+  INSC:2024:690 para 16
+    held    In Raj Reddy Kallem’s case (supra), after referring to the above positions this Court further observed that even in Kanchan Mehta’s case (supra) nowhe
+    lead    In the contextual situation it is relevant to refer to a recent decision of this Court in Raj Reddy Kallem v. The State of Haryana & Anr. [2024 INSC 3
+    from    INSC:2024:690
+  INSC:2019:282 para 85
+    held    However, we make it very clear that pronouncement of this order shall not come in the way of the Court deciding the matter on its merits.
+    lead    We, however, make it clear that we have not examined the case of the parties on merits having formed an opinion to remand the case to the High Court o
+    from    INSC:2019:573
+  INSC:2014:793 para 8
+    held    Thus, such maintenance can be awarded from the date of the Order, or, if so ordered, from the date of the application for maintenance, as the case may
+    lead    In Shail Kumar Devi, this Court considered a catena of decisions by the various High Courts, before arriving D at the conclusion that it was incorrect
+    from    INSC:2014:793

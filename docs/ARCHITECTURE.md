@@ -958,13 +958,13 @@ the side relying on it argues. Same paragraph, same retrieval, one word of diffe
 
 | the proposition put | n | source paragraph retrieved | called contrary | leads | seconds |
 |---|---|---|---|---|---|
-| the holding, negated | 40 | 100% | 55% | 2.5 | 1.2 |
-| the holding, as written | 40 | 100% | **8%** | 1.4 | 1.2 |
+| the holding, negated | 40 | 100% | 55% | 1.4 | 1.5 |
+| the holding, as written | 40 | 100% | **5%** | 0.7 | 1.5 |
 
 | the source paragraph was called contrary … | |
 |---|---|
-| for the negated proposition only | 19 of 40 |
-| for both | 3 |
+| for the negated proposition only | 20 of 40 |
+| for both | 2 |
 | for neither | 18 |
 | for the court's own words only | **0** |
 
@@ -973,11 +973,34 @@ query and the negation the detector reads are the same idea, so recall on the so
 property of the construction; it is printed because a low number there would mean something had
 broken. Three things in that table are not circular. The retrieval column: nothing guarantees that a
 paragraph is still found when the query is the negation of its own sentence, and it is. The
-discrimination: the same paragraph called contrary at 55% and 8% depending on one word, with 19
+discrimination: the same paragraph called contrary at 55% and 5% depending on one word, with 20
 one-way flips and none the other way, is the only evidence here that the module reads sense rather
-than words. And the floor: 1.4 passages offered against a proposition that was never in doubt, which
+than words. And the floor: 0.7 passages offered against a proposition that was never in doubt, which
 is an upper bound on what is wrong rather than a count of it, since courts do disagree and this corpus
 holds nine thousand of them.
+
+**What the rarity weighting bought, and what it cost.** Shared terms are weighed by inverse document
+frequency over the indexed paragraphs rather than counted, and a lead has to carry a share of the
+proposition's information before it is treated as being about the same subject. The count could not
+tell a subject from a phrase every judgment in the field contains: a proposition about whether a
+subsequent purchaser is a necessary party shares "suit for specific performance" with every judgment
+about limitation in such a suit, and the words that would have made it the same subject were the ones
+not shared. Run both ways over the same forty holdings:
+
+| | floor, propositions with a spurious lead | leads each | negated-only flips | seconds |
+|---|---|---|---|---|
+| counted | 24 of 40 | 1.5 | 21 | 1.2 |
+| weighed by rarity | **12 of 40** | **0.7** | 20 | 1.5 |
+
+Half the floor for one true detection. The time column is the weakest thing in this table: the weights
+are one FTS count per term, which is a doclist length rather than a scan, and the gap between 1.2 and
+1.5 seconds moved further across repeated runs of the *same* configuration — cold against warm SQLite
+page cache — than it moved between the two configurations. Read it as "not the cost that decides
+this", not as a measurement of the weighting. It is a seam and not a settled question:
+`find_contrary(..., weighted=False)` and `orderorder eval contrary --no-weighted` reproduce the first
+row, and `evals/report-contrary-unweighted.txt` is that run. The reason to keep the switch is the
+column that got worse: one holding that a court really did contradict is no longer found, and a
+different corpus or a different draw could move that number more than it moved here.
 
 The one control that cannot fail is not measured here at all, and deliberately: a sentence can never
 be the opposite of a proposition it contains, so `opposes` rules the source paragraph out by verbatim
@@ -993,7 +1016,11 @@ rejected" denies nothing; and a question decides nothing, though it carries ever
 proposition with the polarity of whichever side lost. The fifth was on the other side of the seam —
 against a proposition about a driveway the engine offered "Front skull bone, right side skull bone,
 Tibia, Febulas left and right both were found broken", which is a finding of fact from an unrelated
-record, and neither sentence was a proposition of law at all.
+record, and neither sentence was a proposition of law at all. The sixth is the first one again in a
+harder form, and it is what the rarity weighting answers: "suit for specific performance" is not a
+statute name, so discounting reference terms never reached it, and every judgment about limitation in
+such a suit shares it. A rule that discounts particular words cannot catch that; only counting how
+much a word narrows the field can.
 
 **What these numbers do not say.** Planted errors are the ones we thought of, and they are not the distribution real advocates produce; that is what the memorials are for. Clean items are not drawn from paragraphs the sequence heuristic calls quoted, since the generator cannot assert those are the court's own words — so the false positive rate above does not measure that one detector, and closing that gap needs paragraphs a person has read. And the paraphrases were written by a model, once, and kept in `evals/paraphrases.jsonl` so that anyone can read them and disagree: the score is against *a* set of restatements, not the ones lawyers write. Mode 4 -- "not there" -- was planted for the first time in the September 2026 held-out set, and until then a detector that never fired scored the same as one that always did; it is also the mode a live run of the drafting gate got wrong, which is not a coincidence worth glossing over. The drafting table above is a measurement of the field, not of the filter: `attribute_voice` both labels the item and drops the paragraph, so "the filter removed what we labelled" is true by construction and is evidence of nothing. What is not circular is how large the field was.
 

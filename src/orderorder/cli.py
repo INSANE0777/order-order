@@ -795,6 +795,11 @@ def eval_contrary(
     rule_like: bool = typer.Option(
         True, help="Draw only sentences that state law, not ones that decide a case."
     ),
+    weighted: bool = typer.Option(
+        True,
+        "--weighted/--no-weighted",
+        help="Weigh shared terms by rarity. Off counts them, which is the comparison.",
+    ),
     read: int = typer.Option(
         0, "--read", help="Also have a model read this many pairs. 0 runs no model at all."
     ),
@@ -831,7 +836,7 @@ def eval_contrary(
                 console.print(f"  [dim]{done}/{total}[/dim]")
 
         scored = contrary_eval.run_contrary(
-            session, items, top=top, rule_like=rule_like, on_item=progress
+            session, items, top=top, rule_like=rule_like, weighted=weighted, on_item=progress
         )
 
         if read:

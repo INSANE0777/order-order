@@ -226,18 +226,28 @@ sentence put to it:
 
 | the proposition put | the source paragraph was retrieved | it was called contrary | leads returned |
 |---|---|---|---|
-| the holding, negated | 100% | 55% | 2.5 |
-| the holding, as written | 100% | **8%** | 1.4 |
+| the holding, negated | 100% | 55% | 1.4 |
+| the holding, as written | 100% | **5%** | 0.7 |
 
 The gap between those two middle numbers is the measurement, and it is the only one here that is not
 circular: the negation that builds the query and the negation the detector reads are the same idea, so
 the 55% is a property of the construction and is printed because a low one would mean something broke.
-Nineteen of the forty were called contrary for the negated proposition and not for the court's own
-words; **none** went the other way. The 1.4 is the floor — passages offered against a proposition that
+Twenty of the forty were called contrary for the negated proposition and not for the court's own
+words; **none** went the other way. The 0.7 is the floor — passages offered against a proposition that
 was never in doubt, an upper bound rather than a count, since courts do disagree and this corpus holds
 nine thousand of them. `evals/report-contrary.txt` has the run and the leads themselves, which is the
 part worth reading: what is left is a lead to check, and the report says so rather than calling it a
 contradiction.
+
+That floor is half what it was, because shared terms are now weighed by how rare they are in the
+corpus rather than counted. A proposition and a passage whose whole overlap is a stock phrase — "suit
+for specific performance", which is in thousands of paragraphs — are no longer treated as being about
+the same subject. Counting instead of weighing returns a spurious lead for 24 of the 40 propositions
+against 12, and 1.5 leads each against 0.7. The price is one true detection in twenty-one, and no time
+worth reporting: the weights are one index count per term, and that cost was smaller than the
+variation between two runs of the same configuration.
+[`evals/report-contrary-unweighted.txt`](evals/report-contrary-unweighted.txt) is that run, so the
+trade is checkable rather than asserted; `orderorder eval contrary --no-weighted` reproduces it.
 
 What these numbers do not say — and the limits matter more than the figures — is set out
 in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §11.4.
