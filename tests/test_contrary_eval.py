@@ -214,8 +214,9 @@ def test_a_model_that_says_opposite_to_everything_is_caught(corpus) -> None:
     read_pairs(corpus, report, StubModel("opposite"), limit=1)
 
     text = "\n".join(format_reading(report))
-    assert "1 of 2 answers were the expected one" in text
-    assert "of the 1 controls" in text or "controls" in text
+    assert "2 of 2 calls answered" in text
+    assert "1 gave the expected relation" in text
+    assert "1 of the 1 controls that answered" in text
     read = [o for o in report.outcomes if o.reading is not None]
     assert [o.reading for o in read] == ["opposite", "opposite"]
     assert sum(1 for o in read if o.reading == o.reading_expected) == 1

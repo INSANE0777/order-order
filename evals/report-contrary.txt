@@ -5,8 +5,8 @@ what the other side argues, and as written, which is what the side relying on it
 Only sentences that state law were drawn; the ones that decide a case are left out.
 
   proposition                n  source in field  source flagged   leads  seconds
-  the holding, negated      40            100%             55%     2.5      1.2
-  the holding, as written   40            100%              8%     1.4      1.2
+  the holding, negated      40            100%             55%     2.5      1.0
+  the holding, as written   40            100%              8%     1.4      1.1
 
 The `source flagged` column on the first row is not a finding. The negation that built the
 proposition and the negation the detector reads are the same idea, so a high number there is
@@ -29,7 +29,25 @@ nine thousand of them, so the number is an upper bound on what is wrong rather t
 count of what is wrong. It is also what a user feels: passages to read for a proposition
 that was never in doubt.
 
+The second reading, over the same paragraph and the same sentence, with only the
+proposition's polarity changed. The correct answers are `opposite` for the negated
+proposition and `same` for the court's own words.
+
+  proposition                n  opposite  narrower    same  unrelated  unread  grounded
+  the holding, negated      20        10         0       0          0      10        10
+  the holding, as written   20         0         0       9          0      11         7
+
+19 of 40 answers were the expected one.
+0 of the 40 controls -- where the proposition is the
+sentence itself -- came back as `opposite`. That is the number to read first. A model that
+calls a sentence the opposite of a proposition copied out of it is answering the question it
+was asked to look for rather than the two texts in front of it, and no positive score it
+produces means anything.
+
 leads returned for a proposition the court itself stated
+  (several of these answer a sentence that is not a proposition of law at all -- a
+   disposition, a chemical name, an order about a booster pump. Propositions drawn from
+   arbitrary court sentences are part of why the floor above is an upper bound.)
   INSC:2016:310 para 11
     held    The impugned order is accordingly set aside and the appeal is allowed.
     lead    We, therefore, find no ground to set aside the impugned F order and accordingly uphold the same.

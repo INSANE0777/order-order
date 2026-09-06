@@ -66,11 +66,14 @@ Supreme Court are different sentences.
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from sqlalchemy import select
+from sqlalchemy import text as sql_text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from orderorder.db.models import Judgment, JudgmentTextVersion, Opinion, Paragraph
@@ -80,7 +83,7 @@ from orderorder.engine.prompts import OPPOSITION_PROMPT, OPPOSITION_VERSION
 from orderorder.engine.providers import StructuredModel
 from orderorder.engine.quotes import find_quote, normalized
 from orderorder.engine.schemas import OppositionAssessment
-from orderorder.engine.search import Authority, find_authorities, index_exists
+from orderorder.engine.search import FTS_TABLE, Authority, find_authorities, index_exists
 from orderorder.engine.sentences import inside_quotation, split_sentences
 
 # How wide a field to look across, and how deep the raw retrieval goes to fill it. Wider than the
@@ -104,6 +107,16 @@ MIN_SHARED_SHARE = 0.30
 # false lead had in common: `act, arbitration, conciliation, limitation, section`, and a negation
 # attached to something else entirely.
 MIN_SUBSTANTIVE_TERMS = 2
+# How much of a proposition's *information* the shared terms have to carry, where information is
+# inverse document frequency over the indexed paragraphs. The count-based share above cannot tell
+# "suit for specific performance" from a subject: that phrase is in thousands of paragraphs, and a
+# proposition about whether a subsequent purchaser is a necessary party shares it with every judgment
+# about limitation in a specific-performance suit -- which is what the first run against the demo plan
+# returned, three times over. The words that would have made it the same subject (`subsequent`,
+# `purchaser`, `necessary`) were the ones not shared, and a count cannot see that.
+MIN_SHARED_WEIGHT = 0.45
+# A term the index has never seen would otherwise carry log(N) on its own and swamp the denominator.
+MAX_IDF = 8.0
 # One is enough where the flip is a term of art. "A notice under Section 106 of the Transfer of
 # Property Act is mandatory" against "...is directory" shares only `notice` once the statute's name is
 # discounted -- because the two words that carry the opposition are, by definition, the two words the
@@ -379,6 +392,43 @@ def distinctive_terms(text: str) -> list[str]:
     return [t for t in dict.fromkeys(tokenize(text)) if t not in UBIQUITOUS and len(t) > 2]
 
 
+def term_weights(session: Session, terms: list[str]) -> dict[str, float]:
+    """Inverse document frequency for each term, over the paragraphs the index holds.
+
+    One count query per term against the FTS index, which is a doclist length rather than a scan and
+    measures at nought to sixteen milliseconds even for a word in forty thousand paragraphs. A dozen
+    terms per proposition, once per search, is not a cost worth avoiding -- and it is what lets the
+    subject test tell a term of art from a phrase every judgment in the field happens to contain.
+    """
+    total = session.execute(sql_text(f"SELECT count(*) FROM {FTS_TABLE}")).scalar() or 0
+    if not total:
+        return {}
+    weights: dict[str, float] = {}
+    for term in terms:
+        try:
+            found = session.execute(
+                sql_text(f"SELECT count(*) FROM {FTS_TABLE} WHERE {FTS_TABLE} MATCH :q"),
+                {"q": f'"{term}"'},
+            ).scalar()
+        except OperationalError:
+            # A term FTS5 cannot parse tells us nothing about its rarity, and failing the whole
+            # search over one word would be the wrong trade.
+            continue
+        weights[term] = min(MAX_IDF, math.log(total / (1 + (found or 0))))
+    return weights
+
+
+def carries_the_subject(wanted: set[str], shared: set[str], weights: dict[str, float]) -> bool:
+    """Whether the shared terms carry enough of the proposition's information to be its subject."""
+    if not weights:
+        return True
+    total = sum(weights.get(term, MAX_IDF) for term in wanted)
+    if total <= 0:
+        return True
+    carried = sum(weights.get(term, MAX_IDF) for term in shared)
+    return carried / total >= MIN_SHARED_WEIGHT
+
+
 def reference_terms(text: str) -> set[str]:
     """The words that are part of a statute reference, which two sentences can share for free."""
     found: set[str] = set()
@@ -429,8 +479,12 @@ RECORD_BOUND = re.compile(
     | ₹
     | \b in \s+ th(?: e \s+ (?: present | instant ) | is ) \s+
         (?: case | matter | appeal | appeals | facts | petition | proceedings )
-    | \b(?: appellant | respondent | petitioner | plaintiff | defendant | complainant
-          | accused | applicant | claimant ) s? \b
+    # The parties to *this* appeal, not the roles a rule is stated about. "Plaintiff", "defendant"
+    # and "accused" are how the Code names anyone in that position, so a rule of procedure is stated
+    # in exactly those words -- "the plaintiff is dominus litis", "a person likely to secure an
+    # interest after the suit is decided against the plaintiff is not a necessary party" -- and
+    # dropping them cost a real contrary holding on the first draft of this rule.
+    | \b(?: appellant | respondent | petitioner | applicant ) s? \b
     """
 )
 
@@ -562,7 +616,9 @@ def richest_clause(parts: list[Clause], wanted: set[str]) -> int:
     return best
 
 
-def opposes(proposition: str, sentence: str) -> Opposition | None:
+def opposes(
+    proposition: str, sentence: str, weights: dict[str, float] | None = None
+) -> Opposition | None:
     """Whether `sentence` reads against `proposition`. Pure string work; no model, no database.
 
     The order of the two tests matters. Grammatical negation is checked first because it is the common
@@ -585,6 +641,8 @@ def opposes(proposition: str, sentence: str) -> Opposition | None:
         return None
     substantive = len(shared - reference_terms(proposition))
     if substantive < MIN_SUBSTANTIVE_FOR_ANTONYM:
+        return None
+    if weights is not None and not carries_the_subject(wanted, shared, weights):
         return None
 
     proposition_parts = clause_parts(proposition)
@@ -632,7 +690,9 @@ def contrary_queries(proposition: str) -> list[str]:
     return queries[:3]
 
 
-def _sentence_leads(proposition: str, authority: Authority) -> ContraryLead | None:
+def _sentence_leads(
+    proposition: str, authority: Authority, weights: dict[str, float] | None = None
+) -> ContraryLead | None:
     """The first sentence of a retrieved paragraph that reads against the proposition.
 
     Four kinds of sentence are passed over before the polarity test runs at all, and each would
@@ -655,7 +715,7 @@ def _sentence_leads(proposition: str, authority: Authority) -> ContraryLead | No
             continue
         if inside_quotation(authority.body, offset):
             continue
-        opposition = opposes(proposition, sentence)
+        opposition = opposes(proposition, sentence, weights)
         if opposition is not None:
             return ContraryLead(
                 authority=authority,
@@ -676,6 +736,7 @@ def find_contrary(
     field_size: int = DEFAULT_FIELD,
     candidates: int = DEFAULT_CANDIDATES,
     expand: bool = True,
+    weighted: bool = True,
     on_candidate: Callable[[Authority], None] | None = None,
 ) -> ContraryReport:
     """Search the corpus for a court saying the opposite of this proposition.
@@ -697,6 +758,10 @@ def find_contrary(
 
     queries = contrary_queries(proposition) if expand else [proposition]
     report.queries = queries
+    # Off with `weighted=False`, so the evaluation can say whether rarity is worth its cost. See
+    # `MIN_SHARED_WEIGHT`: it removes leads that share only a stock phrase, and it removed a real one
+    # too, so it is a seam with a number beside it rather than an obvious improvement.
+    weights = term_weights(session, distinctive_terms(proposition)) if weighted else None
 
     seen: set[str] = set()
     examined = 0
@@ -717,7 +782,7 @@ def find_contrary(
             examined += 1
             if on_candidate is not None:
                 on_candidate(authority)
-            lead = _sentence_leads(proposition, authority)
+            lead = _sentence_leads(proposition, authority, weights)
             if lead is not None:
                 leads.append(lead)
 

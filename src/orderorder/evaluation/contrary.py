@@ -190,6 +190,7 @@ class ContraryEvalReport:
     judgments: int = 0
     corpus_size: int = 0
     rule_like: bool = True
+    weighted: bool = True
     read_by_model: bool = False
 
     def of(self, kind: str) -> list[ContraryOutcome]:
@@ -263,7 +264,9 @@ def build_items(
     return items
 
 
-def run_item(session: Session, item: ContraryItem, *, top: int = 5) -> ContraryOutcome:
+def run_item(
+    session: Session, item: ContraryItem, *, top: int = 5, weighted: bool = True
+) -> ContraryOutcome:
     """Put one proposition to the engine and record what came back about its own paragraph."""
     started = time.monotonic()
     retrieved = False
@@ -279,7 +282,9 @@ def run_item(session: Session, item: ContraryItem, *, top: int = 5) -> ContraryO
         ):
             retrieved = True
 
-    report: ContraryReport = find_contrary(session, item.query, top=top, on_candidate=watch)
+    report: ContraryReport = find_contrary(
+        session, item.query, top=top, weighted=weighted, on_candidate=watch
+    )
     seconds = time.monotonic() - started
 
     rank = next(
@@ -309,6 +314,7 @@ def run_contrary(
     *,
     top: int = 5,
     rule_like: bool = True,
+    weighted: bool = True,
     on_item=None,
 ) -> ContraryEvalReport:
     from orderorder.engine.citator import corpus_size
@@ -317,9 +323,10 @@ def run_contrary(
         judgments=len({item.judgment_key for item in items}),
         corpus_size=corpus_size(session),
         rule_like=rule_like,
+        weighted=weighted,
     )
     for index, item in enumerate(items, start=1):
-        report.outcomes.append(run_item(session, item, top=top))
+        report.outcomes.append(run_item(session, item, top=top, weighted=weighted))
         if on_item is not None:
             on_item(index, len(items))
     return report
@@ -448,16 +455,21 @@ def format_reading(report: ContraryEvalReport) -> list[str]:
             f"{sum(1 for o in outcomes if o.reading_grounded):>10}"
         )
 
-    correct = sum(1 for o in read if o.reading == o.reading_expected)
-    agreed_opposite = sum(1 for o in report.of(AGREED) if o.reading == OPPOSITE)
+    answered = [o for o in read if o.reading != UNREAD]
+    correct = sum(1 for o in answered if o.reading == o.reading_expected)
+    controls = [o for o in report.of(AGREED) if o.reading is not None and o.reading != UNREAD]
+    controls_opposite = sum(1 for o in controls if o.reading == OPPOSITE)
     lines += [
         "",
-        f"{correct} of {len(read)} answers were the expected one.",
-        f"{agreed_opposite} of the {len(report.of(AGREED))} controls -- where the proposition is the",
-        "sentence itself -- came back as `opposite`. That is the number to read first. A model that",
-        "calls a sentence the opposite of a proposition copied out of it is answering the question it",
-        "was asked to look for rather than the two texts in front of it, and no positive score it",
-        "produces means anything.",
+        f"{len(answered)} of {len(read)} calls answered; the rest are `unread`, which is a provider",
+        "failure and not a judgement about the texts. Of the ones that answered, "
+        f"{correct} gave the expected relation.",
+        "",
+        f"{controls_opposite} of the {len(controls)} controls that answered -- where the proposition is",
+        "the sentence itself -- came back as `opposite`. That is the number to read first, and it is the",
+        "one that decides whether any of the rest means anything. A model that calls a sentence the",
+        "opposite of a proposition copied out of it is answering the question it was asked to look for",
+        "rather than the two texts in front of it.",
     ]
     return lines
 
@@ -476,6 +488,12 @@ def format_contrary(report: ContraryEvalReport) -> list[str]:
             if report.rule_like
             else "Every court sentence was drawn, including the ones that decide a case rather than"
             " state law."
+        ),
+        "",
+        (
+            "Shared terms are weighted by rarity."
+            if report.weighted
+            else "Shared terms are counted, not weighted by rarity."
         ),
         "",
         f"  {'proposition':<24}{'n':>4}{'source in field':>17}{'source flagged':>16}{'leads':>8}"
