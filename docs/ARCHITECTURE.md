@@ -888,7 +888,29 @@ That is the case for `court_voice_only` being the default in `engine.search` and
 
 No judgment in the draw carried a dissenting opinion, so that row is missing rather than clean. And with no model configured nothing can be bound, so the end-to-end columns are structurally zero: what they measure is the three-state honesty — an unchecked passage is offered to read and never as authority — not the gate's judgement about support.
 
-**What these numbers do not say.** Planted errors are the ones we thought of, and they are not the distribution real advocates produce; that is what the memorials are for. Clean items are not drawn from paragraphs the sequence heuristic calls quoted, since the generator cannot assert those are the court's own words — so the false positive rate above does not measure that one detector, and closing that gap needs paragraphs a person has read. And the paraphrases were written by a model, once, and kept in `evals/paraphrases.jsonl` so that anyone can read them and disagree: the score is against *a* set of restatements, not the ones lawyers write. The drafting table above is a measurement of the field, not of the filter: `attribute_voice` both labels the item and drops the paragraph, so "the filter removed what we labelled" is true by construction and is evidence of nothing. What is not circular is how large the field was.
+**The citation graph is thin, and that limits what the citator can claim.** `orderorder citator`
+extracts 8,716 edges across 9,429 judgments, and **79% of the corpus has never been cited by anything
+in it**. Two consequences, both now handled rather than hidden. A `TreatmentReport` whose status is
+`good_law` means "forty benches followed it" or "nothing has ever cited it", and only the first is a
+finding -- `is_unchecked` separates them and `describe()` is the phrase that does not overclaim. And
+the drafting self-attack's observation that no later judgment has cited an authority fired on four
+authorities in five, which is a fact about the corpus rather than about the authority, so it now
+measures the graph's density before it trusts it.
+
+Two causes, and they are worth telling apart before anyone treats this as a citator failure. Edges to
+judgments outside the corpus are dropped rather than stored, so a case cited only by judgments the
+corpus does not hold shows as uncited. And the window is 2013-2025: a 2024 judgment has had almost no
+time to be cited by anything, whatever its importance.
+
+**The second reading was built and it does not work on a fast model.** `engine/challenge.py` reads a
+verified quote back against the claim in a separate call that is never shown the first answer. On
+seven cases -- four the sentence plainly does state, three overstatements a live run had bound -- the
+adversarial phrasing upheld 0 of 4 controls and caught 3 of 3, and the balanced phrasing upheld 4 of 4
+and caught 0 of 2. The model tracks the prompt's framing rather than the two texts, so it is off by
+default behind `orderorder draft --challenge`. What that rules out is the task on a small fast model,
+not the idea.
+
+**What these numbers do not say.** Planted errors are the ones we thought of, and they are not the distribution real advocates produce; that is what the memorials are for. Clean items are not drawn from paragraphs the sequence heuristic calls quoted, since the generator cannot assert those are the court's own words — so the false positive rate above does not measure that one detector, and closing that gap needs paragraphs a person has read. And the paraphrases were written by a model, once, and kept in `evals/paraphrases.jsonl` so that anyone can read them and disagree: the score is against *a* set of restatements, not the ones lawyers write. Mode 4 -- "not there" -- was planted for the first time in the September 2026 held-out set, and until then a detector that never fired scored the same as one that always did; it is also the mode a live run of the drafting gate got wrong, which is not a coincidence worth glossing over. The drafting table above is a measurement of the field, not of the filter: `attribute_voice` both labels the item and drops the paragraph, so "the filter removed what we labelled" is true by construction and is evidence of nothing. What is not circular is how large the field was.
 
 ---
 
