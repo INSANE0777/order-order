@@ -309,3 +309,24 @@ def test_no_caller_value_is_ever_formatted_into_sql() -> None:
                     if name not in SQL_SAFE_INTERPOLATIONS:
                         offenders.append(f"{path.name}:{node.lineno} interpolates {name!r}")
     assert not offenders, "SQL built from something that is not a constant:\n  " + "\n  ".join(offenders)
+
+
+def test_every_element_the_script_reaches_for_exists_in_the_page() -> None:
+    """The page and the script are separate files now, so they can drift apart silently.
+
+    A missing id does not raise anything a user sees: `$("board").innerHTML = ...` throws once, in a
+    console nobody has open, and the surface simply does nothing. This is the check that the split
+    into three files did not lose an element, and that the next edit to the markup does not either.
+    """
+    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    script = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+
+    present = set(re.findall(r'\bid="([^"]+)"', html))
+    # Ids the script builds into the markup it generates, which the page cannot be expected to hold.
+    generated = set(re.findall(r"id=[\'\"]+([a-z-]+)[\'\"]", script))
+    # `$("view-" + name)` is composed at runtime, so the literal never appears.
+    composed = {f"view-{name}" for name in ("check", "find", "draft")}
+
+    wanted = set(re.findall(r'\$\("([^"]+)"\)', script))
+    missing = sorted(wanted - present - generated - composed)
+    assert not missing, f"the script reaches for elements the page does not have: {missing}"
