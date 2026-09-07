@@ -55,6 +55,11 @@ services:
     volumes:
       # The corpus is state and lives outside the image. Read-write because ingestion, the full-text
       # index and the vector store all write here.
+      #
+      # This is a bind mount, so the *host* directory's ownership is what the container sees, and the
+      # image runs as uid 10001. A root-owned directory here leaves the engine unable to write its own
+      # corpus, and it fails on the first request rather than at boot. Before the first `up`:
+      #     sudo install -d -o 10001 -g 10001 <the host data directory>
       - "${ORDERORDER_DATA_DIR:-../data}:/data"
     depends_on:
       postgres:

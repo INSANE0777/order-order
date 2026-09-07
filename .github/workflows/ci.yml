@@ -1,0 +1,143 @@
+# What has to be true before a change is believed.
+#
+# The suite already refuses to touch the network and builds its own database in memory, so CI here is
+# not a second environment to keep working -- it is the same commands a developer runs, run somewhere
+# that cannot have a stale virtualenv, a half-applied migration, or a corpus lying around from
+# yesterday. Four things, in the order they are worth knowing:
+#
+#   check    ruff and the suite. Fails most often and costs the least.
+#   image    `docker build`, which nobody here can run: the development machine has no room for a
+#            Python base image, and DEPLOYMENT §3 has said "the image has never been built" since it
+#            was written. This is the only place that sentence can stop being true.
+#   audit    the locked production dependencies against the advisory database, on every push and once
+#            a week -- because a dependency does not have to change for it to become vulnerable, and
+#            a check that only runs on push never finds that.
+#   secrets  the whole history, not the diff. A key committed and then deleted is still published.
+#
+# Concurrency is per-branch so a quick second push cancels the first rather than queueing behind it.
+
+name: CI
+
+on:
+  push:
+    branches: [main, counter-authority]
+  pull_request:
+  schedule:
+    # Mondays, 06:00 UTC. For `audit`, which is the job that finds things without a change.
+    - cron: "0 6 * * 1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: lint and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python and the locked dependencies
+        run: |
+          uv python install 3.12
+          uv sync --frozen
+
+      - name: Ruff
+        run: uv run ruff check src tests scripts
+
+      - name: Tests
+        # The suite never reaches the network and builds its database in memory, so there is nothing
+        # to provision here. If that stops being true this step is where it will show.
+        run: uv run pytest
+
+      - name: The shell scripts are readable by a shell
+        # A CRLF here fails on Linux as `bad interpreter: /usr/bin/env bash^M`, which reads as a
+        # missing interpreter. .gitattributes pins it; this is what proves the pin held.
+        run: |
+          bash -n scripts/dev-env.sh
+          ! grep -qU $'\r' scripts/dev-env.sh Dockerfile infra/docker-compose.yml
+
+  image:
+    name: the image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: orderorder:ci
+
+      - name: It starts, refuses to serve open, and answers its own health check
+        run: |
+          set -euo pipefail
+
+          # Bound off-loopback with no token, `serve` must refuse rather than come up open. This is
+          # the guarantee in auth.py, checked against the built image rather than the source.
+          if docker run --rm orderorder:ci serve --host 0.0.0.0 --port 8000; then
+            echo "the container served on 0.0.0.0 with no token set" >&2
+            exit 1
+          fi
+
+          # And with a token it comes up and answers. `--user` is not passed: the point is that the
+          # image's own user can write /data, which is what a named volume inherits.
+          docker run -d --name oo -e ORDERORDER_API_TOKEN=ci-token -p 8000:8000 orderorder:ci
+          for _ in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:8000/api/health >/dev/null 2>&1; then ready=1; break; fi
+            sleep 2
+          done
+          docker logs oo
+          test "${ready:-}" = 1
+
+          # The health route answers without a token; everything else does not.
+          curl -fsS http://127.0.0.1:8000/api/health | grep -q '"version"'
+          test "$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8000/api/search?q=notice')" = 401
+
+          # And the headers the browser relies on are actually on the response.
+          curl -sI http://127.0.0.1:8000/ | grep -qi "content-security-policy"
+          curl -sI http://127.0.0.1:8000/ | grep -qi "x-content-type-options: nosniff"
+          docker rm -f oo
+
+  audit:
+    name: dependency advisories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Audit the locked production dependencies
+        # `--no-dev`, because a vulnerability in ruff is not a vulnerability in what is deployed, and
+        # a check that reports things nobody will act on is a check people learn to ignore.
+        run: |
+          uv python install 3.12
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt > requirements.audit.txt
+          uvx pip-audit --requirement requirements.audit.txt --disable-pip
+
+  secrets:
+    name: no keys in the history
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The whole history. A key committed and later deleted is still a published key, and a
+          # scan of the diff would say the repository is clean.
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

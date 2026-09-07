@@ -51,7 +51,19 @@ FROM python:3.12-slim AS runtime
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libgomp1 \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --uid 10001 orderorder
+    && useradd --create-home --uid 10001 orderorder \
+    && mkdir -p /data \
+    && chown orderorder:orderorder /data
+
+# /data has to exist in the image and be owned by the user that runs, which is not the same thing as
+# mounting something there. `Settings.data_dir` creates the directory on first access, and uid 10001
+# cannot create a directory in a root-owned `/`, so a container started without a volume dies on the
+# first request rather than at boot. Creating it here also decides the ownership a *named* volume gets
+# initialised with, which is what makes `docker run -v orderorder-data:/data` writable.
+#
+# A **bind** mount is the exception and cannot be fixed from in here: the host directory's ownership
+# is what the container sees, so `chown 10001:10001` it on the host or the engine cannot write its
+# corpus. DEPLOYMENT.md section 3 says so where the command is.
 
 COPY --from=build --chown=root:root /app /app
 

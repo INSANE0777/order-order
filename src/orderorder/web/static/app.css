@@ -1,0 +1,1179 @@
+/* OrderOrder — interface. Built to a brand reference, then stripped of everything that decorated it.
+ *
+ * The reference is a law firm's identity: flat colour blocks in cobalt, coral and cream, a
+ * high-contrast display serif over a clean grotesque, giant serif numerals, rounded cards on colour,
+ * and a staircase as the shape device. It fits because every competitor in legal software is navy and
+ * gold and cold, and because a grade from A to F is a staircase.
+ *
+ * What was cut, and why. The floating curves on the hero block: decoration that meant nothing, which
+ * is what "vibecoded" looks like. The eyebrow above the headline and the italic-word-plus-clever-lede
+ * stack: the most recognisable AI hero there is. The words rising one at a time: template motion. The
+ * two identical white cards: card fatigue. The shimmering skeleton: a SaaS default. The hand-drawn
+ * scribble under the active tab and the green-dot status pill: a header that looked drawn by a
+ * template rather than by anyone. Each was replaced by something that does a job or by nothing.
+ *
+ * What stands instead is three-dimensional and each piece is the subject, not an effect:
+ *
+ *   the MARK     the staircase, in the same oblique projection as the one in the verdict panel. It is
+ *                the logo because it is the product's shape; it climbs a pixel a step under the pointer.
+ *   the BUNDLE   a stack of pleadings on the check surface, in CSS 3D, tilting a few degrees with the
+ *                pointer. As the check runs its pages are set aside, one for each share of the
+ *                citations found. That is the loading state.
+ *   the SHELF    six volumes of reports on the find surface. While a search runs they are taken down
+ *                one after another and put back; when it finds something, one stays out.
+ *   the TOME     the submission being bound, on the draft surface. As each sentence is bound an index
+ *                tab comes out of the right edge: cobalt where an authority stands behind it, coral
+ *                where none does. While the plan is read, the lines on the top page write themselves.
+ *   the STAMP    a grade lands on its row from above, with a shadow that blooms and settles.
+ *   the STAIR    six isometric steps, F to A, in the verdict panel. The marker stands on the step the
+ *                citation earned -- and off the stair when the checks that would place it did not run.
+ *
+ * Changing surface is a crossfade and not a cut: the words on the outgoing block go first, then the
+ * incoming block starts in the colour of the one before it and turns into its own. That is done with
+ * three attributes on <body> and no style written anywhere.
+ *
+ * The product's rules survive every redesign because they are the product: colour means a finding;
+ * three states get three treatments; the court's words are set in a reading serif and the tool's are
+ * not. Fonts are self-hosted (`font-src 'self'`). Every colour pair is asserted in
+ * tests/test_hardening.py, both themes. No `style=` attributes anywhere. The pointer tilt sets two
+ * custom properties through the CSSOM, which the policy permits and which the tests distinguish from
+ * an attribute; that carve-out is documented in DESIGN.md and is the only one.
+ *
+ * SHAPE LOCK: blocks and cards 28px, the folder 22px, fields 12px, the grade mark 9px, controls pill.
+ * Nothing sharp except the staircase, which is the point of it.
+ */
+
+/* ---------- type ---------- */
+
+@font-face {
+  font-family: "Geist"; font-style: normal; font-weight: 300 700; font-display: swap;
+  src: url("/fonts/geist-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Geist"; font-style: normal; font-weight: 300 700; font-display: swap;
+  src: url("/fonts/geist-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Geist Mono"; font-style: normal; font-weight: 400 600; font-display: swap;
+  src: url("/fonts/geist-mono-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Geist Mono"; font-style: normal; font-weight: 400 600; font-display: swap;
+  src: url("/fonts/geist-mono-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Playfair Display"; font-style: normal; font-weight: 400 900; font-display: swap;
+  src: url("/fonts/playfair-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Playfair Display"; font-style: italic; font-weight: 400 900; font-display: swap;
+  src: url("/fonts/playfair-italic-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ---------- tokens ---------- */
+
+:root {
+  color-scheme: light dark;
+
+  --bg: #f3ece5;
+  --surface: #ffffff;
+  --surface-2: #e9ebfb;
+  --ink: #141626;
+  --ink-2: #3b3e55;
+  --muted: #5f627a;
+  --faint: #676a80;
+
+  --line: rgba(20, 22, 38, .12);
+  --edge: #8286a4;
+
+  --accent: #2b34d6;
+  --accent-press: #1f27b3;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(43, 52, 214, .10);
+  --accent-deep: #1a2199;          /* the shaded face of anything cobalt in three dimensions */
+
+  --coral: #ef3b5c;
+  --coral-deep: #d51135;
+
+  --good: #1f7a4c;      --good-bg: rgba(31, 122, 76, .12);
+  --warn: #975e0a;      --warn-bg: rgba(151, 94, 10, .13);
+  --bad: #d51135;       --bad-bg: rgba(213, 17, 53, .10);
+  --unchecked: #5f627a; --unchecked-bg: rgba(20, 22, 38, .07);
+
+  --paper: #fbf8f3;                /* a page in the bundle, the top of a volume, the shelf */
+  --paper-edge: #e6dfd5;
+  --paper-line: rgba(20, 22, 38, .18);
+  --tome: #fbf8f3;                 /* the pages of the tome, which lie on the ink block */
+  --tome-edge: #ddd4c8;
+
+  --sans: "Geist", ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --display: "Playfair Display", "Iowan Old Style", Georgia, serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+
+  --r-block: 28px;
+  --r-folder: 22px;
+  --r-field: 12px;
+
+  --shadow: 0 1px 2px rgba(20, 22, 38, .05), 0 24px 48px -32px rgba(20, 22, 38, .28);
+  --ease: cubic-bezier(.22, .68, .2, 1);
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1236;
+    --surface: #171b48;
+    --surface-2: #1e2358;
+    --ink: #f3ece5;
+    --ink-2: #cfcad9;
+    --muted: #a9a5bb;
+    --faint: #9d99b0;
+
+    --line: rgba(243, 236, 229, .12);
+    --edge: #616795;
+
+    --accent: #8f97ff;
+    --accent-press: #aab0ff;
+    --accent-ink: #0f1236;
+    --accent-soft: rgba(143, 151, 255, .14);
+    --accent-deep: #1a2199;
+
+    --coral: #ff7d93;
+    --coral-deep: #ff7d93;
+
+    --good: #4fd39a;      --good-bg: rgba(79, 211, 154, .14);
+    --warn: #e9b949;      --warn-bg: rgba(233, 185, 73, .14);
+    --bad: #ff7d93;       --bad-bg: rgba(255, 125, 147, .14);
+    --unchecked: #a9a5bb; --unchecked-bg: rgba(243, 236, 229, .08);
+
+    --paper: #f3ece5;
+    --paper-edge: #d9d1c6;
+    --tome: #ffffff;               /* the draft block is cream in the dark, so its pages go white */
+    --tome-edge: #d9d1c6;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 24px 48px -32px rgba(0, 0, 0, .7);
+  }
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html { background: var(--bg); }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---------- navigation ---------- */
+
+/* A bar, not a strip of the page: it stays, and a hairline appears under it once the page has moved. */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: 72px;
+  padding: 0 40px;
+  background: var(--bg);
+  border-bottom: 1px solid transparent;
+  transition: border-color .25s var(--ease);
+}
+body[data-scrolled="1"] .nav { border-bottom-color: var(--line); }
+
+.brand { margin: 0; display: flex; align-items: center; gap: 11px; }
+/* The mark is the staircase: three steps in the projection the verdict panel uses, cream faces and one
+ * deep side, on the brand's cobalt. Brand colours, so it is the same in both themes. */
+.brand .mark { width: 30px; height: 30px; display: block; flex: none; }
+.mark .mark-bg { fill: #2b34d6; }
+.mark .front { fill: #f3ece5; }
+.mark .top { fill: #ffffff; }
+.mark .side { fill: #1a2199; }
+.mark .s { transition: transform .3s var(--ease-out); }
+.brand:hover .mark .s1 { transform: translateY(-1px); }
+.brand:hover .mark .s2 { transform: translateY(-2px); transition-delay: .05s; }
+.brand:hover .mark .s3 { transform: translateY(-3px); transition-delay: .1s; }
+.brand .wordmark { font-family: var(--display); font-size: 21px; font-weight: 600; letter-spacing: -.015em; color: var(--ink); }
+
+/* The surfaces are a segmented control: three equal segments on a pill, and one thumb in ink that
+ * slides to the one you are on. Equal segments are what let the thumb be placed by rule -- a third of
+ * the width, moved one or two of its own widths over -- with nothing measured or written by script. */
+.tabs {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.tabs .thumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / 3);
+  border-radius: 999px;
+  background: var(--ink);
+  translate: 0 0;
+  transition: translate .42s var(--ease-out);
+}
+body[data-surface="find"]  .tabs .thumb { translate: 100% 0; }
+body[data-surface="draft"] .tabs .thumb { translate: 200% 0; }
+.tabs .thumb.moving { animation: squash .42s var(--ease-out); }
+.tabs button {
+  position: relative;
+  z-index: 1;
+  appearance: none;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -.004em;
+  color: var(--ink-2);
+  padding: 7px 24px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .3s var(--ease) .06s;
+}
+.tabs button:hover { color: var(--ink); }
+.tabs button.on { color: var(--bg); }
+.tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* What is loaded, said once, in the type that says numbers: no pill, no dot. */
+#status {
+  justify-self: end;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: .01em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+main { max-width: 1400px; margin: 0 auto; padding: 14px 40px 96px; }
+
+/* ---------- the hero ---------- */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+  gap: 24px;
+  align-items: stretch;
+  min-height: 580px;
+}
+@media (max-width: 1000px) { .hero { grid-template-columns: minmax(0, 1fr); min-height: 0; } }
+
+.block {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-block);
+  padding: 56px 56px 52px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+.block.cobalt { background: var(--accent); color: var(--accent-ink); }
+.block.cream  { background: var(--surface); color: var(--ink); border: 1px solid var(--line); }
+.block.ink    { background: var(--ink); color: var(--bg); }
+@media (prefers-color-scheme: dark) {
+  .block.cobalt { background: #2b34d6; color: #f3ece5; }
+  .block.ink { background: #f3ece5; color: #141626; }
+}
+
+.display {
+  margin: 0;
+  position: relative;
+  z-index: 1;
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: clamp(40px, 4.4vw, 62px);
+  line-height: 1.04;
+  letter-spacing: -.02em;
+  text-wrap: balance;
+  max-width: 13ch;
+}
+.display em { font-style: italic; font-weight: 500; }
+
+.lede {
+  position: relative;
+  z-index: 1;
+  margin: 22px 0 0;
+  font-size: 15px;
+  line-height: 1.6;
+  max-width: 44ch;
+  opacity: .92;
+  text-wrap: pretty;
+}
+
+/* ---------- changing surface ---------- */
+
+/* First paint: the block and the folder rise. Every change after that is a crossfade. The words on the
+ * outgoing block go first (`data-leaving`); then the sections swap and the incoming block starts in
+ * the colour of the block before it (`data-prev`) and turns into its own while its words and its
+ * object arrive. The colour it starts from is a rule per surface, not a value computed anywhere. */
+body:not([data-prev]) .block  { animation: rise .7s var(--ease-out) backwards; }
+body:not([data-prev]) .folder { animation: rise .7s .12s var(--ease-out) backwards; }
+body[data-prev="check"] .block { animation: from-cobalt .55s var(--ease) backwards; }
+body[data-prev="find"]  .block { animation: from-cream .55s var(--ease) backwards; }
+body[data-prev="draft"] .block { animation: from-ink .55s var(--ease) backwards; }
+body[data-prev] .block > .display, body[data-prev] .block > .lede { animation: fade .45s .14s var(--ease) backwards; }
+body[data-prev] .folder { animation: fade .45s .1s var(--ease) backwards; }
+body[data-prev] .work { animation: fade .45s .18s var(--ease) backwards; }
+body[data-leaving] .block > .display, body[data-leaving] .block > .lede, body[data-leaving] .block > .object,
+body[data-leaving] .folder, body[data-leaving] .work { opacity: 0; transition: opacity .16s var(--ease); }
+@keyframes from-cobalt { from { background-color: #2b34d6; } }
+@keyframes from-cream  { from { background-color: var(--surface); } }
+@keyframes from-ink    { from { background-color: var(--ink); } }
+
+/* ---------- the objects ---------- */
+
+/* One per surface, in the block's lower right, cropped by its edge. Each is a perspective frame around
+ * something built from faces; the two custom properties are the pointer's tilt, set through the CSSOM
+ * by app.js and clamped there. */
+.object { position: absolute; pointer-events: none; animation: fade .9s .2s var(--ease) backwards; }
+
+/* THE BUNDLE. A stack of pleadings lying on the block, tilted so it reads as paper on a desk seen from
+ * where you sit, each page a little above the last. */
+.bundle { right: -30px; bottom: -70px; width: 380px; height: 420px; perspective: 1100px; }
+.stack {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateX(calc(54deg + var(--ty, 0deg))) rotateZ(calc(-22deg + var(--tx, 0deg)));
+  transition: transform .5s var(--ease-out);
+  animation: settle 7s ease-in-out infinite;
+}
+
+.page {
+  position: absolute;
+  left: 60px;
+  top: 40px;
+  width: 250px;
+  height: 330px;
+  background: var(--paper);
+  border-radius: 3px;
+  box-shadow: 0 1px 0 var(--paper-edge), 0 2px 0 rgba(20, 22, 38, .08), 0 14px 22px -10px rgba(20, 22, 38, .45);
+  transform-origin: 50% 0;
+  transform-style: preserve-3d;
+  transition: transform .9s var(--ease-out), box-shadow .9s var(--ease-out), opacity .9s var(--ease-out);
+}
+/* The text on a page: a paragraph-number column and lines of a paragraph, as one gradient. */
+.page::before {
+  content: "";
+  position: absolute;
+  inset: 28px 22px 26px 40px;
+  background:
+    repeating-linear-gradient(to bottom, var(--paper-line) 0 2px, transparent 2px 13px);
+  opacity: .55;
+  mask: linear-gradient(to right, #000 0 88%, transparent 100%);
+}
+.page::after {
+  content: "";
+  position: absolute;
+  left: 22px;
+  top: 28px;
+  width: 8px;
+  height: 100%;
+  background: repeating-linear-gradient(to bottom, var(--paper-line) 0 2px, transparent 2px 52px);
+  opacity: .5;
+}
+/* The pinpoint on the top page: one paragraph, marked. */
+.page.p1 { background: linear-gradient(var(--paper), var(--paper)); }
+.page.p1::before {
+  background:
+    linear-gradient(to bottom, transparent 0 78px, var(--accent-soft) 78px 118px, transparent 118px),
+    repeating-linear-gradient(to bottom, var(--paper-line) 0 2px, transparent 2px 13px);
+  opacity: .8;
+}
+
+.page.p6 { transform: translateZ(0)    rotateZ(4.5deg)  translate(14px, 12px); filter: brightness(.90); }
+.page.p5 { transform: translateZ(5px)  rotateZ(-3.2deg) translate(-12px, 8px);  filter: brightness(.93); }
+.page.p4 { transform: translateZ(10px) rotateZ(2.2deg)  translate(8px, 2px);    filter: brightness(.96); }
+.page.p3 { transform: translateZ(15px) rotateZ(-1.6deg) translate(-6px, -3px);  filter: brightness(.98); }
+.page.p2 { transform: translateZ(20px) rotateZ(.9deg)   translate(3px, -5px); }
+.page.p1 { transform: translateZ(25px); }
+
+/* A binder clip along the top edge. Cobalt, so it belongs to the brand and not to the paper. */
+.clip {
+  position: absolute;
+  left: 150px;
+  top: 32px;
+  width: 70px;
+  height: 24px;
+  border-radius: 6px 6px 3px 3px;
+  background: linear-gradient(180deg, var(--accent-press), var(--accent-deep));
+  transform: translateZ(31px);
+  box-shadow: 0 6px 10px -6px rgba(0, 0, 0, .5), inset 0 -3px 0 rgba(0, 0, 0, .18);
+}
+
+/* Read pages are set aside, not turned away. A page turned over its top edge is face-down and gone;
+ * a page slid off to the empty side of the block and faded is a page somebody has finished with, and
+ * a completed check leaves a reviewed bundle behind rather than a bare last sheet. Each share of the
+ * citations found sets the next page aside; the earlier ones travel a little further, so they fan. */
+.bundle[data-flipped="1"] .p1,
+.bundle[data-flipped="2"] .p1, .bundle[data-flipped="2"] .p2,
+.bundle[data-flipped="3"] .p1, .bundle[data-flipped="3"] .p2, .bundle[data-flipped="3"] .p3,
+.bundle[data-flipped="4"] .p1, .bundle[data-flipped="4"] .p2, .bundle[data-flipped="4"] .p3, .bundle[data-flipped="4"] .p4,
+.bundle[data-flipped="5"] .p1, .bundle[data-flipped="5"] .p2, .bundle[data-flipped="5"] .p3, .bundle[data-flipped="5"] .p4, .bundle[data-flipped="5"] .p5 {
+  opacity: .62;
+  box-shadow: 0 1px 0 var(--paper-edge), 0 10px 18px -10px rgba(20, 22, 38, .4);
+}
+.bundle[data-flipped]:not([data-flipped="0"]) .p1 { transform: translateZ(30px) translate(-190px, -44px) rotateZ(-14deg); }
+.bundle[data-flipped="2"] .p2, .bundle[data-flipped="3"] .p2, .bundle[data-flipped="4"] .p2, .bundle[data-flipped="5"] .p2 { transform: translateZ(28px) translate(-172px, -30px) rotateZ(-10deg); transition-delay: .1s; }
+.bundle[data-flipped="3"] .p3, .bundle[data-flipped="4"] .p3, .bundle[data-flipped="5"] .p3 { transform: translateZ(26px) translate(-156px, -18px) rotateZ(-7deg); transition-delay: .1s; }
+.bundle[data-flipped="4"] .p4, .bundle[data-flipped="5"] .p4 { transform: translateZ(24px) translate(-142px, -8px) rotateZ(-4deg); transition-delay: .1s; }
+.bundle[data-flipped="5"] .p5 { transform: translateZ(22px) translate(-130px, 0) rotateZ(-2deg); transition-delay: .1s; }
+
+/* THE SHELF. Six volumes of reports standing on a plank, seen from a little above and to the left, so
+ * the spines, the tops of the pages and the last cover all show. Each volume is three faces of a box:
+ * the spine, the top rotated back from its upper edge, the cover rotated back from its right edge. The
+ * neighbours hide the covers of all but the last, which is what a shelf does. */
+.shelf { right: 10px; bottom: -6px; width: 420px; height: 380px; perspective: 1200px; }
+.row {
+  position: absolute;
+  left: 100px;
+  bottom: 60px;
+  width: 236px;
+  height: 200px;
+  transform-style: preserve-3d;
+  transform-origin: 50% 100%;
+  transform: rotateX(calc(12deg + var(--ty, 0deg))) rotateY(calc(-24deg + var(--tx, 0deg)));
+  transition: transform .5s var(--ease-out);
+}
+.plank { position: absolute; left: -40px; right: -40px; bottom: -12px; height: 12px; transform-style: preserve-3d; }
+.plank .face { position: absolute; inset: 0; background: var(--paper-edge); }
+.plank .lid {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 150px;
+  background: var(--paper);
+  transform-origin: 0 0;
+  transform: rotateX(-90deg);
+  box-shadow: inset 0 0 44px rgba(20, 22, 38, .14);
+}
+.vol {
+  position: absolute;
+  bottom: 0;
+  --d: 110px;
+  transform-style: preserve-3d;
+  transition: transform .6s var(--ease-out);
+}
+.vol .spine {
+  position: absolute;
+  inset: 0;
+  background: var(--c);
+  border-radius: 2px 2px 0 0;
+  box-shadow: inset 3px 0 0 rgba(255, 255, 255, .14), inset -3px 0 0 rgba(0, 0, 0, .2);
+}
+/* The label band a bound volume carries, and the volume number near the foot. */
+.vol .spine::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  top: 22px;
+  height: 28px;
+  border-top: 2px solid rgba(255, 255, 255, .85);
+  border-bottom: 2px solid rgba(255, 255, 255, .85);
+}
+.vol .spine::after {
+  content: "";
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  bottom: 26px;
+  height: 7px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, .8);
+}
+.vol .lid {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: var(--d);
+  transform-origin: 0 0;
+  transform: rotateX(-90deg);
+  background: repeating-linear-gradient(to right, var(--paper-line) 0 1px, transparent 1px 3px), var(--paper);
+}
+.vol .cover {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: var(--d);
+  height: 100%;
+  transform-origin: 100% 0;
+  transform: rotateY(-90deg);
+  background: color-mix(in srgb, var(--c) 78%, #000);
+}
+.vol.v1 { left: 0;     width: 40px; height: 178px; --c: #2b34d6; }
+.vol.v2 { left: 40px;  width: 34px; height: 168px; --c: var(--ink); }
+.vol.v3 { left: 74px;  width: 46px; height: 190px; --c: #1f27b3; }
+.vol.v4 { left: 120px; width: 38px; height: 172px; --c: #1a2199; }
+.vol.v5 { left: 158px; width: 42px; height: 184px; --c: var(--ink); }
+.vol.v6 { left: 200px; width: 36px; height: 176px; --c: #2b34d6; }
+@media (prefers-color-scheme: dark) {
+  .vol.v3 { --c: #3d47e8; }
+  .vol.v4 { --c: #4a55f2; }
+}
+/* Searching: the volumes are taken down one after another and put back. Found: one stays out. */
+.shelf[data-state="searching"] .vol { animation: browse 2.4s var(--ease) infinite; }
+.shelf[data-state="searching"] .v2 { animation-delay: .4s; }
+.shelf[data-state="searching"] .v3 { animation-delay: .8s; }
+.shelf[data-state="searching"] .v4 { animation-delay: 1.2s; }
+.shelf[data-state="searching"] .v5 { animation-delay: 1.6s; }
+.shelf[data-state="searching"] .v6 { animation-delay: 2s; }
+.shelf[data-state="found"] .v3 { transform: translateZ(52px) rotateY(-12deg); }
+@keyframes browse { 0%, 40%, 100% { transform: none; } 14%, 26% { transform: translateZ(46px) rotateY(-9deg); } }
+
+/* THE TOME. The submission being bound, lying the way the bundle lies, with the binding along the left
+ * edge. The top page is a face lifted by the thickness of the block; the two edges you can see are
+ * faces dropped from it and striped like the ends of pages. The index tabs sit a pixel under the top
+ * page, so the part inside the block is covered and the part outside is not. */
+.book { right: -50px; bottom: -100px; width: 400px; height: 420px; perspective: 1100px; }
+.tome {
+  position: absolute;
+  left: 70px;
+  top: 60px;
+  width: 240px;
+  height: 320px;
+  transform-style: preserve-3d;
+  transform: rotateX(calc(56deg + var(--ty, 0deg))) rotateZ(calc(16deg + var(--tx, 0deg)));
+  transition: transform .5s var(--ease-out);
+  animation: settle 7s ease-in-out infinite;
+}
+.tome .shadow {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+  filter: blur(16px);
+  transform: translate(14px, 22px) scale(.98);
+}
+.tome .face {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(var(--paper-line), var(--paper-line)) 56% 30px / 34% 3px no-repeat,
+    linear-gradient(var(--paper-line), var(--paper-line)) 56% 39px / 22% 2px no-repeat,
+    var(--tome);
+  transform: translateZ(16px);
+  border-radius: 2px;
+}
+.tome .face::before {
+  content: "";
+  position: absolute;
+  inset: 58px 28px 30px 46px;
+  background: repeating-linear-gradient(to bottom, var(--paper-line) 0 2px, transparent 2px 12px);
+  opacity: .55;
+  mask: linear-gradient(#000, #000) 0 0 / 100% 100% no-repeat;
+}
+.tome .face::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  border-radius: 2px 0 0 2px;
+  background: linear-gradient(90deg, #1a2199, #2b34d6 70%);
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, .2);
+}
+.tome .edge-x {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  width: 100%;
+  height: 16px;
+  transform-origin: 0 0;
+  transform: translateZ(16px) rotateX(-90deg);
+  background:
+    linear-gradient(90deg, #1a2199 0 20px, transparent 20px),
+    repeating-linear-gradient(to bottom, var(--tome-edge) 0 1px, var(--tome) 1px 3px);
+}
+.tome .edge-y {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  width: 16px;
+  height: 100%;
+  transform-origin: 0 0;
+  transform: translateZ(16px) rotateY(90deg);
+  background: repeating-linear-gradient(to right, var(--tome-edge) 0 1px, var(--tome) 1px 3px);
+}
+.tome .tab {
+  position: absolute;
+  left: 100%;
+  width: 30px;
+  height: 20px;
+  border-radius: 0 5px 5px 0;
+  background: var(--accent-press);
+  transform: translateZ(15px) translateX(-30px);
+  opacity: 0;
+  transition: transform .5s var(--ease-out), opacity .3s var(--ease);
+}
+.tome .tab.out { transform: translateZ(15px) translateX(-6px); opacity: 1; }
+.tome .tab[data-state="none"] { background: var(--coral); }
+.tome .t1 { top: 30px; }  .tome .t2 { top: 64px; }  .tome .t3 { top: 98px; }  .tome .t4 { top: 132px; }
+.tome .t5 { top: 166px; } .tome .t6 { top: 200px; } .tome .t7 { top: 234px; } .tome .t8 { top: 268px; }
+/* Reading the plan: the lines on the top page write themselves, top to bottom, until something is bound. */
+.book[data-state="drafting"] .face::before { animation: write 2.2s linear infinite; }
+@keyframes write { from { mask-size: 100% 0%; } to { mask-size: 100% 100%; } }
+
+/* ---------- the folder ---------- */
+
+.folder { position: relative; display: flex; flex-direction: column; }
+.folder-tab {
+  align-self: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: var(--r-folder) var(--r-folder) 0 0;
+  padding: 12px 24px 10px;
+  margin-left: 22px;
+  position: relative;
+  top: 1px;
+}
+.folder-tab label { font-size: 11.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.folder-body {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-folder);
+  padding: 22px 24px 20px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+}
+.folder-body textarea { flex: 1; }
+
+textarea {
+  display: block;
+  width: 100%;
+  min-height: 220px;
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 12.75px;
+  line-height: 1.68;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--edge);
+  border-radius: var(--r-field);
+  padding: 14px 16px;
+  transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
+}
+textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+textarea::placeholder { color: var(--faint); }
+#query { min-height: 120px; }
+
+.controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+/* ---------- buttons ---------- */
+
+button {
+  appearance: none;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -.004em;
+  border-radius: 999px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform .2s var(--ease), background .2s var(--ease), box-shadow .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+button[disabled] { opacity: .6; cursor: progress; }
+
+button.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px 12px 22px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 10px 24px -14px var(--accent);
+}
+button.primary:hover { background: var(--accent-press); transform: translateY(-1px); box-shadow: 0 16px 30px -14px var(--accent); }
+button.primary:active { transform: translateY(0); }
+button.primary .arrow { display: inline-block; margin-left: 2px; transition: transform .25s var(--ease-out); }
+button.primary:hover .arrow { transform: translateX(4px); }
+
+button.quiet { padding: 11px 18px; background: transparent; color: var(--ink); border-color: var(--edge); }
+button.quiet:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+button.quiet:active { transform: translateY(1px); }
+
+label.check { font-size: 13px; color: var(--ink-2); display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+label.check input { accent-color: var(--accent); width: 15px; height: 15px; }
+
+.hint { font-size: 12.5px; line-height: 1.6; color: var(--muted); margin: 12px 0 0; }
+.hint em { color: var(--ink); font-style: normal; font-weight: 600; }
+.none { font-size: 13.5px; color: var(--muted); margin: 8px 0; }
+
+/* ---------- the work ---------- */
+
+.work {
+  display: grid;
+  grid-template-columns: minmax(0, 520px) minmax(0, 1fr);
+  gap: 40px;
+  align-items: start;
+  margin-top: 48px;
+}
+.work.single { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 1000px) { .work { grid-template-columns: minmax(0, 1fr); gap: 28px; } }
+/* Under the bar, which is 72px and stays. */
+@media (min-width: 1001px) { .index { position: sticky; top: 92px; max-height: calc(100vh - 112px); overflow: auto; padding-right: 6px; } }
+
+/* The index is not a card. It is a list on the page, ruled, the way the reference sets an index. */
+.index { padding: 4px 0 0; }
+.index-head h2 {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.tally { display: flex; align-items: flex-end; gap: 22px; padding: 8px 0 16px; border-bottom: 1.5px solid var(--ink); margin-bottom: 4px; }
+.numeral {
+  font-family: var(--display);
+  font-size: 88px;
+  line-height: .9;
+  font-weight: 500;
+  color: var(--coral);
+  letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
+  min-width: 1ch;
+}
+.summary { display: flex; flex-direction: column; gap: 5px; padding-bottom: 8px; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.summary span { display: inline-flex; align-items: center; gap: 8px; }
+.summary span::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.summary .n-total { display: none; }
+.summary .n-bad { color: var(--bad); }
+.summary .n-good { color: var(--good); }
+.summary .n-part { color: var(--unchecked); }
+.summary .n-part::before { background: none; border: 1.5px dashed currentColor; width: 6px; height: 6px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-block);
+  padding: 26px 30px 30px;
+  box-shadow: var(--shadow);
+}
+.document { min-height: 300px; }
+
+.board-list { list-style: none; margin: 0; padding: 0; }
+
+button.pick {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) minmax(0, 42%);
+  align-items: start;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 15px 8px 15px 10px;
+  position: relative;
+  transition: background .2s var(--ease), padding-left .25s var(--ease);
+  animation: rise .5s var(--ease-out) both;
+}
+button.pick::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--accent);
+  transform: scaleY(0);
+  transition: transform .3s var(--ease-out);
+}
+button.pick:hover { background: var(--accent-soft); }
+button.pick.on { background: var(--accent-soft); padding-left: 16px; }
+button.pick.on::before { transform: scaleY(1); }
+button.pick:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 10px; }
+.board-list li:last-child button.pick { border-bottom: 0; }
+.board-list li:nth-child(1) button { animation-delay: 0ms; }
+.board-list li:nth-child(2) button { animation-delay: 60ms; }
+.board-list li:nth-child(3) button { animation-delay: 120ms; }
+.board-list li:nth-child(4) button { animation-delay: 180ms; }
+.board-list li:nth-child(5) button { animation-delay: 240ms; }
+.board-list li:nth-child(6) button { animation-delay: 300ms; }
+.board-list li:nth-child(7) button { animation-delay: 360ms; }
+.board-list li:nth-child(n+8) button { animation-delay: 420ms; }
+
+.pick-cite { min-width: 0; overflow-wrap: anywhere; }
+.pick-cite b { display: block; font-weight: 600; letter-spacing: -.008em; font-variant-numeric: tabular-nums; }
+.pick-findings { min-width: 0; padding-top: 2px; }
+
+/* The grade lands like a stamp: from a little above the page, with a shadow that blooms and goes.
+ * The row's own rise is delayed by nth-child; the stamp inherits that delay and adds its own. */
+.g {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  flex: none;
+}
+button.pick .g { animation: stamp .55s var(--ease-out) both; animation-delay: inherit; }
+.g.A, .g.B { color: var(--good); background: var(--good-bg); border-color: color-mix(in srgb, var(--good) 30%, transparent); }
+.g.C       { color: var(--warn); background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
+.g.D, .g.E, .g.F { color: var(--bad); background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
+.g.part { border-style: dashed; border-color: var(--edge); color: var(--unchecked); background: var(--unchecked-bg); }
+
+.mode, .review {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.45;
+  padding: 3px 10px;
+  margin: 0 4px 4px 0;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.mode { color: var(--bad); background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 26%, transparent); }
+.review { color: var(--unchecked); background: var(--unchecked-bg); border-color: var(--edge); border-style: dashed; }
+
+.sub { color: var(--muted); font-size: 12.5px; }
+.title { font-size: 13.5px; }
+.case { font-size: 13.5px; color: var(--muted); }
+.attrib { color: var(--muted); font-size: 12px; }
+.instead { font-size: 13.5px; }
+.instead-inline { color: var(--muted); font-size: 12.5px; }
+.nums { font-variant-numeric: tabular-nums; }
+
+/* ---------- the document, and the stair ---------- */
+
+.doc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+
+/* The panels of the document card: text with a rule under it, and a 2px line under the one open. */
+.panel-tabs { flex: 1; display: flex; gap: 26px; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
+.panel-tabs button {
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+  padding: 0 0 12px;
+  position: relative;
+  cursor: pointer;
+  transition: color .2s var(--ease);
+}
+.panel-tabs button::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--ink);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform .3s var(--ease-out);
+}
+.panel-tabs button:hover { color: var(--ink); }
+.panel-tabs button.on { color: var(--ink); font-weight: 600; }
+.panel-tabs button.on::after { transform: scaleX(1); }
+.panel-tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+/* Six isometric steps in oblique projection: a front face, a top face skewed away, a side face skewed
+ * down. Each step is one unit taller than the last, F at the foot and A at the top. The marker is the
+ * citation, standing on the step it earned. */
+.stair {
+  --u: 22px;
+  position: relative;
+  width: calc(var(--u) * 6 + 30px);
+  height: 96px;
+  flex: none;
+  margin-top: -6px;
+  opacity: .95;
+  transition: opacity .3s var(--ease);
+}
+.step { position: absolute; bottom: 12px; width: var(--u); }
+.step .front { position: absolute; left: 0; bottom: 0; width: var(--u); background: var(--accent); border-radius: 0 0 2px 2px; }
+.step .top   { position: absolute; left: 0; width: var(--u); height: 12px; background: var(--paper); transform: skewX(-45deg); transform-origin: 0 100%; box-shadow: inset 0 0 0 1px rgba(20, 22, 38, .06); }
+.step .side  { position: absolute; left: var(--u); bottom: 0; width: 12px; background: var(--accent-deep); transform: skewY(-45deg); transform-origin: 0 100%; }
+.step.s1 { left: 0;                    } .step.s1 .front, .step.s1 .side { height: 14px; } .step.s1 .top { bottom: 14px; }
+.step.s2 { left: calc(var(--u) * 1); } .step.s2 .front, .step.s2 .side { height: 24px; } .step.s2 .top { bottom: 24px; }
+.step.s3 { left: calc(var(--u) * 2); } .step.s3 .front, .step.s3 .side { height: 34px; } .step.s3 .top { bottom: 34px; }
+.step.s4 { left: calc(var(--u) * 3); } .step.s4 .front, .step.s4 .side { height: 44px; } .step.s4 .top { bottom: 44px; }
+.step.s5 { left: calc(var(--u) * 4); } .step.s5 .front, .step.s5 .side { height: 54px; } .step.s5 .top { bottom: 54px; }
+.step.s6 { left: calc(var(--u) * 5); } .step.s6 .front, .step.s6 .side { height: 64px; } .step.s6 .top { bottom: 64px; }
+
+.marker {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  bottom: 12px;
+  left: -18px;                       /* off the stair: not checked */
+  background: var(--coral);
+  border: 2px solid var(--surface);
+  box-shadow: 0 4px 10px -3px rgba(213, 17, 53, .6);
+  transform: translate(0, 0);
+  transition: transform .6s var(--ease-out), opacity .3s var(--ease), background .3s var(--ease);
+  opacity: 0;
+}
+.stair[data-grade] .marker { opacity: 1; }
+.stair[data-grade=""]:not([data-partial="1"]) .marker { opacity: 0; }
+/* Each grade places the marker on its step's top face: x to the step, y to its height. */
+.stair[data-grade="F"] .marker { transform: translate(calc(var(--u) * 0 + 22px), -13px); }
+.stair[data-grade="E"] .marker { transform: translate(calc(var(--u) * 1 + 22px), -23px); }
+.stair[data-grade="D"] .marker { transform: translate(calc(var(--u) * 2 + 22px), -33px); }
+.stair[data-grade="C"] .marker { transform: translate(calc(var(--u) * 3 + 22px), -43px); }
+.stair[data-grade="B"] .marker { transform: translate(calc(var(--u) * 4 + 22px), -53px); }
+.stair[data-grade="A"] .marker { transform: translate(calc(var(--u) * 5 + 22px), -63px); }
+.stair[data-grade="A"] .marker, .stair[data-grade="B"] .marker { background: var(--good); box-shadow: 0 4px 10px -3px rgba(31, 122, 76, .6); }
+.stair[data-grade="C"] .marker { background: var(--warn); box-shadow: 0 4px 10px -3px rgba(151, 94, 10, .6); }
+/* Not checked: the marker stays where it started, off the stair, hollow. */
+.stair[data-partial="1"] .marker { transform: translate(0, 0); background: transparent; border: 2px dashed var(--unchecked); box-shadow: none; }
+.stair[data-partial="1"] .step .top { opacity: .6; }
+
+#detail > *, #judgment > *, #memo > *, #doc > *, #attack > *, #results > *, #parsed > * { animation: rise .45s var(--ease-out) both; }
+
+.claim {
+  font-family: var(--serif);
+  font-size: 16.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  border-left: 3px solid var(--accent);
+  padding: 4px 0 4px 18px;
+  margin: 16px 0;
+}
+blockquote {
+  font-family: var(--serif);
+  margin: 16px 0;
+  padding: 16px 20px;
+  background: var(--good-bg);
+  border-left: 3px solid var(--good);
+  border-radius: 0 14px 14px 0;
+  font-size: 15.5px;
+  line-height: 1.62;
+}
+.finding {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--bad);
+  border-radius: 0 14px 14px 0;
+  padding: 12px 16px;
+  margin: 10px 0;
+  background: var(--bg);
+}
+.finding b { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 3px; color: var(--bad); }
+.finding span { font-size: 13.25px; color: var(--ink-2); }
+pre {
+  font-family: var(--mono);
+  font-size: 12.25px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-field);
+  padding: 16px 18px;
+  margin: 0;
+  max-height: 620px;
+  overflow: auto;
+}
+#para { max-height: 62vh; overflow: auto; margin-top: 12px; padding-right: 8px; }
+.p {
+  font-family: var(--serif);
+  font-size: 15.5px;
+  line-height: 1.7;
+  padding: 10px 0 10px 16px;
+  border-left: 3px solid transparent;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 96px;
+}
+.p b { font-family: var(--sans); font-size: 11px; font-weight: 600; color: var(--faint); margin-right: 10px; font-variant-numeric: tabular-nums; }
+.p.here { border-left-color: var(--accent); background: var(--accent-soft); border-radius: 0 12px 12px 0; }
+.op {
+  font-family: var(--sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--warn);
+  background: var(--warn-bg);
+  border-radius: 999px;
+  padding: 2px 9px;
+  margin-right: 8px;
+}
+mark { background: var(--accent-soft); color: inherit; padding: 1px 3px; border-radius: 4px; box-shadow: inset 0 -2px 0 var(--accent); }
+
+/* ---------- bindings, search, attacks ---------- */
+
+.st {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.st.bound { color: var(--good); background: var(--good-bg); border-color: color-mix(in srgb, var(--good) 30%, transparent); }
+.st.refused { color: var(--bad); background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
+li.bind {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 14px 6px;
+  font-size: 13.5px;
+  border-bottom: 1px solid var(--line);
+  animation: rise .5s var(--ease-out) both;
+}
+li.bind:last-child { border-bottom: 0; }
+.bind-text { min-width: 0; overflow-wrap: anywhere; }
+#results .p { border-left: 0; padding: 18px 6px; border-bottom: 1px solid var(--line); font-family: var(--sans); font-size: 13.5px; line-height: 1.5; }
+#results .p:last-child { border-bottom: 0; }
+#results .p > b { font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--ink); margin: 0; }
+#results blockquote { margin: 10px 0 4px; }
+.attack { margin: 12px 0; padding: 12px 0 12px 16px; border-left: 3px solid var(--warn); }
+.attack b { display: block; font-size: 13.5px; font-weight: 600; margin-bottom: 3px; }
+.attack span { color: var(--muted); font-size: 12.75px; }
+a { color: var(--accent); text-underline-offset: 3px; }
+
+/* ---------- footer ---------- */
+
+footer { margin-top: 48px; color: #f3ece5; }
+.steps { display: block; width: 100%; height: 64px; fill: #2b34d6; }
+.foot {
+  background: #2b34d6;
+  padding: 36px 40px 56px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 40px;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.foot p { margin: 0; opacity: .88; }
+.foot .foot-lead { font-family: var(--display); font-size: 22px; line-height: 1.25; opacity: 1; }
+.foot strong { font-weight: 600; }
+.foot em { font-style: italic; }
+@media (max-width: 760px) { .foot { grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 28px 22px 44px; } }
+
+::selection { background: var(--accent-soft); }
+
+/* ---------- motion ---------- */
+
+@keyframes fade   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise   { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes settle { 0%, 100% { translate: 0 0; } 50% { translate: 0 -6px; } }
+@keyframes squash { 0%, 100% { scale: 1 1; } 45% { scale: 1.1 .9; } }
+@keyframes stamp  {
+  0%   { opacity: 0; transform: translateY(-14px) scale(1.35) rotate(-6deg); box-shadow: 0 18px 24px -8px rgba(20, 22, 38, .35); }
+  60%  { opacity: 1; transform: translateY(0) scale(.96) rotate(0); box-shadow: 0 2px 4px -2px rgba(20, 22, 38, .3); }
+  100% { opacity: 1; transform: none; box-shadow: none; }
+}
+
+/* Loading: a quiet line of text, not a shimmer. On each surface the object is doing the talking. */
+.skeleton { list-style: none; margin: 0; padding: 0; }
+.skeleton li { height: 1px; margin: 26px 8px; background: var(--line); }
+.skeleton li:nth-child(2n) { width: 74%; }
+.skeleton li:nth-child(3n) { width: 58%; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .stack { animation: none; transform: rotateX(54deg) rotateZ(-22deg); }
+  .row   { transform: rotateX(12deg) rotateY(-24deg); }
+  .tome  { animation: none; transform: rotateX(56deg) rotateZ(16deg); }
+}
+
+/* ---------- keyboard, print, small screens ---------- */
+
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 30;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 13px;
+}
+.skip:focus { left: 14px; top: 14px; }
+
+h1, h2 { text-wrap: balance; }
+.title, .sub, .claim, blockquote, .finding span, .mode { overflow-wrap: anywhere; }
+
+@media print {
+  html, body { background: #fff !important; }
+  :root { --surface: #fff; --ink: #000; }
+  .nav, .hero, .skip, footer, .controls, .stair { display: none !important; }
+  .work { display: block; margin: 0; }
+  .index { position: static; max-height: none; }
+  .card { box-shadow: none; border: 0; padding: 0; }
+  #para, pre { max-height: none; overflow: visible; }
+  button.pick { break-inside: avoid; animation: none; }
+}
+
+@media (max-width: 720px) {
+  .nav { grid-template-columns: auto 1fr; height: 64px; padding: 0 16px; }
+  .brand .wordmark { display: none; }
+  .tabs { justify-self: end; }
+  .tabs button { font-size: 12.5px; padding: 6px 16px; }
+  #status { display: none; }
+  main { padding-left: 14px; padding-right: 14px; }
+  /* The object gets a band of its own at the foot of the block, under the words rather than over them. */
+  .block { padding: 34px 26px 210px; border-radius: 22px; }
+  .display { font-size: 38px; }
+  .bundle { right: -80px; bottom: -110px; width: 300px; height: 330px; }
+  .shelf, .book { scale: .72; transform-origin: 100% 100%; }
+  .shelf { right: 0; bottom: -20px; }
+  .book { right: -40px; bottom: -50px; }
+  .folder-tab { margin-left: 16px; }
+  .folder-body, .card { padding: 18px 16px; border-radius: 20px; }
+  .numeral { font-size: 64px; }
+  .doc-head { flex-direction: column-reverse; align-items: flex-start; gap: 6px; }
+  .doc-head .panel-tabs { width: 100%; }
+  button.pick { grid-template-columns: 30px minmax(0, 1fr); }
+  .pick-findings { grid-column: 2; }
+}

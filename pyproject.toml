@@ -65,6 +65,11 @@ ignore = ["E501", "B008"]
 testpaths = ["tests"]
 addopts = "-q"
 filterwarnings = ["ignore::DeprecationWarning"]
+# Import the source next to these tests, not whichever copy an editable install happens to point at.
+# `uv sync` writes one absolute path into the environment, so a second checkout of this repository --
+# a git worktree, a clone beside it, a container that mounts the source somewhere else -- runs its
+# tests against the first checkout's code and passes while proving nothing about its own.
+pythonpath = ["src"]
 
 [dependency-groups]
 dev = [

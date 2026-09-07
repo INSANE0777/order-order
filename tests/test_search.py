@@ -10,6 +10,7 @@ from __future__ import annotations
 import datetime as dt
 
 import pytest
+from sqlalchemy import text as sql_text
 
 from orderorder.db.models import CitationAlias, Judgment
 from orderorder.engine.search import (
@@ -250,3 +251,62 @@ def test_relevance_reported_is_the_one_the_ranking_used(corpus) -> None:
     assert found
     assert [a.score for a in found] == sorted((a.score for a in found), reverse=True)
     assert all(a.relevance > 0 for a in found)
+
+
+# --- keeping the index level with the paragraphs -----------------------------------------------------
+
+SECOND_HOLDING = """1. Leave granted.
+
+2. A notice under Section 106 of the Transfer of Property Act is mandatory before a suit for
+eviction, and its absence is fatal to the suit however the tenant may have behaved.
+
+3. The appeal is allowed.
+"""
+
+
+def test_a_judgment_ingested_later_is_indexed_by_the_next_run(corpus) -> None:
+    """The batched workflow: ingest some, index, ingest more, index again.
+
+    `index` used to return the moment the table held any rows, so the second batch was never indexed
+    and `--rebuild` -- re-tokenising the whole corpus -- was the only way to see it. That is the cost
+    of the entire ingestion again, on the corpus that most needs ingesting in batches.
+    """
+    before = build_index(corpus)
+    _add(corpus, "INSC:2021:3", "EPSILON versus ZETA", SECOND_HOLDING, bench=2, year=2021)
+    corpus.commit()
+
+    after = build_index(corpus)
+    assert after > before
+    found = find_authorities(corpus, "a notice under Section 106 is mandatory before a suit for eviction")
+    assert any(a.canonical_key == "INSC:2021:3" for a in found)
+
+
+def test_paragraphs_replaced_by_a_re_ingest_do_not_linger_in_the_index(corpus) -> None:
+    """`store_extracted` deletes a version's paragraphs and writes new ones with new ids.
+
+    `_match` reads the body straight out of the index, so a row left behind serves superseded text
+    under a paragraph id that no longer exists.
+    """
+    judgment = corpus.query(Judgment).filter_by(canonical_key="INSC:2019:1").one()
+    store_extracted(
+        corpus,
+        judgment,
+        ExtractedJudgment(
+            source_path="INSC:2019:1", page_count=4, headnote="", judgment=SECOND_HOLDING
+        ),
+    )
+    corpus.commit()
+    build_index(corpus)
+
+    live = {row[0] for row in corpus.execute(sql_text("SELECT id FROM paragraph")).all()}
+    indexed = {
+        row[0] for row in corpus.execute(sql_text("SELECT paragraph_id FROM paragraph_fts")).all()
+    }
+    assert indexed <= live, f"{len(indexed - live)} indexed paragraphs no longer exist"
+    assert not find_authorities(corpus, CLAIM), "the replaced text is still being served"
+
+
+def test_running_the_index_twice_changes_nothing(corpus) -> None:
+    """Reconciling has to be idempotent, or every run would grow the index by a whole corpus."""
+    first = build_index(corpus)
+    assert build_index(corpus) == first

@@ -108,6 +108,33 @@ class ChallengeAssessment(BaseModel):
     )
 
 
+class OppositionAssessment(BaseModel):
+    """How one sentence from a judgment stands to one proposition an advocate intends to argue.
+
+    A relation rather than a yes or no, and the alternatives are the point. Asked "does this
+    contradict?", a model agrees; the shape that stops it is somewhere else to go. `narrower` is where
+    most of the string test's false leads belong -- a court confining a rule to particular facts has
+    not denied the wider one -- and offering it explicitly is what keeps `opposite` from becoming the
+    answer to everything.
+    """
+
+    relation: Literal["opposite", "narrower", "same", "unrelated"] = Field(
+        description="opposite if the two cannot both be true; narrower if the sentence states the "
+        "same rule but confined to circumstances the proposition does not name; same if it asserts "
+        "the proposition; unrelated if it is about a different question."
+    )
+    quote: str | None = Field(
+        default=None,
+        description="A verbatim sentence copied from the paragraph, at least six words, or null.",
+    )
+    both_could_be_true: bool | None = Field(
+        default=None,
+        description="Whether a court could hold both the proposition and this sentence at once.",
+    )
+    reason: str | None = Field(default=None, description="One sentence naming what makes them differ.")
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+
+
 class VoiceAssessment(BaseModel):
     """Whose words a paragraph carries. A passage can be in a judgment without being the court's view."""
 

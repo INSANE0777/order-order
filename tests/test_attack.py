@@ -2,8 +2,9 @@
 
 The trap this section walks into is that everything in the draft has already passed the gate, so a
 self-attack that looks for what the gate looks for finds nothing and prints an assurance. So what is
-tested here is that it looks somewhere else — the citation graph, the bench strengths, the dates —
-and that it says out loud what it did not look at.
+tested here is that it looks somewhere else — the citation graph, the bench strengths, the dates, and
+the corpus itself for a judgment that says the other thing — and that it says out loud what it did not
+look at.
 """
 
 from __future__ import annotations
@@ -15,9 +16,11 @@ import pytest
 from orderorder.db.models import CitationAlias, CitationEdge, Judgment
 from orderorder.drafting.assemble import Point, assemble
 from orderorder.drafting.attack import (
+    CONTRARY,
     DISTINGUISHED,
     MIN_CITED_SHARE,
     NOT_CHECKED,
+    ORDER,
     OUTRANKED,
     THIN,
     UNSUPPORTED,
@@ -91,10 +94,29 @@ def _judgment(session, key: str, title: str, text: str, *, year: int, bench: int
     return judgment
 
 
+OPPOSITE = """1. Leave granted.
+
+2. The doctrine of frustration applies notwithstanding an allocation by the parties of the risk of
+the supervening event between themselves in their contract.
+
+3. The appeal is allowed.
+"""
+
+
 @pytest.fixture
 def corpus(session):
     _judgment(session, "INSC:2019:1", "ALPHA versus BETA", ALPHA, year=2019, bench=2)
     _judgment(session, "INSC:2022:9", "GAMMA versus DELTA", GAMMA, year=2022, bench=3)
+    session.commit()
+    build_index(session)
+    return session
+
+
+@pytest.fixture
+def with_a_contrary_judgment(session):
+    """The same corpus, plus a judgment holding the other way on the very proposition."""
+    _judgment(session, "INSC:2019:1", "ALPHA versus BETA", ALPHA, year=2019, bench=2)
+    _judgment(session, "INSC:2023:4", "EPSILON versus ZETA", OPPOSITE, year=2023, bench=3)
     session.commit()
     build_index(session)
     return session
@@ -223,6 +245,38 @@ def test_the_judgment_the_draft_cites_does_not_outrank_itself(corpus) -> None:
     draft = _bound_draft(_authority(corpus, key="INSC:2022:9", bench_strength=3, decided_on="2022-06-01"))
     outranked = [a for a in attack_draft(corpus, draft) if a.kind == OUTRANKED]
     assert all("GAMMA" not in a.says for a in outranked)
+
+
+def test_a_judgment_that_says_the_opposite_is_an_attack(with_a_contrary_judgment) -> None:
+    """The attack an opponent opens with, and the one the gate cannot make.
+
+    Everything else here is about the authority behind the point. This is about the point.
+    """
+    draft = _bound_draft(_authority(with_a_contrary_judgment))
+    attacks = attack_draft(with_a_contrary_judgment, draft)
+    contrary = [a for a in attacks if a.kind == CONTRARY]
+    assert contrary
+    assert "EPSILON" in contrary[0].says
+    assert "applies notwithstanding" in contrary[0].says
+    assert "Read it" in contrary[0].fix
+
+
+def test_a_point_is_not_attacked_with_its_own_authority(with_a_contrary_judgment) -> None:
+    draft = _bound_draft(_authority(with_a_contrary_judgment))
+    attacks = attack_draft(with_a_contrary_judgment, draft)
+    assert all("ALPHA" not in a.says for a in attacks if a.kind == CONTRARY)
+
+
+def test_the_contrary_search_can_be_left_out(with_a_contrary_judgment) -> None:
+    """It is the expensive one: a corpus search per point against a citation-graph lookup."""
+    draft = _bound_draft(_authority(with_a_contrary_judgment))
+    attacks = attack_draft(with_a_contrary_judgment, draft, search_contrary=False)
+    assert not [a for a in attacks if a.kind == CONTRARY]
+
+
+def test_the_contrary_attack_comes_before_the_leads(with_a_contrary_judgment) -> None:
+    """A judgment saying the other thing outranks "here is another case on the same words"."""
+    assert ORDER.index(CONTRARY) < ORDER.index(OUTRANKED)
 
 
 def test_a_proposition_with_no_authority_is_the_first_attack(session) -> None:

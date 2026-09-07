@@ -9,6 +9,20 @@ credentials or boto3 are needed. Layout:
     data/pdf/year=YYYY/english/                   individual PDFs
 
 Licence: CC-BY-4.0. Attribution is required and lives in the README and the app footer.
+
+**This client reads the Supreme Court bucket and only that one.** The High Court corpus is a second
+public bucket, `indian-high-court-judgments` in the same region, and it is not reachable by pointing
+`BUCKET` at it. Verified against the live bucket: it carries the same `metadata/` and `data/`
+top level and the same `data/pdf` and `data/tar` split, its years run back to **1950** rather than
+2013, and every prefix below the year adds a partition this code has no notion of --
+`metadata/parquet/year=2019/court=10_8/...` where the Supreme Court has
+`metadata/parquet/year=2019/metadata.parquet`. So `metadata_key` takes a year and nothing else, and
+`ingest.pdf.pdf_url` composes a PDF path from a year and a `source_path` alone. A court identifier has
+nowhere to live in either, nor in the `Judgment.source_id` those paths are rebuilt from.
+
+Adding it is a feature and not a configuration change: the court partition has to reach the key
+builder, the court codes (`10_8`, `11_24`) have to map to courts a citation can name, and the
+canonical key scheme has to stop assuming one court. PRD phase 3 is where it lives.
 """
 
 from __future__ import annotations

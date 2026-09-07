@@ -1,0 +1,32 @@
+80 searches over 9,424 judgments, 40 holdings put both ways
+
+Each holding is a sentence a court wrote. It is put to the engine twice: negated, which is
+what the other side argues, and as written, which is what the side relying on it argues.
+Only sentences that state law were drawn; the ones that decide a case are left out.
+
+Shared terms are counted, not weighted by rarity.
+
+  proposition                n  source in field  source flagged   leads  seconds
+  the holding, negated      40            100%             57%     2.5      1.2
+  the holding, as written   40            100%              5%     1.5      1.2
+
+The `source flagged` column on the first row is not a finding. The negation that built the
+proposition and the negation the detector reads are the same idea, so a high number there is
+a property of the construction. It is reported because a low one would mean something broke.
+
+What the two rows *do* measure is discrimination, which is the whole question: the same
+paragraph, the same retrieval, and the only difference is the polarity of the sentence put to
+it. A tool that answered the same way to both would be reading the words and not the sense.
+
+  the source paragraph was called contrary ...        
+    for the negated proposition only                  21 of 40
+    for both                                           2
+    for neither                                       17
+    for the court's own words only                     0
+
+The floor: 24 of 40 propositions that are a court's own holding came
+back with a contrary lead from some other judgment, 1.5
+per proposition. Some of those are real, because courts disagree and this corpus holds
+nine thousand of them, so the number is an upper bound on what is wrong rather than a
+count of what is wrong. It is also what a user feels: passages to read for a proposition
+that was never in doubt.

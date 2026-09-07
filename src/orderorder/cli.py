@@ -28,6 +28,7 @@ Checking a citation somebody wrote:
 Finding one nobody wrote yet:
 
     orderorder find "..."                which judgment backs a proposition, and which line
+    orderorder contrary "..."            which judgment says the opposite, which is what you will meet
     orderorder argue propositions.txt    bind each proposition to an authority, or refuse to
     orderorder draft plan.txt --docx x   assemble a written submission from a case plan
 
@@ -38,6 +39,7 @@ Measuring both:
     orderorder eval paraphrase           build restated queries for the search evaluation
     orderorder eval search               score the search direction
     orderorder eval gate                 what the drafting gate lets through, and throws out
+    orderorder eval contrary             the same holding put both ways, and what comes back
 """
 
 from __future__ import annotations
@@ -61,7 +63,7 @@ from orderorder.drafting.attack import attack_draft
 from orderorder.drafting.plan import PlanError, read_plan
 from orderorder.drafting.render import to_markdown
 from orderorder.drafting.word import write_docx
-from orderorder.engine import authority, citator, embeddings, search
+from orderorder.engine import authority, citator, contrary, embeddings, search
 from orderorder.engine.graph import verify_text
 from orderorder.engine.locator import locate as locate_claim
 from orderorder.engine.memo import render_memo, write_memo
@@ -72,12 +74,14 @@ from orderorder.engine.report import annotate_brief, verification_report
 from orderorder.engine.schemas import (
     ApplicabilityAssessment,
     ChallengeAssessment,
+    OppositionAssessment,
     Restatement,
     ScopeAssessment,
     VoiceAssessment,
     WeightAssessment,
 )
 from orderorder.engine.verdict import GRADES
+from orderorder.evaluation import contrary as contrary_eval
 from orderorder.evaluation import gate as gate_eval
 from orderorder.evaluation import retrieval
 from orderorder.evaluation.generate import generate as generate_gold
@@ -342,12 +346,21 @@ def ingest_repair_trailers(
     The SCR volumes end a judgment with the editors' own words, running on from the court's last
     paragraph. Extraction now stops at them; this removes them from what was stored earlier, without
     re-reading nine thousand PDFs.
+
+    This rewrites paragraph bodies under the same ids, which is the one change `orderorder index`
+    cannot detect: nothing about the row's identity changes, so reconciling finds nothing to do and
+    the index keeps serving the publisher's words as the court's. Rebuild it afterwards.
     """
     init_db()
     prefix = "[yellow]would remove[/yellow]" if dry_run else "[green]removed[/green]"
     with get_session() as session:
         console.print(f"{prefix}: {repair.strip_publisher_trailers(session, dry_run=dry_run)}")
         console.print(f"{prefix}: {repair.strip_signoffs(session, dry_run=dry_run)}")
+    if not dry_run:
+        console.print(
+            "[yellow]the full-text index is now stale[/yellow]: this rewrote paragraphs in place, "
+            "which reconciling cannot see. Run [bold]orderorder index --rebuild[/bold]."
+        )
 
 
 @ingest_app.command("mark-opinions")
@@ -789,6 +802,84 @@ def eval_gate(
         console.print(f"[dim]written to {report}[/dim]")
 
 
+@eval_app.command("contrary")
+def eval_contrary(
+    judgments: int = typer.Option(40, help="How many judgments to draw holdings from."),
+    per_judgment: int = typer.Option(1, help="Holdings per judgment."),
+    top: int = typer.Option(5, help="How many leads the engine may return per proposition."),
+    rng_seed: int = typer.Option(20260904, help="Which judgments get drawn."),
+    report: str | None = typer.Option(None, help="Also write the report to this file."),
+    examples: bool = typer.Option(True, help="Show the leads returned for a court's own words."),
+    rule_like: bool = typer.Option(
+        True, help="Draw only sentences that state law, not ones that decide a case."
+    ),
+    weighted: bool = typer.Option(
+        True,
+        "--weighted/--no-weighted",
+        help="Weigh shared terms by rarity. Off counts them, which is the comparison.",
+    ),
+    read: int = typer.Option(
+        0, "--read", help="Also have a model read this many pairs. 0 runs no model at all."
+    ),
+    pace: float = typer.Option(
+        0.0, help="Seconds between model calls. A free tier at 10 a minute wants 7."
+    ),
+) -> None:
+    """Measure the contrary search: the same holding put both ways, and what comes back.
+
+    Each item is a sentence a court wrote. It is searched twice — negated, which is what the other
+    side argues, and as written, which is what the side relying on it argues. The difference between
+    the two is the measurement, because a tool that answers the same way to both is reading the words
+    and not the sense.
+    """
+    init_db()
+    with get_session() as session:
+        if not search.index_exists(session):
+            console.print("[red]no search index[/red]; run [bold]orderorder index[/bold] first")
+            raise typer.Exit(1)
+        items = contrary_eval.build_items(
+            session,
+            judgments=judgments,
+            per_judgment=per_judgment,
+            seed_value=rng_seed,
+            rule_like=rule_like,
+        )
+        if not items:
+            console.print("[red]no holdings could be drawn[/red]; is there text in the corpus?")
+            raise typer.Exit(1)
+        console.print(f"[dim]{len(items)} searches from {judgments} judgments[/dim]")
+
+        def progress(done: int, total: int) -> None:
+            if done % 10 == 0 or done == total:
+                console.print(f"  [dim]{done}/{total}[/dim]")
+
+        scored = contrary_eval.run_contrary(
+            session, items, top=top, rule_like=rule_like, weighted=weighted, on_item=progress
+        )
+
+        if read:
+            model = build_structured(OppositionAssessment)
+            if model is None:
+                console.print("[yellow]no language model configured[/yellow]; the reading is skipped")
+            else:
+                console.print(f"[dim]reading {read} pairs, two calls each[/dim]")
+
+                def reading_progress(done: int, total: int) -> None:
+                    console.print(f"  [dim]read {done}/{total}[/dim]")
+
+                contrary_eval.read_pairs(
+                    session, scored, model, limit=read, pace=pace, on_item=reading_progress
+                )
+
+    lines = contrary_eval.format_contrary(scored) + contrary_eval.format_reading(scored)
+    if examples:
+        lines += ["", *contrary_eval.format_examples(scored)]
+    console.print("\n".join(lines))
+    if report:
+        contrary_eval.write_report(scored, Path(report), examples=examples)
+        console.print(f"[dim]written to {report}[/dim]")
+
+
 @app.command("serve")
 def serve_command(
     host: str = typer.Option("127.0.0.1", help="Interface to listen on. Local only by default."),
@@ -822,9 +913,19 @@ def serve_command(
 
 @app.command("index")
 def index_command(
-    rebuild: bool = typer.Option(False, help="Drop and rebuild, after ingesting more judgments."),
+    rebuild: bool = typer.Option(
+        False, help="Drop and re-tokenise everything. Needed only after text was rewritten in place."
+    ),
 ) -> None:
-    """Build the full-text index that authority search runs against."""
+    """Bring the full-text index level with the paragraphs that are stored.
+
+    Run it after every batch of ingestion. It adds what is missing and removes what no longer belongs,
+    so running it twice does nothing the second time and a judgment ingested later is picked up
+    without re-tokenising the corpus.
+
+    `--rebuild` is for the one thing reconciling cannot see: a paragraph whose text was rewritten
+    under the same id, which is what `ingest repair-trailers` does.
+    """
     init_db()
     with get_session() as session:
         rows = search.build_index(session, rebuild=rebuild)
@@ -1075,6 +1176,94 @@ def draft_command(
     if docx:
         written = write_docx(draft, docx, attacks)
         console.print(f"[dim]written to {written}[/dim]")
+
+
+@app.command("contrary")
+def contrary_command(
+    proposition: str = typer.Argument(..., help="The proposition you intend to argue."),
+    top: int = typer.Option(5, help="How many leads to show."),
+    against: str | None = typer.Option(
+        None, "--against", help="The judgment you are relying on: its dissents, and it is left out."
+    ),
+    field_size: int = typer.Option(
+        contrary.DEFAULT_FIELD, "--field", help="How many retrieved paragraphs to read for opposition."
+    ),
+    expand: bool = typer.Option(
+        True, help="Also search for the proposition with its terms of art swapped for their opposites."
+    ),
+    check: bool = typer.Option(
+        False, "--check", help="Have a model read each lead against the proposition. Off by default."
+    ),
+) -> None:
+    """What the other side will cite: a judgment stating the opposite of what you argue.
+
+    Every other check in this engine is about the authority you have. This one is about the ones you
+    do not: it searches the corpus for a court, in its own voice, saying the other thing.
+
+    What comes back is a lead. The engine has established that a court wrote a sentence on this
+    subject with the opposite polarity — not that the sentence contradicts you rather than confining
+    the rule to other facts, which is a reading. Read it before your opponent does.
+    """
+    init_db()
+    with get_session() as session:
+        if not search.index_exists(session):
+            console.print("[red]no search index[/red]; run [bold]orderorder index[/bold] first")
+            raise typer.Exit(1)
+
+        exclude: tuple[str, ...] = ()
+        relied_on = None
+        if against:
+            relied_on = session.scalars(
+                select(Judgment).where(Judgment.canonical_key == against)
+            ).first()
+            if relied_on is None:
+                console.print(f"[red]{against} is not in the corpus[/red]")
+                raise typer.Exit(1)
+            exclude = (relied_on.id,)
+
+        report = contrary.find_contrary(
+            session, proposition, exclude=exclude, top=top, field_size=field_size, expand=expand
+        )
+        dissents = contrary.dissents_in(session, relied_on.id, proposition) if relied_on else []
+
+        if check:
+            model = build_structured(OppositionAssessment)
+            if model is None:
+                console.print(
+                    "[yellow]no language model configured[/yellow], so these stay leads: a court "
+                    "wrote them on this subject with the opposite polarity, and nothing has read "
+                    "them against your proposition."
+                )
+            else:
+                contrary.read_leads(proposition, report, model)
+
+        for lead in dissents:
+            console.print(
+                f"\n[bold yellow]the dissent in the case you rely on[/bold yellow]\n"
+                f"   [cyan]{lead.authority.canonical_key}, para {lead.authority.paragraph_label}[/cyan]  "
+                f"[dim]{lead.opposition.cue}[/dim]"
+            )
+            console.print(f'   [yellow]"{lead.sentence[:300]}"[/yellow]')
+
+        for rank, lead in enumerate(report.leads, start=1):
+            authority_found = lead.authority
+            console.print(
+                f"\n[bold]{rank}. {authority_found.title[:70]}[/bold]\n"
+                f"   [cyan]{authority_found.pinpoint}[/cyan]  "
+                f"[dim]{authority_found.decided_on or '?'} · bench {authority_found.bench_strength or '?'}"
+                f" · {lead.opposition.describe()}[/dim]"
+            )
+            console.print(f'   [red]"{lead.sentence[:300]}"[/red]')
+            if lead.reading is not None:
+                colour = "red" if lead.is_confirmed else "yellow"
+                console.print(f"   [{colour}]read[/{colour}]: {lead.reading.describe()}")
+
+        console.print(f"\n[dim]{report.describe()}.[/dim]")
+        if report.found:
+            console.print(
+                "[dim]Each is a passage to read, not a holding that you are wrong: a court can state "
+                "a rule narrowly without contradicting a wider one.[/dim]"
+            )
 
 
 @app.command("find")

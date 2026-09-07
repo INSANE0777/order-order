@@ -13,6 +13,7 @@ from __future__ import annotations
 import datetime as dt
 
 import pytest
+from sqlalchemy import event
 
 from orderorder.db.models import Judgment, JudgmentTextVersion
 from orderorder.ingest import bulk
@@ -171,3 +172,133 @@ def test_an_empty_run_is_not_an_error(session, tmp_path) -> None:
     result = bulk.ingest_text_bulk(session, [], tmp_path, workers=1)
     assert result.outcomes == []
     assert result.counts() == {}
+
+
+# --- what the run costs before it starts ------------------------------------------------------------
+
+
+def test_the_limit_bounds_the_query_and_not_just_the_result(session, tmp_path) -> None:
+    """A bound on the work has to be a bound on the read.
+
+    Slicing afterwards returns the right judgments and pays for every row to do it -- 3.1 KB of ORM
+    object each, measured, which is tens of gigabytes across the High Courts before one PDF is
+    fetched. Returning three rows proves nothing about that, so this reads the SQL that was issued.
+    """
+    for n in range(10):
+        _judgment(session, f"INSC:2019:{n}", year=2019)
+    session.commit()
+
+    statements: list[str] = []
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    engine = session.get_bind()
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        rows = bulk.judgments_needing_text(session, limit=3)
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+    assert len(rows) == 3
+    reads = [s for s in statements if "FROM judgment" in s]
+    assert reads, "the resume list issued no query"
+    assert any("LIMIT" in s.upper() for s in reads), reads
+
+
+def test_a_year_filter_still_honours_the_limit(session, tmp_path) -> None:
+    """`years` reads a JSON field, so SQL cannot carry it; the scan has to stop at the limit instead."""
+    for n in range(6):
+        _judgment(session, f"INSC:2019:{n}", year=2019)
+    for n in range(6):
+        _judgment(session, f"INSC:2020:{n}", year=2020)
+    session.commit()
+
+    rows = bulk.judgments_needing_text(session, years=[2020], limit=2)
+    assert len(rows) == 2
+    assert all(j.canonical_key.startswith("INSC:2020") for j in rows)
+
+
+def test_every_judgment_is_returned_exactly_once_when_the_queue_is_bounded() -> None:
+    """The schedule must not lose or repeat work just because it stopped submitting everything.
+
+    Order is not part of the contract and never was: results arrive as they finish, so a slow PDF
+    does not hold up the ones behind it. `ingest_text_bulk` looks each one up by key for that reason.
+    What must hold is that every judgment comes back, and none of them twice.
+    """
+    judgments = [_Stub(f"INSC:2019:{n}") for n in range(25)]
+    keys = [key for key, _, _ in bulk._as_they_finish(_immediate, judgments, depth=4)]
+    assert sorted(keys) == sorted(j.canonical_key for j in judgments)
+    assert len(keys) == len(set(keys))
+
+
+def test_the_queue_never_grows_with_the_corpus() -> None:
+    """The whole point: memory is a function of the workers, not of how much there is to do."""
+    high_water = 0
+    live = 0
+
+    def submit(judgment):
+        nonlocal high_water, live
+        live += 1
+        high_water = max(high_water, live)
+        return _immediate(judgment)
+
+    judgments = [_Stub(f"INSC:2019:{n}") for n in range(500)]
+    for _ in bulk._as_they_finish(submit, judgments, depth=8):
+        live -= 1
+    assert high_water <= 8, f"{high_water} in flight with a depth of 8"
+
+
+def test_a_queue_depth_of_zero_still_makes_progress() -> None:
+    """A pool of one worker with a depth that rounds to nothing must not deadlock on an empty queue."""
+    judgments = [_Stub("INSC:2019:1"), _Stub("INSC:2019:2")]
+    assert len(list(bulk._as_they_finish(_immediate, judgments, depth=0))) == 2
+
+
+class _Stub:
+    """A judgment as the scheduler sees it: three attributes and nothing else."""
+
+    def __init__(self, key: str) -> None:
+        self.canonical_key = key
+        self.source_id = "2019_1_1_1"
+        self.decided_on = dt.date(2019, 6, 1)
+        self.extra = {"year": "2019"}
+
+
+def _immediate(judgment):
+    """Submit that has already finished, so the schedule is what is under test and not the pool."""
+    future = bulk.Future()
+    future.set_result((judgment.canonical_key, None, "stub"))
+    return future
+
+
+def test_the_real_pool_returns_every_judgment(session, tmp_path) -> None:
+    """The pool path itself, once, with real processes and real pickling.
+
+    The scheduling above is tested against a stand-in `submit`, which is the only way to test the
+    schedule -- but it leaves the seam where the schedule meets `ProcessPoolExecutor` uncovered, and
+    that seam is production-only code. A judgment with no year is the way in without a network: the
+    worker rejects it on the first line, before it reaches out for anything.
+    """
+    judgments = []
+    # More than `pool_size * _QUEUE_DEPTH`, so the refill after each completion is what is under test
+    # and not just the priming loop.
+    for n in range(2 * bulk._QUEUE_DEPTH + 8):
+        judgment = Judgment(
+            canonical_key=f"INSC:2019:{n}",
+            court="Supreme Court of India",
+            title=f"INSC:2019:{n} versus SOMEBODY",
+            source="aws_open_data",
+            source_id="2019_1_1_1",
+            decided_on=None,
+            extra={},
+        )
+        session.add(judgment)
+        judgments.append(judgment)
+    session.commit()
+
+    with bulk._fetched(judgments, tmp_path, workers=2) as stream:
+        results = list(stream)
+
+    assert sorted(key for key, _, _ in results) == sorted(j.canonical_key for j in judgments)
+    assert all(extracted is None and "no year" in (error or "") for _, extracted, error in results)

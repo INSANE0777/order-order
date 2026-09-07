@@ -1,0 +1,69 @@
+80 searches over 9,424 judgments, 40 holdings put both ways
+
+Each holding is a sentence a court wrote. It is put to the engine twice: negated, which is
+what the other side argues, and as written, which is what the side relying on it argues.
+Only sentences that state law were drawn; the ones that decide a case are left out.
+
+Shared terms are weighted by rarity.
+
+  proposition                n  source in field  source flagged   leads  seconds
+  the holding, negated      40            100%             55%     1.4      1.5
+  the holding, as written   40            100%              5%     0.7      1.5
+
+The `source flagged` column on the first row is not a finding. The negation that built the
+proposition and the negation the detector reads are the same idea, so a high number there is
+a property of the construction. It is reported because a low one would mean something broke.
+
+What the two rows *do* measure is discrimination, which is the whole question: the same
+paragraph, the same retrieval, and the only difference is the polarity of the sentence put to
+it. A tool that answered the same way to both would be reading the words and not the sense.
+
+  the source paragraph was called contrary ...        
+    for the negated proposition only                  20 of 40
+    for both                                           2
+    for neither                                       18
+    for the court's own words only                     0
+
+The floor: 12 of 40 propositions that are a court's own holding came
+back with a contrary lead from some other judgment, 0.7
+per proposition. Some of those are real, because courts disagree and this corpus holds
+nine thousand of them, so the number is an upper bound on what is wrong rather than a
+count of what is wrong. It is also what a user feels: passages to read for a proposition
+that was never in doubt.
+
+leads returned for a proposition the court itself stated
+  (several of these answer a sentence that is not a proposition of law at all -- a
+   disposition, a chemical name, an order about a booster pump. Propositions drawn from
+   arbitrary court sentences are part of why the floor above is an upper bound.)
+  INSC:2016:310 para 11
+    held    The impugned order is accordingly set aside and the appeal is allowed.
+    lead    We, therefore, find no ground to set aside the impugned F order and accordingly uphold the same.
+    from    INSC:2015:82
+  INSC:2015:719 para 24
+    held    The chemical name for charas and hashish is "extracts and tinctures of cannabis".
+    lead    The only drugs for which the entry in column (4) for chemical name is not given in the 2001 notification are ‘natural/plant-based drugs’ namely, Canna
+    from    INSC:2017:583
+  INSC:2019:25 para 30
+    held    The grant and rejection of such prayer by the Trial Court is confined only up to the disposal of the suit.
+    lead    Although the adequate liberty was given to the defendant to cross examine the plaintiff’s witness, they never availed of the same and went on delaying
+    from    INSC:2021:502
+  INSC:2016:254 para 4
+    held    But the writ petition having been admitted by the Court is still pending before the High Court.
+    lead    Similarly, we do not wish to expand the scope of the present proceedings as the main writ petition is still pending before the High Court of Delhi, wh
+    from    INSC:2019:610
+  INSC:2016:524 para 25
+    held    Keeping in view the law laid down in the aforementioned three cases quoted supra which does not need any more elaboration by us, we H A have no hesita
+    lead    The case is remanded to the learned designate Judge to decide the question of legality, validity and genuineness of the agreement/(MoU) in question on
+    from    INSC:2016:524
+  INSC:2024:690 para 16
+    held    In Raj Reddy Kallem’s case (supra), after referring to the above positions this Court further observed that even in Kanchan Mehta’s case (supra) nowhe
+    lead    In the contextual situation it is relevant to refer to a recent decision of this Court in Raj Reddy Kallem v. The State of Haryana & Anr. [2024 INSC 3
+    from    INSC:2024:690
+  INSC:2019:282 para 85
+    held    However, we make it very clear that pronouncement of this order shall not come in the way of the Court deciding the matter on its merits.
+    lead    We, however, make it clear that we have not examined the case of the parties on merits having formed an opinion to remand the case to the High Court o
+    from    INSC:2019:573
+  INSC:2014:793 para 8
+    held    Thus, such maintenance can be awarded from the date of the Order, or, if so ordered, from the date of the application for maintenance, as the case may
+    lead    In Shail Kumar Devi, this Court considered a catena of decisions by the various High Courts, before arriving D at the conclusion that it was incorrect
+    from    INSC:2014:793

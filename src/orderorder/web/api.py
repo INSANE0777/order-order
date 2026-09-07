@@ -57,6 +57,7 @@ from orderorder.engine.schemas import (
 )
 from orderorder.ingest.brief import read_brief
 from orderorder.ingest.store import load_paragraphs
+from orderorder.web import limits
 from orderorder.web.auth import TOKEN_ENV, token_required
 from orderorder.web.jobs import (
     DraftJob,
@@ -71,6 +72,47 @@ from orderorder.web.jobs import (
 
 STATIC = Path(__file__).parent / "static"
 
+# Sent on every response, including the refusals, which is why they go through one helper.
+#
+# The page is one origin serving itself. It loads no font, no script and no stylesheet from anywhere
+# else, and it calls no API but its own, so the policy can say exactly that rather than the usual
+# hedge. `script-src 'self'` with no `'unsafe-inline'` is the load-bearing line and the reason the
+# page's script and style live in their own files: an injected `<script>` in a citation, a party name
+# or a paragraph of a judgment does not execute, whatever escaping elsewhere may have missed.
+#
+# `frame-ancestors 'none'` and `X-Frame-Options` say the same thing twice on purpose; the header is
+# what an older browser understands. HSTS is not here: this server is meant to sit behind a proxy that
+# terminates TLS, and a service that cannot see whether it is on HTTPS should not be the one asserting
+# that it always will be. `docs/DEPLOYMENT.md` §2.2 says where it belongs.
+SECURITY_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self'; "
+        "img-src 'self' data:; "
+        "font-src 'self'; "
+        "connect-src 'self'; "
+        "object-src 'none'; "
+        "base-uri 'none'; "
+        "form-action 'self'; "
+        "frame-ancestors 'none'"
+    ),
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=(), payment=(), usb=()",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Resource-Policy": "same-origin",
+}
+
+
+def _secured(headers: dict | None = None) -> dict:
+    """Response headers with the security set applied. A refusal gets them too."""
+    merged = dict(SECURITY_HEADERS)
+    merged.update(headers or {})
+    return merged
+
+
 # How long a case plan may be. A plan is issues and sentences, not a bundle; past this something
 # other than a plan has been pasted in.
 MAX_PLAN_CHARS = 60_000
@@ -80,6 +122,47 @@ MAX_PLAN_CHARS = 60_000
 MAX_BRIEF_CHARS = 400_000
 # And how large a file. A memorial is under a megabyte; a bundle of annexures is not a brief.
 MAX_UPLOAD_BYTES = 25_000_000
+# How much is read at a time while enforcing that limit.
+UPLOAD_CHUNK = 1 << 20
+# What a brief may arrive as. `read_brief` decides for real by parsing; this refuses the rest before
+# anything is read into memory.
+ACCEPTED_UPLOADS = (".pdf", ".docx", ".txt", ".md")
+# Named formats that cannot be read but that a person will reasonably try, so they are let past the
+# gate for `read_brief` to turn down in a sentence that says what to do instead. Refusing `.doc` with
+# a bare "unsupported media type" would be correct and useless: the advocate has the file, and what
+# they need is "save it as .docx", not a status code.
+EXPLAINED_UPLOADS = (".doc",)
+
+# The faces the page asks for, as a set the font route matches against rather than a path it joins.
+FONT_FILES = frozenset(
+    {
+        "geist-latin.woff2",
+        "geist-latin-ext.woff2",
+        "geist-mono-latin.woff2",
+        "geist-mono-latin-ext.woff2",
+        "playfair-latin.woff2",
+        "playfair-italic-latin.woff2",
+    }
+)
+
+
+async def _read_at_most(file: UploadFile, limit: int) -> bytes | None:
+    """The whole file, or `None` if it is larger than `limit`.
+
+    `await file.read()` reads all of it and *then* the caller checks the size, which is a check that
+    has already lost: the memory is spent by the time it runs, and the number that decides how much is
+    a stranger's upload. `Content-Length` cannot be trusted to fix it either -- it is a header, and a
+    chunked request need not send one. So the read itself is bounded, one megabyte at a time, and it
+    stops the moment the total goes past the limit rather than after.
+    """
+    chunks: list[bytes] = []
+    total = 0
+    while chunk := await file.read(UPLOAD_CHUNK):
+        total += len(chunk)
+        if total > limit:
+            return None
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 class DraftRequest(BaseModel):
@@ -104,20 +187,50 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="OrderOrder", version=__version__, docs_url="/api/docs")
 
+    limiter = limits.RateLimiter()
+
     # One place, checked before anything else runs. A token configured per-route is a token somebody
     # forgets on the route added next week, and the route added next week is the upload endpoint.
     @app.middleware("http")
-    async def _require_token(request, call_next):
+    async def _guard(request, call_next):
         from fastapi.responses import JSONResponse
         from starlette.exceptions import HTTPException as StarletteHTTPException
+
+        def refuse(status: int, detail: str, headers: dict | None = None) -> JSONResponse:
+            return JSONResponse({"detail": detail}, status_code=status, headers=_secured(headers))
+
+        who = limits.client_of(request)
+
+        # A body large enough to hurt is refused before it is read. `Content-Length` is a claim rather
+        # than a fact, so this is the cheap half; `_read_at_most` is what actually bounds an upload.
+        declared = request.headers.get("content-length")
+        if declared and declared.isdigit() and int(declared) > limits.MAX_BODY_BYTES:
+            return refuse(413, f"a request body may be up to {limits.MAX_BODY_BYTES // 1_000_000} MB")
 
         try:
             token_required(request, token)
         except StarletteHTTPException as refused:
-            return JSONResponse(
-                {"detail": refused.detail}, status_code=refused.status_code, headers=refused.headers
+            # Count the failure, then refuse. Counting first means a client that is already over the
+            # limit is told to wait rather than told its token was wrong, which is one less signal.
+            wait = limiter.allow(who, "auth", limit=limits.AUTH_FAILURES)
+            if wait is not None:
+                return refuse(429, "too many failed attempts", {"Retry-After": str(int(wait) + 1)})
+            return refuse(refused.status_code, refused.detail, dict(refused.headers or {}))
+
+        bucket = "write" if request.method in limits.WRITE_METHODS else "read"
+        ceiling = limits.WRITE_REQUESTS if bucket == "write" else None
+        wait = limiter.allow(who, bucket, limit=ceiling)
+        if wait is not None:
+            return refuse(
+                429,
+                "too many requests; this server checks one brief at a time",
+                {"Retry-After": str(int(wait) + 1)},
             )
-        return await call_next(request)
+
+        response = await call_next(request)
+        for header, value in SECURITY_HEADERS.items():
+            response.headers.setdefault(header, value)
+        return response
     # `is not None`, not `or`: a JobStore defines __len__, so an empty one is falsy and `or` would
     # quietly hand back a different store than the caller passed in.
     jobs = store if store is not None else JobStore()
@@ -158,8 +271,17 @@ def create_app(
         seen is a verdict neither of you can point at, and a PDF that came out mangled should be
         obvious in a second rather than discovered through nine inexplicable phantom citations.
         """
-        data = await file.read()
-        if len(data) > MAX_UPLOAD_BYTES:
+        name = file.filename or ""
+        if not name.lower().endswith(ACCEPTED_UPLOADS + EXPLAINED_UPLOADS):
+            # Named before it is read. Deciding by extension is not a security control on its own --
+            # the parsers below are what actually decide -- but it refuses the obviously wrong file
+            # without first spending memory on it, and it gives the reader a sentence they can act on.
+            raise HTTPException(
+                415, f"a brief has to be one of {', '.join(ACCEPTED_UPLOADS)}; that is {name or 'unnamed'}"
+            )
+
+        data = await _read_at_most(file, MAX_UPLOAD_BYTES)
+        if data is None:
             raise HTTPException(413, f"a file may be up to {MAX_UPLOAD_BYTES // 1_000_000} MB")
         try:
             brief = read_brief(data, file.filename or "")
@@ -409,6 +531,34 @@ def create_app(
     @app.get("/")
     def index() -> FileResponse:
         return FileResponse(STATIC / "index.html")
+
+    # Named one by one rather than mounted as a directory. A `StaticFiles` mount serves whatever is
+    # under the directory, which is a decision made once and then inherited by every file anybody
+    # drops there later; three explicit routes cannot serve a fourth file by accident and have no path
+    # for a caller to traverse. There are only ever going to be three.
+    @app.get("/app.css")
+    def stylesheet() -> FileResponse:
+        return FileResponse(STATIC / "app.css", media_type="text/css")
+
+    @app.get("/app.js")
+    def script() -> FileResponse:
+        return FileResponse(STATIC / "app.js", media_type="text/javascript")
+
+    @app.get("/fonts/{name}")
+    def font(name: str) -> FileResponse:
+        """The four self-hosted Geist faces, served by name from a fixed list.
+
+        Named rather than mounted, and matched against a set rather than joined onto a path: `name`
+        arrives from the URL, and `STATIC / name` with a `..` in it is the oldest file-serving bug
+        there is. A membership test cannot traverse anywhere.
+
+        Self-hosted because the Content-Security-Policy is `font-src 'self'`. Loading these from
+        Google would mean widening the policy to a third-party origin, and a typeface is not worth
+        that; 82 KB in the repository is the cheaper trade.
+        """
+        if name not in FONT_FILES:
+            raise HTTPException(404, "no such font")
+        return FileResponse(STATIC / "fonts" / name, media_type="font/woff2")
 
     return app
 

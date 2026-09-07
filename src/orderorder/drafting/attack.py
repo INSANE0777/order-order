@@ -12,6 +12,12 @@ So the attacks here are precisely the ones the gate cannot make:
   * **Distinguished.** The gate refuses law that was overruled or doubted. It does not refuse law that
     a later court held inapplicable on its facts, because that is not a defect in the authority — it
     is the argument the other side will make about it, which is a different thing and belongs here.
+  * **Contrary.** A judgment that states the opposite of the proposition itself. The gate checked the
+    authority behind the point and nothing checked the point against the rest of the corpus, which is
+    where an opponent starts. Found by `engine.contrary` with no model: a contradiction is the
+    *nearest* text in the corpus to a proposition rather than the farthest, so the ordinary search
+    reaches it, and the polarity of a clause is what separates it from a restatement. A lead, not a
+    finding — a court can state a rule narrowly without denying a wider one.
   * **Outranked.** A judgment in the same retrieval field, with a larger bench or a later date, that
     the draft did not cite. This is a lead and is written as one: all that is known is that it matched
     the same words. It is still the first thing an opponent's researcher will find.
@@ -24,9 +30,10 @@ So the attacks here are precisely the ones the gate cannot make:
     draft; they are repeated here because this is the section a person reads when they are deciding
     what to cut.
 
-Everything here comes from the citation graph, the bench strengths, the dates and the verdicts already
-computed. No model is called, so nothing in this section can be an invention, and every line of it can
-be traced to a row in the database.
+Everything here comes from the citation graph, the bench strengths, the dates, the verdicts already
+computed, and — for the contrary attack — the full-text index and the grammar of a clause. No model is
+called, so nothing in this section can be an invention, and every line of it can be traced to a row in
+the database.
 """
 
 from __future__ import annotations
@@ -39,6 +46,7 @@ from sqlalchemy.orm import Session
 from orderorder.db.models import CitationEdge, Judgment
 from orderorder.drafting.assemble import Draft, Point
 from orderorder.engine.authority import NARROWED
+from orderorder.engine.contrary import find_contrary
 from orderorder.engine.search import Authority, find_authorities, index_exists
 
 # What each attack is called, in the order an opponent would lead with it. A case held inapplicable on
@@ -46,10 +54,15 @@ from orderorder.engine.search import Authority, find_authorities, index_exists
 # proposition with nothing behind it is the strongest thing that can be said about the draft.
 DISTINGUISHED = "distinguished"
 UNSUPPORTED = "unsupported"
+CONTRARY = "contrary"
 OUTRANKED = "outranked"
 NARROWED_ATTACK = "narrowed"
 THIN = "thin"
-ORDER = [UNSUPPORTED, DISTINGUISHED, OUTRANKED, NARROWED_ATTACK, THIN]
+ORDER = [UNSUPPORTED, DISTINGUISHED, CONTRARY, OUTRANKED, NARROWED_ATTACK, THIN]
+# How many contrary passages to raise per proposition. Two, for the reason `_outranked` stops at two:
+# one is a lead worth chasing and five is a research task, and a section a person skips is a section
+# that takes the real attacks with it.
+CONTRARY_LEADS = 2
 
 # How wide a field to look across for a better authority than the one the draft cites. Past this the
 # retrieval score has usually fallen far enough that a bench-strength comparison is comparing a
@@ -66,9 +79,11 @@ MIN_CITED_SHARE = 0.5
 # foot of the section, because a list of attacks that stops here reads as though this is all of them.
 NOT_CHECKED = (
     "Whether any of these authorities governs the facts of this matter was not checked, and cannot be: "
-    "the engine has the propositions and the corpus, not the record. Nor was the draft searched for a "
-    "judgment stating the opposite of what it argues; the leads below are judgments that matched the "
-    "same words, which is not the same thing."
+    "the engine has the propositions and the corpus, not the record. The corpus was searched for a "
+    "judgment stating the opposite of each proposition, and what that search returns is a passage a "
+    "court wrote with the opposite sign -- not a holding that this submission is wrong, which only "
+    "reading it can tell you. It searched 2013 onwards, so the judgment that says otherwise may not "
+    "be held here at all."
 )
 
 
@@ -102,8 +117,12 @@ def cited_share(session: Session) -> float:
     return cited / judgments
 
 
-def attack_draft(session: Session, draft: Draft) -> list[Attack]:
-    """Every attack the gate could not make, worst first."""
+def attack_draft(session: Session, draft: Draft, *, search_contrary: bool = True) -> list[Attack]:
+    """Every attack the gate could not make, worst first.
+
+    `search_contrary` is a flag rather than an assumption because it is the expensive one: a search
+    over the whole corpus for each point, against a citation-graph lookup for everything else.
+    """
     attacks: list[Attack] = []
     informative = cited_share(session) >= MIN_CITED_SHARE
     for point in draft.points:
@@ -111,12 +130,56 @@ def attack_draft(session: Session, draft: Draft) -> list[Attack]:
             attacks.append(_unsupported(point))
             continue
         attacks.extend(_distinguished(point))
+        if search_contrary:
+            attacks.extend(_contrary(session, point))
         attacks.extend(_outranked(session, point))
         if point.status == NARROWED:
             attacks.append(_narrowed(point))
         if informative:
             attacks.extend(_thin(point))
     return sorted(attacks, key=lambda a: ORDER.index(a.kind))
+
+
+def _contrary(session: Session, point: Point) -> list[Attack]:
+    """A judgment that says the other thing, which is what an opponent opens with.
+
+    The gate checked the authority behind this proposition. Nothing checked the proposition itself
+    against the rest of the corpus, and "there is a judgment the other way" is the first sentence of
+    the reply. `engine.contrary` finds those without a model: a contradiction is the nearest text in
+    the corpus to a proposition rather than the farthest, so the ordinary search reaches it and the
+    polarity of a clause is what separates it from a restatement.
+
+    Written as a lead, in the same voice as `_outranked`, because that is what it is. What has been
+    established is that a court in its own voice wrote a sentence on this subject with the opposite
+    sign -- not that it denies this submission rather than confining the rule to other facts. The
+    authority the draft already cites is excluded, so a point cannot be attacked with itself.
+    """
+    authority = _authority_of(point)
+    if authority is None or not index_exists(session):
+        return []
+    report = find_contrary(
+        session,
+        point.proposition,
+        exclude=(authority.judgment_id,),
+        top=CONTRARY_LEADS,
+        # One search per point rather than three. The antonym expansion is worth its cost when a
+        # lawyer asks the question directly; over every point of a draft it triples the wait for a
+        # section that is already the slowest thing `orderorder draft` does.
+        expand=False,
+    )
+    out = []
+    for lead in report.leads:
+        out.append(
+            Attack(
+                CONTRARY,
+                point.argued,
+                authority.pinpoint,
+                f"{lead.authority.title[:60]} ({lead.pinpoint}) reads the other way: "
+                f'"{lead.sentence[:200]}"',
+                "Read it. It may be confined to its own facts, and if it is, say so before they do.",
+            )
+        )
+    return out
 
 
 def _unsupported(point: Point) -> Attack:

@@ -452,7 +452,7 @@ flowchart TD
 
 **A refusal survives into the document.** The diagram's "rejected, alternative sought" loop ends somewhere, and where it ends is the design question that matters. It ends *in the draft*: a proposition nothing could support keeps its place in the argument, marked, and in red in the Word file. Dropping it would produce a submission in which every sentence appears supported, which is precisely the document Surface A exists to catch — a drafting tool that quietly deletes its failures is a machine for manufacturing the failure mode. The list of authorities is built from what was verified and can hold nothing else, so the body and the table cannot drift apart.
 
-**Self-attack is the citation graph, not a negation search.** Searching for judgments that state the opposite of each accepted proposition needs a model and a way to score a contradiction, and neither is built. What is built needs no model at all: a case a later court held *distinguishable* is still good law, so the gate keeps it, and it is exactly the argument the other side will make; a judgment in the same retrieval field with a larger bench or a later date that the draft does not cite is the first thing an opponent's junior will find; an authority nothing in the corpus has cited since is something they will say out loud. The section closes by naming what it did not look at, because a list of attacks that stops at what it found reads as an assurance that this is all of them.
+**Self-attack is the citation graph, and the negation search is not yet wired into it.** Searching for a judgment that states the opposite of an accepted proposition was assumed here to need a model and a way to score a contradiction. It needs neither: `engine/contrary.py` does it with the ordinary corpus search and a clause-level polarity test, because a contradiction is the *nearest* text to a proposition rather than the farthest, and what separates it from a restatement is grammar (§11.4). What is not yet built is the ten lines that run it over an assembled draft, and the reason to be slow about it is that the search returns leads rather than findings: a court confining a rule to other facts has not denied it, and a self-attack section is read by someone deciding what to cut. What is built there needs no model at all: a case a later court held *distinguishable* is still good law, so the gate keeps it, and it is exactly the argument the other side will make; a judgment in the same retrieval field with a larger bench or a later date that the draft does not cite is the first thing an opponent's junior will find; an authority nothing in the corpus has cited since is something they will say out loud. The section closes by naming what it did not look at, because a list of attacks that stops at what it found reads as an assurance that this is all of them.
 
 The export is DOCX and Markdown, built once as a list of typed blocks so the two cannot say different things, and both carry the verification appendix: for every citation, the paragraph, the subsequent history and the words that verified; for every refusal, what was considered and why each candidate failed.
 
@@ -485,6 +485,46 @@ flowchart LR
 | L2 | eCourts judgment portal | Manual-assist fetch (CAPTCHA) in phase 1 | Public record |
 | L3 | Manupatra / SCC Online via the user's own login (phase 2) | Browser extension or connector; lookup only | User's own subscription terms |
 | L4 | Model memory | **Never** | — |
+
+### 6.1 Reading the same field for the opposite sign
+
+`engine/contrary.py` answers "which judgment says the other thing", and it does so over the field L1
+already returns rather than a retrieval of its own. The design rests on one observation, which is the
+opposite of the intuitive one:
+
+> A paragraph that contradicts a proposition is the **nearest** text in the corpus to it, not the
+> farthest. It is about the same subject, in almost the same words, with one sign changed.
+
+"A notice under Section 106 is mandatory before a suit for eviction" and "the requirement of notice
+under Section 106 is directory" share every distinctive term. BM25 ranks them together, proximity
+ranks them together, and a dense encoder trained to place sentences about one subject in one place
+ranks them closest of all. No retrieval separates support from contradiction, because the difference
+is not in the vocabulary. It is in the grammar, and it is read after retrieval:
+
+1. **Subject.** Enough distinctive terms shared, counted after the words every judgment carries are
+   removed, and after the words inside a statute reference are discounted — every arbitration case
+   names the Arbitration and Conciliation Act, so sharing that name is not sharing a subject.
+2. **Polarity, per clause rather than per sentence.** A judgment routinely states a contention and
+   rejects it in one sentence, so the clause carrying the shared terms is the one whose sign is read.
+   Complementisers (`the contention that …`, `it cannot be said that …`) carry a matrix negation into
+   the clause; conditions (`only where …`, `unless …`) do not, because a negation inside a condition
+   qualifies a rule rather than denying it.
+3. **Or a term of art that carries its own negation** — `mandatory` against `directory`, plus the
+   morphological `non-`/`in-`/`un-` rule, with each side required to hold its word and not the other.
+4. **What is not a candidate at all**: a question, a sentence about somebody's record rather than
+   about the law, a sentence inside a block quotation, a table.
+
+The result is a **lead**, and the distinction is load-bearing: what has been established is that a
+court in its own voice wrote a sentence on this subject with the opposite sign, not that the sentence
+denies the proposition rather than confining the rule to other facts. `assess_opposition` is the
+second reading that can tell those apart, and it answers with a relation — `opposite`, `narrower`,
+`same`, `unrelated` — rather than a yes, because a model asked whether something contradicts agrees,
+and `narrower` is where most of the string test's false leads belong. An `opposite` whose quote is not
+in the paragraph is downgraded to unread, on the same quote-or-nothing rule as §4.
+
+Three states again, and the same three: **a contradiction found and grounded**, **searched and
+nothing found** — with the number of judgments searched stated, because the corpus starts in 2013 —
+and **not read**, which is what a missing model or a provider failure produces.
 
 ---
 
@@ -909,6 +949,78 @@ adversarial phrasing upheld 0 of 4 controls and caught 3 of 3, and the balanced 
 and caught 0 of 2. The model tracks the prompt's framing rather than the two texts, so it is off by
 default behind `orderorder draft --challenge`. What that rules out is the task on a small fast model,
 not the idea.
+
+**The contrary search**, 40 holdings from the same forty judgments, `orderorder eval contrary`. Ground
+truth for "these two sentences contradict each other" is not something the corpus supplies; what it
+supplies is sentences a court wrote, which the corpus can name. So each item is one holding put to the
+engine twice — negated, which is what the other side argues, and as the court wrote it, which is what
+the side relying on it argues. Same paragraph, same retrieval, one word of difference.
+
+| the proposition put | n | source paragraph retrieved | called contrary | leads | seconds |
+|---|---|---|---|---|---|
+| the holding, negated | 40 | 100% | 55% | 1.4 | 1.5 |
+| the holding, as written | 40 | 100% | **5%** | 0.7 | 1.5 |
+
+| the source paragraph was called contrary … | |
+|---|---|
+| for the negated proposition only | 20 of 40 |
+| for both | 2 |
+| for neither | 18 |
+| for the court's own words only | **0** |
+
+The 55% is **not a finding**, and the report says so where it prints it. The negation that builds the
+query and the negation the detector reads are the same idea, so recall on the source paragraph is a
+property of the construction; it is printed because a low number there would mean something had
+broken. Three things in that table are not circular. The retrieval column: nothing guarantees that a
+paragraph is still found when the query is the negation of its own sentence, and it is. The
+discrimination: the same paragraph called contrary at 55% and 5% depending on one word, with 20
+one-way flips and none the other way, is the only evidence here that the module reads sense rather
+than words. And the floor: 0.7 passages offered against a proposition that was never in doubt, which
+is an upper bound on what is wrong rather than a count of it, since courts do disagree and this corpus
+holds nine thousand of them.
+
+**What the rarity weighting bought, and what it cost.** Shared terms are weighed by inverse document
+frequency over the indexed paragraphs rather than counted, and a lead has to carry a share of the
+proposition's information before it is treated as being about the same subject. The count could not
+tell a subject from a phrase every judgment in the field contains: a proposition about whether a
+subsequent purchaser is a necessary party shares "suit for specific performance" with every judgment
+about limitation in such a suit, and the words that would have made it the same subject were the ones
+not shared. Run both ways over the same forty holdings:
+
+| | floor, propositions with a spurious lead | leads each | negated-only flips | seconds |
+|---|---|---|---|---|
+| counted | 24 of 40 | 1.5 | 21 | 1.2 |
+| weighed by rarity | **12 of 40** | **0.7** | 20 | 1.5 |
+
+Half the floor for one true detection. The time column is the weakest thing in this table: the weights
+are one FTS count per term, which is a doclist length rather than a scan, and the gap between 1.2 and
+1.5 seconds moved further across repeated runs of the *same* configuration — cold against warm SQLite
+page cache — than it moved between the two configurations. Read it as "not the cost that decides
+this", not as a measurement of the weighting. It is a seam and not a settled question:
+`find_contrary(..., weighted=False)` and `orderorder eval contrary --no-weighted` reproduce the first
+row, and `evals/report-contrary-unweighted.txt` is that run. The reason to keep the switch is the
+column that got worse: one holding that a court really did contradict is no longer found, and a
+different corpus or a different draw could move that number more than it moved here.
+
+The one control that cannot fail is not measured here at all, and deliberately: a sentence can never
+be the opposite of a proposition it contains, so `opposes` rules the source paragraph out by verbatim
+containment and `antonym_between` requires each side to hold its term of art *and not the other*. That
+is pinned in `tests/test_contrary.py`. A control that cannot fail is a test, not a measurement.
+
+Four kinds of false lead were found by running this over the real corpus, and each is now a rule: a
+shared statute name is not a shared subject (`act, arbitration, conciliation, limitation, section` was
+the whole overlap of every false lead on the arbitration propositions); "and" is not a clause
+boundary, because splitting "the Arbitration and Conciliation Act" put the negation in a clause of its
+own and inverted the proposition; a rejection needs something rejected, since "a final bill is
+rejected" denies nothing; and a question decides nothing, though it carries every word of the
+proposition with the polarity of whichever side lost. The fifth was on the other side of the seam —
+against a proposition about a driveway the engine offered "Front skull bone, right side skull bone,
+Tibia, Febulas left and right both were found broken", which is a finding of fact from an unrelated
+record, and neither sentence was a proposition of law at all. The sixth is the first one again in a
+harder form, and it is what the rarity weighting answers: "suit for specific performance" is not a
+statute name, so discounting reference terms never reached it, and every judgment about limitation in
+such a suit shares it. A rule that discounts particular words cannot catch that; only counting how
+much a word narrows the field can.
 
 **What these numbers do not say.** Planted errors are the ones we thought of, and they are not the distribution real advocates produce; that is what the memorials are for. Clean items are not drawn from paragraphs the sequence heuristic calls quoted, since the generator cannot assert those are the court's own words — so the false positive rate above does not measure that one detector, and closing that gap needs paragraphs a person has read. And the paraphrases were written by a model, once, and kept in `evals/paraphrases.jsonl` so that anyone can read them and disagree: the score is against *a* set of restatements, not the ones lawyers write. Mode 4 -- "not there" -- was planted for the first time in the September 2026 held-out set, and until then a detector that never fired scored the same as one that always did; it is also the mode a live run of the drafting gate got wrong, which is not a coincidence worth glossing over. The drafting table above is a measurement of the field, not of the filter: `attribute_voice` both labels the item and drops the paragraph, so "the filter removed what we labelled" is true by construction and is evidence of nothing. What is not circular is how large the field was.
 
