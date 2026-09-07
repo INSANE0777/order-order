@@ -9,31 +9,35 @@
   `style=` attributes and no `onclick=` handlers here for the same reason; every handler is bound in
   app.js. tests/test_hardening.py asserts the policy, so inlining any of it back fails the suite.
 
-  The composition: a stone stage, a recessed frame that holds the document, a circular seal that
-  checks it, and an index of verdicts beneath. A court seal is a circle in a square.
+  Built to a brand reference rather than a UI one: flat cobalt, coral and cream colour blocks, a
+  high-contrast display serif over a clean grotesque, single-weight hand-drawn line accents, giant
+  serif numerals, and a staircase as the shape device -- which fits, because A to F is a staircase.
 -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<meta name="theme-color" content="#cbc5bb" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1c1d1f" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f3ece5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1236" media="(prefers-color-scheme: dark)">
 <title>OrderOrder — citation integrity for Indian case law</title>
 <link rel="stylesheet" href="/app.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='13' fill='%233ec6d6'/><circle cx='16' cy='16' r='6' fill='%230b2a2e'/></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232b34d6'/><path d='M9 24V17h5v-5h5V7h5' fill='none' stroke='%23f3ece5' stroke-width='3.2' stroke-linejoin='round'/></svg>">
 </head>
-<body>
+<body data-surface="check">
 
 <a class="skip" href="#main">Skip to content</a>
 
 <header class="nav">
-  <h1 class="brand"><span class="mark" aria-hidden="true"></span><span class="wordmark">OrderOrder</span></h1>
+  <h1 class="brand">
+    <svg class="mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 21v-6h5v-5h5V5h6"/></svg>
+    <span class="wordmark">OrderOrder</span>
+  </h1>
 
   <div class="tabs" role="tablist" aria-label="Surface">
-    <button id="tab-check" class="on" role="tab" aria-selected="true" aria-controls="view-check">Check</button>
-    <button id="tab-find" role="tab" aria-selected="false" aria-controls="view-find">Find</button>
-    <button id="tab-draft" role="tab" aria-selected="false" aria-controls="view-draft">Draft</button>
+    <button id="tab-check" class="on" role="tab" aria-selected="true" aria-controls="view-check">Check a brief</button>
+    <button id="tab-find" role="tab" aria-selected="false" aria-controls="view-find">Find an authority</button>
+    <button id="tab-draft" role="tab" aria-selected="false" aria-controls="view-draft">Draft a submission</button>
   </div>
 
   <div id="status" role="status" aria-live="polite">checking…</div>
@@ -43,40 +47,55 @@
 
   <!-- ============ check a brief ============ -->
   <section id="view-check" role="tabpanel" aria-labelledby="tab-check">
-    <div class="stage">
-      <p class="eyebrow">Citation integrity for Indian case law</p>
-      <div class="frame" id="input-card">
-        <div class="slot">
-          <label class="slot-label" for="brief">The brief</label>
+    <div class="hero">
+      <div class="block cobalt">
+        <!-- Loose lines, drawn on load. Decorative, so hidden from assistive tech. -->
+        <svg class="doodle" viewBox="0 0 600 700" aria-hidden="true" focusable="false" preserveAspectRatio="none">
+          <path d="M-20 120 C 120 20, 260 200, 180 300 S 40 420, 160 470 S 420 380, 520 520 S 560 700, 700 640"/>
+          <path d="M600 40 C 480 130, 560 260, 460 300"/>
+          <path d="M-10 640 C 90 560, 220 660, 300 720"/>
+        </svg>
+        <p class="eyebrow">Citation integrity · Indian case law</p>
+        <h2 class="display">
+          <span class="w">Every</span> <span class="w">citation,</span>
+          <span class="w"><em>checked</em></span> <span class="w">against</span>
+          <span class="w">the</span> <span class="w">court.</span>
+        </h2>
+        <svg class="scribble" viewBox="0 0 320 26" aria-hidden="true" focusable="false">
+          <path d="M4 16 C 60 6, 110 22, 170 12 S 260 4, 316 14 M 40 22 C 120 14, 210 22, 290 18"/>
+        </svg>
+        <p class="lede">Paste a brief. Each case-law citation is resolved, located in the judgment, and read
+          against the paragraph it relies on — then graded one of three ways: supported, not supported, or
+          not checked. Never fewer than three.</p>
+      </div>
+
+      <div class="folder" id="input-card">
+        <div class="folder-tab"><label for="brief">The brief</label></div>
+        <div class="folder-body">
           <textarea id="brief" spellcheck="false"
-            placeholder="Paste a brief, memorial or written submission. Every case-law citation in it will be checked…"></textarea>
+            placeholder="Paste a brief, memorial or written submission…"></textarea>
           <div class="controls">
+            <button id="go" class="primary">Check every citation<span class="arrow" aria-hidden="true">→</span></button>
             <button id="pick" class="quiet">Open a PDF or DOCX</button>
             <input type="file" id="file" accept=".pdf,.docx,.txt,.md" aria-label="Choose a brief to open" hidden>
-            <button id="demo" class="quiet">Load the demo brief</button>
+            <button id="demo" class="quiet">Load the demo</button>
+          </div>
+          <div class="controls">
             <label class="check"><input type="checkbox" id="usemodel" checked> use a language model</label>
             <span id="prog" class="hint" role="status" aria-live="polite"></span>
           </div>
           <p class="hint" id="upnote" role="status" aria-live="polite" hidden></p>
+          <p class="hint">Eight of the twelve failure modes need no model. With the box unticked, those still run and
+            the rest are reported <em>not checked</em> rather than guessed.</p>
         </div>
-
-        <!-- The seal. Pressing it checks the document; the ring around it fills as citations resolve. -->
-        <button id="go" class="seal" aria-describedby="seal-help">
-          <svg class="ring" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
-            <circle class="ring-track" cx="60" cy="60" r="54"></circle>
-            <circle class="ring-fill" id="ring" cx="60" cy="60" r="54" stroke-dasharray="339.29" stroke-dashoffset="339.29"></circle>
-          </svg>
-          <span class="label">Check every citation</span>
-        </button>
       </div>
-      <p class="hint stage-hint" id="seal-help">Eight of the twelve failure modes need no model. With the box unticked,
-        those still run and the rest are reported <em>not checked</em> rather than guessed.</p>
     </div>
 
     <div class="work">
-      <div class="index">
-        <div class="index-head">
-          <h2>Verdicts</h2>
+      <div class="card index">
+        <div class="index-head"><h2>Verdicts</h2></div>
+        <div class="tally">
+          <span id="count" class="numeral" aria-hidden="true">–</span>
           <div id="summary" class="summary" aria-live="polite"></div>
         </div>
         <div id="board"><p class="none">Nothing checked yet.</p></div>
@@ -86,7 +105,7 @@
         </div>
       </div>
 
-      <div class="document">
+      <div class="card document">
         <div class="tabs plain">
           <button id="t-detail" class="on">Verdict</button>
           <button id="t-judgment">Judgment</button>
@@ -101,31 +120,40 @@
 
   <!-- ============ find an authority ============ -->
   <section id="view-find" role="tabpanel" aria-labelledby="tab-find" hidden>
-    <div class="stage">
-      <p class="eyebrow">Which judgment backs this, and which line</p>
-      <div class="frame">
-        <div class="slot">
-          <label class="slot-label" for="query">The proposition</label>
+    <div class="hero">
+      <div class="block cream">
+        <svg class="doodle" viewBox="0 0 600 700" aria-hidden="true" focusable="false" preserveAspectRatio="none">
+          <path d="M620 160 C 500 90, 380 220, 430 330 S 600 420, 560 560"/>
+          <path d="M-20 560 C 100 500, 140 640, 260 600 S 380 480, 470 560"/>
+        </svg>
+        <p class="eyebrow">Which judgment backs this — and which line</p>
+        <h2 class="display">
+          <span class="w">Start</span> <span class="w">from</span> <span class="w">the</span>
+          <span class="w"><em>proposition,</em></span> <span class="w">not</span> <span class="w">the</span> <span class="w">citation.</span>
+        </h2>
+        <svg class="scribble" viewBox="0 0 320 26" aria-hidden="true" focusable="false">
+          <path d="M4 16 C 60 6, 110 22, 170 12 S 260 4, 316 14 M 40 22 C 120 14, 210 22, 290 18"/>
+        </svg>
+        <p class="lede">Every paragraph of every judgment held is searched. A passage that is not the court speaking is
+          dropped before it reaches you — an advocate's submission matches a proposition's words better than a
+          holding does, because it is stated without the qualifications.</p>
+      </div>
+
+      <div class="folder">
+        <div class="folder-tab"><label for="query">The proposition</label></div>
+        <div class="folder-body">
           <textarea id="query" spellcheck="false"
-            placeholder="A proposition you want an authority for. No citation needed — that is what this finds…"></textarea>
+            placeholder="A proposition you want an authority for…"></textarea>
           <div class="controls">
+            <button id="search" class="primary">Search every judgment<span class="arrow" aria-hidden="true">→</span></button>
             <span id="sprog" class="hint" role="status" aria-live="polite"></span>
           </div>
         </div>
-        <button id="search" class="seal">
-          <svg class="ring" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
-            <circle class="ring-track" cx="60" cy="60" r="54"></circle>
-          </svg>
-          <span class="label">Search every judgment</span>
-        </button>
       </div>
-      <p class="hint stage-hint">A passage that is not the court speaking is dropped before it reaches you: an advocate's
-        submission matches a proposition's words better than a holding does, because it is stated without the
-        qualifications.</p>
     </div>
 
     <div class="work single">
-      <div class="index">
+      <div class="card index">
         <div class="index-head"><h2>Authorities</h2></div>
         <div id="results"><p class="none">Nothing searched yet.</p></div>
       </div>
@@ -134,35 +162,47 @@
 
   <!-- ============ draft a submission ============ -->
   <section id="view-draft" role="tabpanel" aria-labelledby="tab-draft" hidden>
-    <div class="stage">
-      <p class="eyebrow">A written submission, with an authority behind every sentence or a mark saying there is none</p>
-      <div class="frame">
-        <div class="slot">
-          <label class="slot-label" for="plan">The case plan</label>
+    <div class="hero">
+      <div class="block ink">
+        <svg class="doodle" viewBox="0 0 600 700" aria-hidden="true" focusable="false" preserveAspectRatio="none">
+          <path d="M-20 200 C 140 120, 200 300, 120 380 S 20 520, 180 560 S 440 460, 520 600"/>
+          <path d="M620 80 C 520 160, 580 300, 470 320"/>
+        </svg>
+        <p class="eyebrow">A written submission, built through the gate</p>
+        <h2 class="display">
+          <span class="w">An</span> <span class="w">authority</span> <span class="w">behind</span>
+          <span class="w">every</span> <span class="w">sentence —</span>
+          <span class="w">or</span> <span class="w">a</span> <span class="w"><em>mark</em></span> <span class="w">saying</span> <span class="w">there</span> <span class="w">is</span> <span class="w">none.</span>
+        </h2>
+        <svg class="scribble" viewBox="0 0 320 26" aria-hidden="true" focusable="false">
+          <path d="M4 16 C 60 6, 110 22, 170 12 S 260 4, 316 14 M 40 22 C 120 14, 210 22, 290 18"/>
+        </svg>
+        <p class="lede">The plan is yours: the court, the parties, the issues, the sentences you mean to argue, the
+          prayer. A proposition that finds nothing is <em>not</em> dropped — a draft that quietly loses its
+          unsupported sentences reads as though every sentence in it is supported.</p>
+      </div>
+
+      <div class="folder">
+        <div class="folder-tab"><label for="plan">The case plan</label></div>
+        <div class="folder-body">
           <textarea id="plan" spellcheck="false"
             placeholder="court: ...&#10;parties: ...&#10;&#10;# issue Whether ...&#10;A sentence you intend to argue.&#10;&#10;# prayer&#10;set aside the impugned order"></textarea>
           <div class="controls">
+            <button id="build" class="primary">Draft the submission<span class="arrow" aria-hidden="true">→</span></button>
             <button id="readplan" class="quiet">Read the plan back</button>
-            <button id="demoplan" class="quiet">Load the demo plan</button>
+            <button id="demoplan" class="quiet">Load the demo</button>
+          </div>
+          <div class="controls">
             <label class="check"><input type="checkbox" id="usemodel2" checked> use a language model</label>
             <span id="dprog" class="hint" role="status" aria-live="polite"></span>
           </div>
           <div id="parsed"></div>
         </div>
-        <button id="build" class="seal">
-          <svg class="ring" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
-            <circle class="ring-track" cx="60" cy="60" r="54"></circle>
-          </svg>
-          <span class="label">Draft the submission</span>
-        </button>
       </div>
-      <p class="hint stage-hint">The plan is yours: the court, the parties, the issues, the sentences you mean to argue,
-        the prayer. A proposition that finds nothing is <em>not</em> dropped — a draft that quietly loses its
-        unsupported sentences reads as though every sentence in it is supported.</p>
     </div>
 
     <div class="work">
-      <div class="index">
+      <div class="card index">
         <div class="index-head"><h2>Propositions</h2></div>
         <div id="bindings"><p class="none">Nothing drafted yet.</p></div>
         <div class="controls" id="dexports" hidden>
@@ -170,7 +210,7 @@
           <button class="quiet" id="dl-md">Download Markdown</button>
         </div>
       </div>
-      <div class="document">
+      <div class="card document">
         <div class="tabs plain">
           <button id="t-doc" class="on">Submission</button>
           <button id="t-attack">What they will say</button>
@@ -183,8 +223,12 @@
 </main>
 
 <footer>
-  <div class="foot-grid">
-    <p><strong>OrderOrder is a research aid.</strong> The advocate remains responsible for every citation filed.</p>
+  <!-- The staircase, as the reference uses it: a stepped mass rising from the bottom. -->
+  <svg class="steps" viewBox="0 0 1200 64" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+    <path d="M0 64 V44 H160 V30 H340 V16 H520 V44 H720 V24 H900 V8 H1080 V36 H1200 V64 Z"/>
+  </svg>
+  <div class="foot">
+    <p class="foot-lead"><strong>OrderOrder is a research aid.</strong> The advocate remains responsible for every citation filed.</p>
     <p>Every claim it makes is one of three things and never collapses them: <em>supported</em>,
       <em>checked and not supported</em>, or <em>not checked</em>. A missing model key, a provider outage or a
       retrieval miss produces the third.</p>

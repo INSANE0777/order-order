@@ -8,37 +8,39 @@ guessing from the code.
 `src/orderorder/web/static/app.css`; if the two disagree, the stylesheet is the fact and this file is
 the bug. Every colour pair is asserted in `tests/test_hardening.py`, both themes.
 
-> **This is the third design, and it was built to a reference.** The first was warm paper, oxblood and
-> a serif — the palette the taste skill bans by hex, and serif-by-default, the AI tell it names. The
-> second was cool greys, one cobalt and Geist — competent, and indistinguishable from every tool built
-> that year. The reference that fixed it was an animation studio's site: a stone architectural stage,
-> a recessed frame holding a circular object lit in one cool colour, tiny wide-set navigation, and an
-> editorial index strip in hairline rows. That language maps onto this product almost without
-> translation, because **a court seal is a circle in a square**. The lesson kept: a good UI has one
-> idea. The first two had a mood.
+> **Fourth design, and the first built to a brand rather than to a mood.** The first was warm paper,
+> oxblood and a serif — the palette the taste skill bans by hex. The second was cool greys and cobalt —
+> competent and indistinguishable from every tool that year. The third copied a CGI studio site's
+> props (stone, a glossy porthole) in CSS, which reads cheaper than doing nothing. The reference that
+> fixed it is a law firm's identity by Redis Agency, *L'escalier*: flat cobalt, coral and cream colour
+> blocks, a high-contrast display serif over a clean grotesque, single-weight hand-drawn lines, giant
+> serif numerals, rounded cards on colour, and a staircase as the shape device. It fits because every
+> competitor in legal software is navy and gold and cold, and because **a grade from A to F is a
+> staircase**. What was wrong before is kept here on purpose.
 
 ---
 
 ## 1. Visual Theme & Atmosphere
 
-**A stone stage, a frame, a seal, an index.** The interface is architectural: concrete slabs with
-bevelled seams and a grain, one slab recessed to hold a sheet of paper, a circular seal stamped on the
-recess's lower edge, and beneath it a strip of hairline rows like a studio's client index. The one
-lit object on the page is the seal.
+**Warm, confident, human — and it still means business.** Large flat colour blocks with generous
+radius; a display serif that speaks; a grotesque that works; hand-drawn lines that make it feel made by
+a person. Editorial rather than SaaS. It should feel like a firm you would trust with a matter, not a
+dashboard you would trust with a metric.
 
-Each element is the product, not decoration:
+Each device is the product, not decoration:
 
-| element | what it is | why it looks like that |
-|---|---|---|
-| **the frame** | the recessed slab | it *holds a document* — the brief, in a paper slot |
-| **the seal** | the aqua circle | the one action that matters; its ring fills as citations resolve |
-| **the index** | hairline rows below | the verdicts: three columns, tiny labels, nothing decorative |
-| **the document** | the paper pane | the judgment, in a serif, because it is the court's voice |
+| device | what it is here |
+|---|---|
+| **the colour block** | the surface's voice: cobalt for checking, cream for finding, ink for drafting |
+| **the folder** | a card with a tab, because a brief arrives in one |
+| **the scribble** | the underline a person draws under the thing that matters |
+| **the numeral** | the count, set the way the reference sets section numbers — huge, serif, red |
+| **the staircase** | the mark, and the stepped mass the footer rises from; A to F |
 
-**Density:** medium; the stage is airy, the index and document are dense.
-**Mood words:** architectural, material, exact, lit. **Never:** flat SaaS, warm-craft, glassy, playful.
+**Density:** hero airy, work dense. **Mood words:** warm, exact, editorial, assured.
+**Never:** navy-and-gold, glassy, stone, gradients, cold SaaS grey.
 
-**Dials** (taste-skill convention): `DESIGN_VARIANCE 8 · MOTION_INTENSITY 6 · VISUAL_DENSITY 5`.
+**Dials** (taste-skill convention): `DESIGN_VARIANCE 8 · MOTION_INTENSITY 6 · VISUAL_DENSITY 4`.
 
 ---
 
@@ -46,50 +48,52 @@ Each element is the product, not decoration:
 
 Three rules, in priority order.
 
-1. **Colour means a finding.** Green, amber and red are reserved for verdicts and flags. Nothing
-   decorative may borrow them, or red stops meaning *this citation is wrong*.
-2. **The aqua is a lit object, never text.** It measures **1.19:1** against the stone. It appears on the
-   seal, the brand mark, the selected-row bar, and the wash behind a read paragraph — always as a fill
-   with dark ink on it, or as a glow. Where the accent must carry text or a focus ring, it is the deep
-   teal `--accent`, which does pass.
-3. **Three states, three treatments.** *Not checked* is not a milder failure and never gets a paler
-   red. It is a dashed neutral — provisional rather than bad.
+1. **Colour means a finding.** Green, amber and red are reserved for verdicts. The brand's own red is
+   therefore *the verdict red*: a flagged citation is the red thing on the page, and the only
+   decorative red is the count of them.
+2. **Cobalt is the brand.** The mark, the primary button, links, focus, the selected row, the tab
+   scribble, the footer. Coral and cream are the other two blocks; nothing else is introduced.
+3. **Three states, three treatments.** *Not checked* is a dashed neutral — never a paler red, never
+   folded into a total.
 
-### Stone & paper
-
-| Token | Light | Dark | Use |
-|---|---|---|---|
-| `--bg` | `#cbc5bb` | `#1c1d1f` | The stone: page ground, index |
-| `--surface` | `#f4f3f0` | `#26282b` | Paper: the slot, the document pane, the status pill |
-| `--surface-2` | `#bdb6ab` | `#151617` | The recessed frame's interior |
-| `--ink` | `#17181a` | `#ecebe7` | Primary text |
-| `--ink-2` | `#3a3a37` | `#c8c6c0` | Navigation, secondary prose |
-| `--muted` | `#494944` | `#a09e97` | Hints, captions |
-| `--faint` | `#494843` | `#908e87` | Slot and paragraph labels |
-| `--line` | `rgba(23,24,26,.14)` | `rgba(236,235,231,.10)` | Hairlines — decorative, no contrast duty |
-| `--edge` | `#66625c` | `#6e7178` | **Control boundaries** — measured 3.01 on the stone |
-| `--hi` / `--lo` | `rgba(255,255,255,.42)` / `rgba(0,0,0,.16)` | `.07` / `.55` | The bevel: one light seam, one dark |
-
-### The seal, and the accent
+### The blocks
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--seal` | `#3ec6d6` | `#5fd4e2` | The lit object. **Never text, never an edge.** |
-| `--seal-deep` | `#1691a1` | `#1e8f9c` | Its shadow side, the selected-row bar, the `<mark>` underline |
-| `--accent` | `#094f56` | `#5fd4e2` | Focus rings, links — the accent when it must be read |
-| `--accent-ink` | `#0b2a2e` | `#0a2226` | The words on the seal — 7.40 |
-| `--accent-wash` | `rgba(62,198,214,.16)` | `rgba(95,212,226,.12)` | Selected row, read paragraph, selection |
+| `--bg` | `#f3ece5` | `#0f1236` | Cream page / navy page |
+| `--surface` | `#ffffff` | `#171b48` | Cards, the folder, the status pill |
+| `--surface-2` | `#e9ebfb` | `#1e2358` | Cobalt tint: inset fields, hover |
+| `--accent` | `#2b34d6` | `#8f97ff` | Cobalt. The brand. |
+| `--accent-press` | `#1f27b3` | `#aab0ff` | Hover and press |
+| `--accent-ink` | `#ffffff` | `#0f1236` | Text **on** cobalt — 8.19 |
+| `--accent-soft` | `rgba(43,52,214,.10)` | `rgba(143,151,255,.14)` | Selected row, read paragraph, hover |
+| `--coral` | `#ef3b5c` | `#ff7d93` | The numeral and large type only — 3.85 on white |
+| `--coral-deep` | `#d51135` | `#ff7d93` | The same red where it must be read — 4.53 |
+
+The cobalt hero block stays `#2b34d6` with cream text in **both** themes: it is a brand colour, not a
+surface, and it does not invert.
+
+### Ink
+
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `--ink` | `#141626` | `#f3ece5` | Primary text |
+| `--ink-2` | `#3b3e55` | `#cfcad9` | Navigation, secondary prose |
+| `--muted` | `#5f627a` | `#a9a5bb` | Hints, captions |
+| `--faint` | `#676a80` | `#9d99b0` | Paragraph labels, placeholders |
+| `--line` | `rgba(20,22,38,.12)` | `rgba(243,236,229,.12)` | Dividers — decorative, no contrast duty |
+| `--edge` | `#8286a4` | `#616795` | **Control boundaries** — 3.04 |
 
 ### Semantic — verdicts only
 
 | Token | Light | Dark | Meaning |
 |---|---|---|---|
-| `--good` | `#165134` | `#4fd39a` | Grades A–B; a verified quotation |
-| `--warn` | `#624108` | `#e0b04a` | Grade C; quoted voice; a self-attack |
-| `--bad` | `#872522` | `#ff8a84` | Grades D–F; a failure-mode chip |
-| `--unchecked` | `#494944` | `#a09e97` | **Not checked.** Always dashed |
+| `--good` | `#1f7a4c` | `#4fd39a` | Grades A–B; a verified quotation |
+| `--warn` | `#975e0a` | `#e9b949` | Grade C; quoted voice; a self-attack |
+| `--bad` | `#d51135` | `#ff7d93` | Grades D–F; a finding chip |
+| `--unchecked` | `#5f627a` | `#a9a5bb` | **Not checked.** Always dashed |
 
-Each has a `-bg` at ~12% alpha of itself, so the tints sit correctly on stone *and* on paper.
+Each has a `-bg` at ~12% alpha of itself, so the tints sit on cream and on white alike.
 
 ---
 
@@ -97,33 +101,35 @@ Each has a `-bg` at ~12% alpha of itself, so the tints sit correctly on stone *a
 
 | Token | Face | Used for |
 |---|---|---|
+| `--display` | **Playfair Display** 400–900 + italic, self-hosted | Headlines, the wordmark, the numeral, the footer lead, grade letters |
 | `--sans` | **Geist** 300–700, self-hosted | Everything the tool says |
-| `--mono` | **Geist Mono** 400–600, self-hosted | Verbatim input and output: the brief, the plan, reports |
-| `--serif` | Iowan Old Style / Palatino / Georgia | **The court's words, and only those** |
+| `--mono` | **Geist Mono** 400–600, self-hosted | Verbatim input and output |
+| `--serif` | Iowan Old Style / Palatino / Georgia | **The court's words**: judgment paragraphs, the claim, a verified quote |
 
-**Self-hosted, not a CDN.** The policy is `font-src 'self'`. Four latin/latin-ext `woff2` subsets,
-82 KB, SIL OFL (`fonts/OFL.txt`), served by an allowlisted route rather than a directory mount.
+**Two serifs, two jobs, never swapped.** Playfair is the *brand voice*: high-contrast, editorial,
+present only in headlines and the numeral. The Palatino stack is the *reading voice*: it marks text
+somebody else wrote. A judgment paragraph in Playfair, or a headline in Palatino, is wrong.
 
-**The serif is a voice marker, not a style.** A judgment's paragraphs, the claim under check, and the
-inside of a verified quotation — where you are reading what somebody else wrote. Everywhere else is
-Geist. Never set the tool's own words in it.
+**Self-hosted, not a CDN.** The policy is `font-src 'self'`. Six latin `woff2` subsets, 158 KB total,
+both fonts under the SIL Open Font License (`fonts/OFL.txt`, `fonts/OFL-Playfair.txt`), served by an
+allowlisted route rather than a directory mount. Playfair is on the taste skill's approved serif list;
+the brief names a serif, so the serif is earned.
 
 ### Scale
 
-Small and wide-set, like the reference. The page has almost no large type; hierarchy comes from
-position, material and spacing.
-
 | Role | Size / weight | Family |
 |---|---|---|
-| Wordmark | 14px / 600 | sans |
-| Navigation | 12.5px / 500, active 600, `.01em` | sans |
-| Eyebrow (one per stage) | 11px / 500, uppercase `.12em` | sans |
-| Slot label, index heading | 10.5px / 600, uppercase `.10–.12em` | sans |
-| Body | 14.5px / 1.55 | sans |
-| Index row | 13px, citation 600 tabular | sans |
-| Seal label | 11.5px / 650, balanced | sans |
-| Judgment paragraph | 15.5px / 1.7 | **serif** |
-| Claim, verified quote | 16px / 15.5px | **serif** |
+| Headline | `clamp(40px, 4.6vw, 66px)` / 500, `-.02em`, 1.02 | display; one italic word per headline, same family |
+| Wordmark | 20px / 600 | display |
+| Numeral | 88px / 500, `-.03em` | display, `--coral` |
+| Footer lead | 22px | display |
+| Eyebrow | 11.5px / 600, uppercase `.12em` | sans |
+| Navigation | 13.5px / 500, active 600 | sans |
+| Lede | 15.5px / 1.6, `max-width: 46ch` | sans |
+| Body | 15px / 1.55 | sans |
+| Index row | 13.5px, citation 600 tabular | sans |
+| Grade mark | 15px / 600 in a 30px square | display |
+| Judgment paragraph | 15.5px / 1.7 | serif |
 | Fields, `pre` | 12.75px / 12.25px | mono |
 
 ---
@@ -132,93 +138,115 @@ position, material and spacing.
 
 | Region | Value |
 |---|---|
-| Slabs | 320px tiles, drawn with four 1px gradient seams (light then dark, offset 1px) and a grain overlay |
-| Navigation | 64px, three-column grid: brand · centred tabs at 44px gap · status |
-| Stage | eyebrow, then the frame at `max-width: 900px`, centred |
-| Frame | padding `22px 22px 84px` — the bottom clears the seal that hangs over its edge |
-| Seal | 132px, `bottom: calc(-66px + 22px)` of the frame, centred |
-| Stage hint | `margin-top: 96px`, so it clears the seal rather than running behind it |
-| Work | `grid`, `minmax(0,500px) / minmax(0,1fr)`, gap 30px; the index is sticky at `top: 24px` |
+| Navigation | 72px, three-column grid: brand · centred tabs at 34px gap · status |
+| Page | `max-width: 1400px`, padding `14px 40px 96px` |
+| Hero | `grid`, `1.05fr / .95fr`, gap 24px, `min-height: 560px`; block left, folder right |
+| Block | radius 28px, padding `56px 56px 52px`, content vertically centred |
+| Folder | tab `12px 24px 10px` offset 22px; body radius 22px, padding `22px 24px 20px` |
+| Work | `grid`, `minmax(0,520px) / minmax(0,1fr)`, gap 24px, `margin-top: 40px`; index sticky at 20px |
+| Card | radius 28px, padding `28px 30px` |
+| Footer | stepped SVG edge 64px, then cobalt at `36px 40px 56px`, three columns |
 
 ---
 
 ## 5. Elevation & Depth
 
-Depth is *material*, not layering. The frame is recessed with six inset shadows (two bevel pairs, a
-hairline, an inner cast shadow) and one outer. The paper slot lifts 1px off the recess. The seal casts
-a coloured shadow — `rgba(22,145,161,.55)` — because a lit object lights what is under it. Stone
-buttons have a one-pixel bevel and lift 1px on hover.
-
-Nothing else has a shadow. There is no glassmorphism; the only blur on the page is none.
+One shadow, tinted to the ink, on cards and the folder: `0 1px 2px .05, 0 24px 48px -32px .28`. The
+primary button casts a cobalt shadow (`0 10px 24px -14px var(--accent)`) that deepens on hover, because
+the one thing you press should look like it can be pressed. Nothing else has a shadow. Depth is
+otherwise flat colour against flat colour, which is the reference's whole manner.
 
 ---
 
 ## 6. Shapes
 
-**SHAPE LOCK — the stage is architectural, so it is square.** Frame `4px`, slot `3px`, controls
-`4px`, grade mark `4px`. **Circles are the seal, the ring, the brand mark, the status pill, and the
-chips — and they are exact circles.** Nothing is 8–16px rounded anywhere.
+**SHAPE LOCK — soft.** Blocks and cards `28px`, the folder `22px`, fields `12px`, the grade mark `9px`,
+controls and chips full pill. **Nothing is sharp except the staircase**, which is the point of it.
+
+The staircase appears exactly three times: the mark (a three-step path in a cobalt square), the footer
+edge (a stepped cobalt mass rising from the bottom), and — implicitly — the grade letters, which are
+its steps. Do not add a fourth without a reason as good as those.
 
 ---
 
 ## 7. Components
 
-### The seal
-The primary action of each surface: `#go`, `#search`, `#build`. Aqua radial fill with a highlight, a
-7px stone collar, a coloured cast shadow, and a slowly turning soft-light band (`turn`, 9s). Hover
-lifts 3px and brightens the glow; press scales to .985. While working it is disabled, its label says
-`Checking…`, and — on the check surface — the SVG ring around it fills from `progress` events. The
-ring is driven by the `stroke-dashoffset` **attribute**, not a style, which is what keeps
-`style-src 'self'` honest. Focus is a 3px teal outline at 12px offset, clear of the collar.
+### The colour block
+The hero's left half and the surface's voice. **Cobalt** with cream text for *Check*; **cream** with
+ink and a coral scribble for *Find*; **ink** with cream and a coral scribble for *Draft*. Contains an
+eyebrow, the headline, the scribble, the lede, and a `doodle` SVG of two or three loose curves at 1.6px
+that draw on over 2.4s and stay. The block rises in over .8s.
 
-### Stone buttons (`.quiet`)
-A small bevelled slab: gradient fill, `--edge` border, inset highlight, 1px drop. Lift on hover, press
-in on active.
+### The headline
+Playfair, balanced, `max-width: 14ch`, one italic word set in the same family. Words are wrapped in
+`.w` spans and rise in sequence, 70ms apart. The scribble beneath is an SVG path drawn by
+`stroke-dashoffset` over 1.1s, starting once the words have landed.
+
+### The folder
+A tab (`label`, uppercase, cobalt) sitting on a card. The field inside is mono on cream with an `--edge`
+border; focus turns the border cobalt and adds a 4px soft ring. Controls sit in two rows: actions,
+then the model toggle and progress.
+
+### Buttons
+**Primary:** cobalt pill, white text, 12×22px, cobalt shadow; the arrow nudges 4px right on hover and
+the button lifts 1px. Working state writes `Checking…` into the label and takes `cursor: progress`.
+**Quiet:** transparent pill with an `--edge` border; hover fills with the cobalt tint and turns the text
+cobalt. Focus is a 2px cobalt outline at 3px offset on everything — **never remove it.**
 
 ### Navigation tabs
-Text, wide-set. The active tab has a 1px underline that grows from the left (`scaleX`, 320ms). The
-active surface is written to `location.hash`. Panel tabs (`.tabs.plain`) are the same device at 12px.
+Text at 13.5px. The active tab carries a **hand-drawn underline** — an SVG scribble in a data URI —
+that grows from the left over .38s. The active surface is written to `location.hash` and to
+`body[data-surface]`. Panel tabs (`.tabs.plain`) are the same device at 13px inside a card.
+
+### The tally
+A giant coral numeral beside three lines — `5 flagged · 0 clean · 1 not checked`, each with its dot,
+*not checked* with a dashed one — over a 1px ink rule. The numeral **rolls up** to its value over 600ms
+with an ease-out cubic; under `prefers-reduced-motion` it appears. The total is deliberately not
+repeated as a fourth line: the three states *are* the total.
 
 ### The index
-An editorial strip. A heading rule in `--ink` with the summary on the right — `6 · 5 flagged · 0 clean
-· 1 not checked`, each state with its dot, *not checked* with a dashed one — never collapsed into a
-single count. Rows are `<button>`s in a three-column grid: mark · citation and parties · finding
-chips. A hairline between rows; hover lifts to a faint white; selected shows a 2px `--seal-deep` bar
-growing from the left and indents 6px. Rows rise 6px on arrival, staggered 45ms by `nth-child`.
+Rows are `<button>`s in a three-column grid: grade mark · citation and parties · finding chips. A
+hairline between rows; hover tints cobalt; selected indents 6px and grows a 3px cobalt bar from the
+left. Rows rise on arrival, staggered 50ms by `nth-child`. **Chips carry the finding's words, never its
+number.**
 
-**Chips carry the finding's words, never its number.**
+### The grade mark
+A Playfair letter in a 30px soft square: A/B green, C amber, D–F red, and **dashed neutral when checks
+could not run**.
 
 ### The document
-Paper. Serif for the court's text, sans for the apparatus. The read paragraph takes the aqua wash and a
-`--seal-deep` border; the verified sentence is `<mark>`ed with a wash and a 1px underline. Every panel
-redraw rises in, because a redraw makes new nodes and the animation re-fires — no JS.
+A card. Serif for the court's text, sans for the apparatus. The read paragraph takes a 3px cobalt bar
+and the cobalt tint; the verified sentence is `<mark>`ed with the tint and a 2px cobalt underline.
+Every panel redraw rises in — a redraw makes new nodes, so the animation re-fires with no JS.
+
+### Footer
+The staircase edge, then a cobalt block: a Playfair lead, the three-state sentence, the attribution.
 
 ### Empty and loading
-Empty: one plain sentence. Loading: a skeleton shaped like the rows about to arrive, and the seal
-saying so.
+Empty: one plain sentence in `--muted`; the numeral shows an en dash. Loading: a skeleton shaped like
+the rows about to arrive, and the button saying so.
 
 ---
 
 ## 8. Do's and Don'ts
 
 ### Do
-- Set the court's words — and only those — in the serif.
-- Ration semantic colour to verdicts.
-- Keep the aqua a lit object: fills and glows with dark ink on them.
-- Keep the focus ring.
-- Add a class to `app.css` rather than a `style=` attribute.
-- Say what a finding is, in words.
+- Set headlines in Playfair and the court's words in Palatino; never the reverse.
+- One italic word per headline, same family — that is the emphasis device.
+- Keep coral for the numeral and for findings. It is the verdict red.
+- Give *not checked* a dashed neutral and its own line in the tally.
+- Draw lines by hand: an SVG path at one weight, with `stroke-dashoffset` if it should arrive.
+- Keep the focus ring, and the 46ch measure on prose.
 
 ### Don't
 - **Never add inline `<script>`, `<style>`, `style=` or `on*=`.** The CSP is `script-src 'self'` with
-  no `unsafe-inline`, and `tests/test_hardening.py` fails the build if any appears. This is a security
-  boundary wearing a style rule's clothes. SVG presentation attributes are fine; `style` is not.
-- Never set text in `--seal`, or use it as a border.
+  no `unsafe-inline`, and `tests/test_hardening.py` fails the build if any appears. SVG presentation
+  attributes are fine; `style` is not.
 - Never load a font, script or stylesheet from another origin — Google Fonts included.
-- Never round anything that is not a circle past 4px.
-- Never use green for "done" or red for "important".
-- Never render *not checked* as a lighter failure, or fold it into a total.
-- No second accent. No gradients beyond the seal and the loading sweep. No icon set, no emoji.
+- Never introduce a fourth colour, or use cobalt for a verdict.
+- Never set body text in `--coral` — it is 3.29 on cream. Use `--coral-deep`.
+- Never round a corner under 9px or over 28px, except a pill.
+- No gradients, no glass, no shadows beyond the two named, no icon set, no emoji.
 - Never interpolate server text into markup without `escape()`.
 
 ---
@@ -227,36 +255,38 @@ saying so.
 
 | Breakpoint | Behaviour |
 |---|---|
-| ≥ 1061px | Index beside document; index sticky |
-| ≤ 1060px | Index above document, static |
-| ≤ 720px | Nav becomes brand + tabs, status hidden; frame tightens; seal 116px; index rows stack findings under the citation |
+| ≥ 1001px | Hero two-up; index beside document, sticky |
+| ≤ 1000px | Hero stacks block over folder; work stacks |
+| ≤ 720px | Nav becomes brand + scrolling tabs, status hidden; block padding 34/26, headline 38px, radius 22px; numeral 64px; finding chips stack under the citation |
 
 Verified in headless Chromium at 1440px and 390px, both themes: no console errors, no CSP violations,
-no horizontal overflow, the skip link first in the tab order, the board focusable and operable.
+no horizontal overflow, the skip link first in the tab order, the board focusable and operable, the
+tab state reaching the URL.
 
 ---
 
 ## 10. Iteration Guide
 
-1. Read `app.css` — the header comment carries the reasoning and the map from reference to product.
-2. Change tokens, not literals. Solve contrast *before* writing CSS; the solver approach is in the
-   commit history.
-3. Add both themes at once.
-4. Run `uv run pytest tests/test_hardening.py`.
-5. **Look at it**, at 1440 and 390, light and dark. Every visual bug so far was invisible in the
-   source: hidden buttons showing, a tab filling on hover, a hint running behind the seal.
+1. Read `app.css` — the header comment carries the reasoning and what the first three designs got wrong.
+2. Change tokens, not literals. Solve contrast *before* writing CSS; the solver is in the commit history.
+3. Add both themes at once, and remember the cobalt block does not invert.
+4. Run `uv run pytest tests/test_hardening.py`: contrast in both themes, no inline script or style, no
+   `on*=`, every class styled, every id the script reaches for present.
+5. **Look at it**, at 1440 and 390, light and dark, and at the loading state. Every visual bug in this
+   project's history was invisible in the source.
 
 ---
 
 ## 11. Known Gaps
 
-- **The reference is animated; this is mostly still.** The seal turns, rows rise, tabs underline —
-  MOTION 6 — but there is no scroll-driven motion and no page transition between surfaces. Both are
-  the next step, and both need `prefers-reduced-motion` to be honoured as they are today.
-- **No custom cursor.** The reference has one. Deliberately skipped: it is an accessibility trade
-  nobody asked for yet.
+- **The reference is a motion piece; this is a page with motion.** Words rise, lines draw, the numeral
+  rolls, rows stagger — MOTION 6. There is no transition *between* surfaces; switching tabs cuts. A
+  colour-block crossfade keyed on `body[data-surface]` is the next step, and the attribute is already
+  there for it.
+- **No photography.** The reference leans on warm portraits of lawyers at work; this product has none
+  and should not fake them. If real photography arrives, it belongs on the cream block, not the cobalt.
 - **Colour and border style alone** separate a failure chip from *needs review*. A glyph would be safer.
-- **`backdrop-filter` is gone**, so this gap closed — but the stone grain is an SVG filter and has not
-  been profiled on a low-end device.
+- **The doodles are three fixed paths.** They do not vary per visit or per surface beyond what is
+  hand-drawn; a small library of curves would keep them from becoming furniture.
 - **No automated axe or Lighthouse pass.** The hand-written checks cover what was found wrong, which is
-  not coverage.
+  not the same as coverage.

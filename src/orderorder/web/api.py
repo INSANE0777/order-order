@@ -140,6 +140,8 @@ FONT_FILES = frozenset(
         "geist-latin-ext.woff2",
         "geist-mono-latin.woff2",
         "geist-mono-latin-ext.woff2",
+        "playfair-latin.woff2",
+        "playfair-italic-latin.woff2",
     }
 )
 
