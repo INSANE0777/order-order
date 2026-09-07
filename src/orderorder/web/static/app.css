@@ -29,9 +29,13 @@
   --ink: #1a1714;
   --ink-soft: #45403a;
   --muted: #6b645b;
-  --faint: #918a80;
+  --faint: #746e65;
   --rule: #ddd6c9;
   --rule-strong: #c6bdac;
+  /* Control boundaries, as distinct from decorative rules. WCAG wants 3:1 for the edge that tells
+   * you a thing is a control; `--rule-strong` measured 1.83 doing that job on a quiet button. A
+   * divider between table rows carries no such duty and keeps the lighter tone. */
+  --edge: #99896b;
 
   /* Oxblood: the colour of a bound reporter's spine. Used for the mark, and for nothing else. */
   --seal: #7b2233;
@@ -61,9 +65,10 @@
     --ink: #ece7dd;
     --ink-soft: #cbc4b8;
     --muted: #9a9287;
-    --faint: #756e64;
+    --faint: #8b8377;
     --rule: #2c2822;
     --rule-strong: #413b32;
+    --edge: #716657;
 
     --seal: #c9697a;
     --seal-soft: #d98a98;
@@ -216,7 +221,7 @@ textarea {
   line-height: 1.62;
   color: var(--ink);
   background: var(--paper);
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: var(--radius);
   padding: 13px 14px;
 }
@@ -245,7 +250,7 @@ button:active { transform: translateY(1px); }
 button:focus-visible { outline: 2px solid var(--seal); outline-offset: 2px; }
 button[disabled] { opacity: .5; cursor: not-allowed; }
 
-button.quiet { background: transparent; color: var(--ink-soft); border-color: var(--rule-strong); }
+button.quiet { background: transparent; color: var(--ink-soft); border-color: var(--edge); }
 button.quiet:hover { background: var(--paper); border-color: var(--faint); color: var(--ink); }
 
 label.check {
@@ -266,30 +271,53 @@ label.check input { accent-color: var(--seal); }
 
 /* ---------- the verdict board ---------- */
 
-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+/* A list of buttons rather than a table of clickable rows. The board is a set of citations you
+ * choose between; that is a button, and a button is reachable, focusable and announced without a
+ * line of ARIA. The three-column rhythm survives as a grid inside each one: seal, citation, what
+ * was found. The citation column is the flexible one because it holds the party names. */
+.board-list { list-style: none; margin: 0; padding: 0; }
 
-/* The findings column carries wrapped badges of real text, so it needs room; the grade seal needs
- * almost none. Fixing both leaves the citation the flexible one, which is the right thing to give
- * the slack to. */
-thead th:first-child, tbody td:first-child { width: 1%; padding-right: 4px; }
-thead th:last-child, tbody td:last-child { width: 42%; }
-
-thead th {
-  font-family: var(--sans);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: var(--faint);
+button.pick {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 40%);
+  align-items: start;
+  gap: 12px;
+  width: 100%;
   text-align: left;
-  padding: 0 8px 7px;
-  border-bottom: 1px solid var(--rule-strong);
+  font-family: var(--serif);
+  font-size: 14px;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  padding: 12px 6px;
+  transition: background .12s ease;
 }
+button.pick:hover { background: var(--paper); }
+button.pick:active { transform: none; }
+button.pick.on { background: var(--paper); box-shadow: inset 3px 0 0 var(--seal); }
+button.pick:focus-visible { outline: 2px solid var(--seal); outline-offset: -2px; }
+.board-list li:last-child button.pick { border-bottom: 0; }
 
-tbody tr { border-bottom: 1px solid var(--rule); cursor: pointer; transition: background .12s ease; }
-tbody tr:hover { background: var(--paper); }
-tbody tr.on { background: var(--paper); box-shadow: inset 3px 0 0 var(--seal); }
-tbody td { padding: 11px 8px; vertical-align: top; }
+/* Party names are long, unbroken and often in capitals, which is the worst case for a narrow
+ * column. Let them break rather than push the grid wide. */
+.pick-cite { min-width: 0; overflow-wrap: anywhere; }
+.pick-cite b { display: block; }
+.pick-findings { min-width: 0; }
+
+/* A proposition and what was bound to it: the board's rhythm, without the button. */
+li.bind {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 12px 6px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--rule);
+}
+li.bind:last-child { border-bottom: 0; }
+.bind-text { min-width: 0; overflow-wrap: anywhere; }
 
 /* A grade is the one thing read at a glance, so it is a seal rather than a word in a cell. */
 .g {
@@ -472,8 +500,93 @@ footer strong { color: var(--muted); font-weight: 600; }
   header, main, footer { padding-left: 18px; padding-right: 18px; }
   header h1 { font-size: 21px; }
   header h1 span.strap { display: block; margin-left: 0; }
+
+  /* Let the tab row scroll rather than wrap. "Check a / brief" over two lines reads as a broken
+   * label; one line that runs off the edge reads as a row you can push. */
+  .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { white-space: nowrap; padding-left: 12px; padding-right: 12px; }
+
+  /* The findings badge column has nowhere to go at this width; stack it under the citation. */
+  button.pick { grid-template-columns: auto minmax(0, 1fr); }
+  .pick-findings { grid-column: 2; }
 }
 
 /* Spacing between the input card and the results below it. A class rather than a style attribute,
  * because a style attribute would need `unsafe-inline` in the policy and that is the whole point. */
 .row-spaced { margin-top: 24px; }
+
+
+/* ---------- keyboard, motion, touch, print ---------- */
+
+/* The first thing in the tab order, and invisible until it has focus. */
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 10;
+  background: var(--paper-raised);
+  color: var(--ink);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  font-family: var(--sans);
+  font-size: 13.5px;
+}
+.skip:focus { left: 12px; top: 12px; }
+
+/* Numbers that sit under one another should line up. */
+.nums { font-variant-numeric: tabular-nums; }
+
+/* Headings should not leave one word alone on the last line. */
+h1, h2 { text-wrap: balance; }
+.hint, .claim, blockquote { text-wrap: pretty; }
+
+/* A judgment can run to hundreds of paragraphs; the ones off screen need not be laid out. */
+.p { content-visibility: auto; contain-intrinsic-size: auto 90px; }
+
+/* Long unbroken strings -- a party name in capitals, a citation, a URL in a judgment -- must wrap
+ * rather than widen their container and push the page sideways. */
+.title, .sub, .claim, blockquote, .finding span, .mode { overflow-wrap: anywhere; }
+
+button, label.check, .tabs button, button.pick {
+  touch-action: manipulation;           /* no 300ms double-tap delay */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Loading, as a shape rather than a spinner: the board draws the rows it is about to fill. */
+.skeleton { list-style: none; margin: 0; padding: 0; }
+.skeleton li {
+  height: 14px;
+  margin: 18px 6px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--rule) 0%, var(--paper) 50%, var(--rule) 100%);
+  background-size: 200% 100%;
+  animation: sweep 1.4s ease-in-out infinite;
+}
+.skeleton li:nth-child(2n) { width: 78%; }
+.skeleton li:nth-child(3n) { width: 62%; }
+@keyframes sweep { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* The sweep carried the "still working" signal, so something else has to. */
+  .skeleton li { background: var(--rule); }
+}
+
+/* The output of this tool is a document that gets filed, so it has to print. */
+@media print {
+  :root { --paper: #fff; --paper-raised: #fff; --ink: #000; }
+  header, .tabs, .controls, .skip, footer, #input-card, textarea { display: none !important; }
+  .card { border: 0; box-shadow: none; padding: 0; }
+  .row { display: block; }
+  main { max-width: none; padding: 0; }
+  #para, pre { max-height: none; overflow: visible; }
+  button.pick { break-inside: avoid; }
+  blockquote, .finding { border-left-width: 3px; }
+}

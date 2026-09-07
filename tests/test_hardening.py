@@ -330,3 +330,69 @@ def test_every_element_the_script_reaches_for_exists_in_the_page() -> None:
     wanted = set(re.findall(r'\$\("([^"]+)"\)', script))
     missing = sorted(wanted - present - generated - composed)
     assert not missing, f"the script reaches for elements the page does not have: {missing}"
+
+
+# --- the palette ------------------------------------------------------------------------------------
+
+# Foreground, background, what renders that way, and the WCAG minimum. 4.5 for text; 3.0 for large
+# text and for the edge that identifies a control (1.4.11). Decorative hairlines carry no duty and are
+# deliberately absent -- a divider between two table rows is not information.
+CONTRAST_PAIRS = [
+    ("ink", "paper", "body text on the page", 4.5),
+    ("ink", "paper-raised", "body text on a card", 4.5),
+    ("ink-soft", "paper-raised", "a finding's detail", 4.5),
+    ("muted", "paper-raised", "hints and captions", 4.5),
+    ("muted", "paper", "the status chip", 4.5),
+    ("faint", "paper-raised", "card labels, empty states", 4.5),
+    ("faint", "paper", "the paragraph number", 4.5),
+    ("seal", "paper-raised", "the wordmark, and the focus ring", 3.0),
+    ("paper-raised", "seal", "primary button label", 4.5),
+    ("paper-raised", "seal-soft", "primary button label, hovered", 4.5),
+    ("good", "good-bg", "grade A/B seal", 4.5),
+    ("warn", "warn-bg", "grade C seal, quoted-voice mark", 4.5),
+    ("bad", "bad-bg", "grade D/F seal, finding badge", 4.5),
+    ("unchecked", "unchecked-bg", "the not-checked badge", 4.5),
+    ("good", "paper-raised", "verified-quote text", 4.5),
+    ("bad", "paper-raised", "a finding's heading", 4.5),
+    ("edge", "paper-raised", "quiet button and field borders", 3.0),
+    ("edge", "paper", "a field border on the page ground", 3.0),
+]
+
+
+def _palettes() -> dict[str, dict[str, str]]:
+    css = (STATIC_DIR / "app.css").read_text(encoding="utf-8")
+
+    def grab(block: str) -> dict[str, str]:
+        return dict(re.findall(r"--([\w-]+):\s*(#[0-9a-fA-F]{6});", block))
+
+    light = grab(re.search(r":root \{(.*?)\n\}", css, re.S).group(1))
+    dark = grab(re.search(r"prefers-color-scheme: dark\).*?:root \{(.*?)\n\s*\}", css, re.S).group(1))
+    return {"light": light, "dark": {**light, **dark}}
+
+
+def _contrast(one: str, two: str) -> float:
+    def luminance(colour: str) -> float:
+        channels = (int(colour[i : i + 2], 16) / 255 for i in (1, 3, 5))
+        linear = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+    first, second = luminance(one), luminance(two)
+    return (max(first, second) + 0.05) / (min(first, second) + 0.05)
+
+
+def test_every_rendered_pair_meets_wcag_in_both_themes() -> None:
+    """Contrast, measured rather than judged by eye.
+
+    A palette chosen for its mood is a palette nobody has checked. This one was: `--faint` measured
+    3.36 against a card and carried the card labels and every empty state, and the quiet button's
+    border measured 1.83 while being the only thing that said it was a button. Both were invisible
+    until something computed them, and both are the sort of thing that degrades again silently.
+    """
+    failures = []
+    for theme, palette in _palettes().items():
+        for foreground, background, what, minimum in CONTRAST_PAIRS:
+            assert foreground in palette and background in palette, f"{theme}: {foreground}/{background}"
+            ratio = _contrast(palette[foreground], palette[background])
+            if ratio < minimum:
+                failures.append(f"{theme}: {what} ({foreground} on {background}) {ratio:.2f} < {minimum}")
+    assert not failures, "contrast below WCAG:\n  " + "\n  ".join(failures)

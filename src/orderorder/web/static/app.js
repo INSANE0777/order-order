@@ -11,16 +11,33 @@ fetch("/api/health").then(r => r.json()).then(h => {
   if (!h.model_configured) $("usemodel").checked = false;
 }).catch(() => $("status").textContent = "the server is not answering");
 
+// A judgment's date, in the reader's locale rather than the server's format.
+function decided(iso) {
+  if (!iso) return "";
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return iso;
+  return new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short", day: "numeric" })
+    .format(when);
+}
+
 // ---------- tabs ----------
 function showTab(which) {
   for (const name of ["check", "find", "draft"]) {
-    $("view-" + name).hidden = which !== name;
-    $("tab-" + name).classList.toggle("on", which === name);
+    const tab = $("tab-" + name);
+    const on = which === name;
+    $("view-" + name).hidden = !on;
+    tab.classList.toggle("on", on);
+    // The class is what a sighted reader sees; this is what everyone else gets told.
+    tab.setAttribute("aria-selected", String(on));
   }
+  // The surface is part of where you are, so it belongs in the URL: reloading, or sending somebody
+  // the link, should not drop them back on the first tab.
+  if (location.hash.slice(1) !== which) history.replaceState(null, "", "#" + which);
 }
 $("tab-check").onclick = () => showTab("check");
 $("tab-find").onclick = () => showTab("find");
 $("tab-draft").onclick = () => showTab("draft");
+if (["check", "find", "draft"].includes(location.hash.slice(1))) showTab(location.hash.slice(1));
 
 function showPanel(which) {
   for (const [tab, panel] of [["t-detail","detail"],["t-judgment","judgment"],["t-memo","memo"]]) {
@@ -70,9 +87,9 @@ $("file").onchange = async () => {
 $("go").onclick = async () => {
   const text = $("brief").value.trim();
   if (!text) return;
-  $("go").disabled = true;
+  working("go", "Checking…");
   verdicts = []; chosen = null;
-  $("board").innerHTML = '<p class="none">Reading the brief…</p>';
+  $("board").innerHTML = skeleton(5);
   $("detail").innerHTML = '<p class="none">Choose a citation on the left.</p>';
   $("exports").hidden = true;
 
@@ -82,7 +99,7 @@ $("go").onclick = async () => {
     listen(job);
   } catch (e) {
     $("board").innerHTML = `<p class="none">${escape(String(e.message || e))}</p>`;
-    $("go").disabled = false;
+    idle("go");
   }
 };
 
@@ -96,16 +113,21 @@ function listen(id) {
     const d = JSON.parse(e.data);
     verdicts[d.index] = d.verdict;
     drawBoard();
+    // Open the first verdict as soon as there is one. An empty panel beside a filling board is a
+    // panel the reader has to be told about; showing the first result says what a verdict looks
+    // like without anyone reading an instruction. Only ever the first, and only once: re-selecting
+    // as later verdicts land would move the ground under somebody already reading one.
+    if (chosen === null) { chosen = d.index; drawBoard(); drawDetail(); }
   });
   stream.addEventListener("done", (e) => {
     const d = JSON.parse(e.data);
     stream.close();
-    $("go").disabled = false;
+    idle("go");
     $("prog").textContent = d.error ? d.error : `${d.checked} citation${d.checked === 1 ? "" : "s"} checked`;
     if (verdicts.length) $("exports").hidden = false;
     else $("board").innerHTML = '<p class="none">No case-law citations found in that text.</p>';
   });
-  stream.onerror = () => { stream.close(); $("go").disabled = false; };
+  stream.onerror = () => { stream.close(); idle("go"); };
 }
 
 function drawBoard() {
@@ -120,15 +142,30 @@ function drawBoard() {
     // A grade earned with checks that could not run is not the same as one earned with all of them,
     // and on a board that is read at a glance the badge has to say so.
     const partial = !modes && v.needs_review ? " part" : "";
-    return `<tr class="pick ${i === chosen ? "on" : ""}" data-i="${i}">
-      <td><span class="g ${v.grade}${partial}" title="${partial ? "not everything was checked" : ""}">${v.grade}</span></td>
-      <td><b>${escape(v.citation)}</b><br><span class="sub">${escape(v.case || "—")}</span></td>
-      <td>${modes || review || '<span class="sub">—</span>'}</td>
-    </tr>`;
+    // A real <button>, not a clickable row. The board is a list of citations you choose between,
+    // which is what a button does; a <tr onclick> is unreachable by keyboard, invisible to a screen
+    // reader, and needs a pile of ARIA to pretend otherwise. Semantics first, per the guidelines.
+    return `<li>
+      <button class="pick${i === chosen ? " on" : ""}" data-i="${i}" aria-pressed="${i === chosen}">
+        <span class="g ${v.grade}${partial}"${partial ? ' title="not everything was checked"' : ""}>${escape(v.grade)}</span>
+        <span class="pick-cite">
+          <b translate="no">${escape(v.citation)}</b>
+          <span class="sub">${escape(v.case || "—")}</span>
+        </span>
+        <span class="pick-findings">${modes || review || '<span class="sub">—</span>'}</span>
+      </button>
+    </li>`;
   }).join("");
-  $("board").innerHTML = `<table><thead><tr><th></th><th>Citation</th><th>Findings</th></tr></thead><tbody>${rows}</tbody></table>`;
-  for (const tr of $("board").querySelectorAll("tr.pick")) {
-    tr.onclick = () => { chosen = +tr.dataset.i; drawBoard(); drawDetail(); };
+  $("board").innerHTML = `<ul class="board-list">${rows}</ul>`;
+  for (const button of $("board").querySelectorAll("button.pick")) {
+    button.addEventListener("click", () => {
+      chosen = +button.dataset.i;
+      drawBoard();
+      drawDetail();
+      // Keep the keyboard where the reader is: redrawing replaced the element that had focus.
+      const again = $("board").querySelector(`button.pick[data-i="${chosen}"]`);
+      if (again) again.focus();
+    });
   }
 }
 
@@ -149,7 +186,7 @@ function drawDetail() {
 
   const partial = !v.findings.length && v.needs_review ? " part" : "";
   $("detail").innerHTML = `
-    <p><span class="g ${v.grade}${partial}">${v.grade}</span> <b>${escape(v.citation)}</b></p>
+    <p><span class="g ${v.grade}${partial}">${escape(v.grade)}</span> <b>${escape(v.citation)}</b></p>
     <p class="case">${escape(v.case || "not resolved")}</p>
     <p class="claim">“${escape(v.proposition)}”</p>
     ${quote}${narrowed}${findings}${treatment}${review}
@@ -215,7 +252,8 @@ async function download(url, name) {
 $("search").onclick = async () => {
   const q = $("query").value.trim();
   if (!q) return;
-  $("search").disabled = true;
+  working("search", "Searching…");
+  $("results").innerHTML = skeleton(4);
   $("sprog").textContent = "searching every paragraph…";
   try {
     const r = await (await fetch(`/api/search?q=${encodeURIComponent(q)}`)).json();
@@ -225,7 +263,7 @@ $("search").onclick = async () => {
         <b>${escape(a.pinpoint)}</b>
         ${a.doubtful ? `<span class="mode">no longer good law</span>` : ""}
         <div class="title"><b>${escape(a.title)}</b></div>
-        <div class="sub">${escape(a.decided_on || "")} · bench ${a.bench_strength ?? "?"} · score ${a.score}</div>
+        <div class="sub"><span class="nums">${escape(decided(a.decided_on))} · bench ${escape(String(a.bench_strength ?? "?"))} · score ${escape(String(a.score))}</span></div>
         ${a.line ? `<blockquote>${escape(a.line)}</blockquote>` : ""}
         ${a.doubtful ? `<div class="finding"><span>${escape(a.treatment_note || "")}</span></div>` : ""}
       </div>`).join("") : '<p class="none">Nothing in the corpus carries those words.</p>';
@@ -234,7 +272,7 @@ $("search").onclick = async () => {
     $("results").innerHTML = `<p class="none">${escape(String(e.message || e))}</p>`;
     $("sprog").textContent = "";
   }
-  $("search").disabled = false;
+  idle("search");
 };
 
 // ---------- helpers ----------
@@ -245,6 +283,27 @@ async function post(url, body) {
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `HTTP ${r.status}`);
   return r.json();
 }
+// Loading that has the shape of the thing being loaded, rather than a spinner that could be
+// anything. The board is about to be a list of rows, so it shows a list of rows.
+function skeleton(rows) {
+  return `<ul class="skeleton" aria-hidden="true">${"<li></li>".repeat(rows)}</ul>`;
+}
+
+// A button that is working says so, and says so where the reader is already looking -- on the
+// control they just pressed -- rather than only in a status line beside it.
+function working(id, label) {
+  const button = $(id);
+  if (!button.dataset.idle) button.dataset.idle = button.textContent;
+  button.disabled = true;
+  button.textContent = label;
+}
+
+function idle(id) {
+  const button = $(id);
+  button.disabled = false;
+  if (button.dataset.idle) button.textContent = button.dataset.idle;
+}
+
 function escape(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => (
     { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
@@ -289,7 +348,8 @@ $("readplan").onclick = async () => {
 $("build").onclick = async () => {
   const plan = $("plan").value.trim();
   if (!plan) return;
-  $("build").disabled = true;
+  working("build", "Drafting…");
+  $("bindings").innerHTML = skeleton(4);
   $("dprog").textContent = "reading the plan…";
   bindings = []; attacks = [];
   try {
@@ -305,7 +365,7 @@ $("build").onclick = async () => {
   } catch (e) {
     $("dprog").textContent = "";
     $("parsed").innerHTML = `<p class="review">${escape(String(e.message || e))}</p>`;
-    $("build").disabled = false;
+    idle("build");
   }
 };
 
@@ -322,7 +382,7 @@ function watchDraft(total) {
   });
   stream.addEventListener("done", async (e) => {
     stream.close();
-    $("build").disabled = false;
+    idle("build");
     const d = JSON.parse(e.data);
     $("dprog").textContent = d.error ? `stopped: ${d.error}` : "";
     const full = await (await fetch(`/api/draft/${draftJob}`)).json();
@@ -335,14 +395,16 @@ function watchDraft(total) {
 
 function drawBindings() {
   if (!bindings.length) return;
-  const rows = bindings.map(b => `<tr>
-    <td><span class="st ${b.status}">${b.status}</span></td>
-    <td>${escape(b.proposition)}
-      ${b.citation ? `<br><b>${escape(b.citation)}</b>` : ""}
+  // A list, not a table: a status and the sentence it belongs to are not two columns of data, and a
+  // table with one real column and a blank header is a layout borrowed from somewhere else.
+  const rows = bindings.map(b => `<li class="bind">
+    <span class="st ${escape(b.status)}">${escape(b.status)}</span>
+    <span class="bind-text">${escape(b.proposition)}
+      ${b.citation ? `<br><b translate="no">${escape(b.citation)}</b>` : ""}
       ${b.narrowed_to ? `<br><span class="instead-inline">argue instead: ${escape(b.narrowed_to)}</span>` : ""}
-      ${b.usable ? "" : `<br><span class="review">${escape(b.reason)}</span>`}</td>
-  </tr>`).join("");
-  $("bindings").innerHTML = `<table><thead><tr><th></th><th>Proposition</th></tr></thead><tbody>${rows}</tbody></table>`;
+      ${b.usable ? "" : `<br><span class="review">${escape(b.reason)}</span>`}</span>
+  </li>`).join("");
+  $("bindings").innerHTML = `<ul class="board-list">${rows}</ul>`;
 }
 
 function drawAttacks() {

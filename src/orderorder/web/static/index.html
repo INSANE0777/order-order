@@ -14,26 +14,32 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#f7f4ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14120f" media="(prefers-color-scheme: dark)">
 <title>OrderOrder — citation integrity for Indian case law</title>
 <link rel="stylesheet" href="/app.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>&#9878;</text></svg>">
 </head>
 <body>
 
+<!-- First thing in the tab order: the masthead and three tabs sit between the top of the page and
+     the work, and a keyboard reader should not have to pass them on every visit. -->
+<a class="skip" href="#main">Skip to content</a>
+
 <header>
   <h1><span class="mark">OrderOrder</span><span class="strap">citation integrity for Indian case law</span></h1>
-  <div id="status">checking…</div>
+  <div id="status" role="status" aria-live="polite">checking…</div>
 </header>
 
-<main>
-  <div class="tabs" role="tablist">
-    <button id="tab-check" class="on" role="tab">Check a brief</button>
-    <button id="tab-find" role="tab">Find an authority</button>
-    <button id="tab-draft" role="tab">Draft a submission</button>
+<main id="main">
+  <div class="tabs" role="tablist" aria-label="Surface">
+    <button id="tab-check" class="on" role="tab" aria-selected="true" aria-controls="view-check">Check a brief</button>
+    <button id="tab-find" role="tab" aria-selected="false" aria-controls="view-find">Find an authority</button>
+    <button id="tab-draft" role="tab" aria-selected="false" aria-controls="view-draft">Draft a submission</button>
   </div>
 
   <!-- ============ check a brief ============ -->
-  <section id="view-check">
+  <section id="view-check" role="tabpanel" aria-labelledby="tab-check">
     <div class="card" id="input-card">
       <h2>The brief</h2>
       <textarea id="brief" spellcheck="false" aria-label="The brief to check"
@@ -41,12 +47,12 @@
       <div class="controls">
         <button id="go">Check every citation</button>
         <button id="pick" class="quiet">Open a PDF or DOCX</button>
-        <input type="file" id="file" accept=".pdf,.docx,.txt,.md" hidden>
+        <input type="file" id="file" accept=".pdf,.docx,.txt,.md" aria-label="Choose a brief to open" hidden>
         <button id="demo" class="quiet">Load the demo brief</button>
         <label class="check"><input type="checkbox" id="usemodel" checked> use a language model</label>
-        <span id="prog" class="hint"></span>
+        <span id="prog" class="hint" role="status" aria-live="polite"></span>
       </div>
-      <p class="hint" id="upnote" hidden></p>
+      <p class="hint" id="upnote" role="status" aria-live="polite" hidden></p>
       <p class="hint">Eight of the twelve failure modes need no model. With the box unticked, those still run and
         the rest are reported <em>not checked</em> rather than guessed.</p>
     </div>
@@ -75,14 +81,14 @@
   </section>
 
   <!-- ============ find an authority ============ -->
-  <section id="view-find" hidden>
+  <section id="view-find" role="tabpanel" aria-labelledby="tab-find" hidden>
     <div class="card">
       <h2>The proposition</h2>
       <textarea id="query" spellcheck="false" aria-label="The proposition to find an authority for"
         placeholder="A proposition you want an authority for. No citation needed — that is what this finds."></textarea>
       <div class="controls">
         <button id="search">Search every judgment</button>
-        <span id="sprog" class="hint"></span>
+        <span id="sprog" class="hint" role="status" aria-live="polite"></span>
       </div>
       <p class="hint">A passage that is not the court speaking is dropped before it reaches you: an advocate's
         submission matches a proposition's words better than a holding does, because it is stated without the
@@ -95,7 +101,7 @@
   </section>
 
   <!-- ============ draft a submission ============ -->
-  <section id="view-draft" hidden>
+  <section id="view-draft" role="tabpanel" aria-labelledby="tab-draft" hidden>
     <div class="card">
       <h2>The case plan</h2>
       <textarea id="plan" spellcheck="false" aria-label="The case plan"
@@ -105,7 +111,7 @@
         <button id="readplan" class="quiet">Read the plan back</button>
         <button id="demoplan" class="quiet">Load the demo plan</button>
         <label class="check"><input type="checkbox" id="usemodel2" checked> use a language model</label>
-        <span id="dprog" class="hint"></span>
+        <span id="dprog" class="hint" role="status" aria-live="polite"></span>
       </div>
       <div id="parsed"></div>
       <p class="hint">The plan is yours: the court, the parties, the issues, the sentences you mean to argue,

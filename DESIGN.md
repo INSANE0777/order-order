@@ -47,9 +47,14 @@ Three rules govern the palette, in priority order.
 | `--ink` | `#1a1714` | `#ece7dd` | Body text |
 | `--ink-soft` | `#45403a` | `#cbc4b8` | Secondary prose |
 | `--muted` | `#6b645b` | `#9a9287` | Captions, hints |
-| `--faint` | `#918a80` | `#756e64` | Labels, empty states |
-| `--rule` | `#ddd6c9` | `#2c2822` | Hairlines, borders |
-| `--rule-strong` | `#c6bdac` | `#413b32` | Table heads, quiet button edges |
+| `--faint` | `#746e65` | `#8b8377` | Labels, empty states |
+| `--rule` | `#ddd6c9` | `#2c2822` | Decorative hairlines and dividers |
+| `--rule-strong` | `#c6bdac` | `#413b32` | Heavier dividers |
+| `--edge` | `#99896b` | `#716657` | **Control boundaries**: field and quiet-button borders |
+
+`--rule` and `--edge` look similar and are not interchangeable. A divider carries no information and
+may be as light as it likes; the edge that tells you a thing is a control must clear 3:1, which
+`--rule-strong` did not (1.83). Use `--edge` on anything you can type in or press.
 
 ### Brand
 
@@ -79,7 +84,7 @@ the read-paragraph marker, selection. **Nowhere else.**
 | Token | Stack | Used for |
 |---|---|---|
 | `--serif` | Iowan Old Style, Palatino Linotype, Palatino, Book Antiqua, Georgia, serif | All reading text: judgments, claims, findings, body |
-| `--sans` | system UI stack | Apparatus only: labels, buttons, badges, hints, table heads |
+| `--sans` | system UI stack | Apparatus only: labels, buttons, badges, hints, status |
 | `--mono` | system mono stack | Verbatim input and output: the brief, the plan, reports |
 
 **No web fonts.** Nothing is loaded from a third-party origin — the Content-Security-Policy is
@@ -99,7 +104,7 @@ the tool says about it.** Never set a judgment's words in the sans stack.
 | Card title `h2` | 11.5px / 700 | sans | Uppercase, `.11em` tracking, `--faint` |
 | Judgment paragraph | 14.5px / 1.68 | serif | The longest read on the page |
 | Claim / blockquote | 15.5–14.5px / 1.6 | serif | |
-| Table | 14px | serif | Heads 10.5px uppercase sans |
+| Board row | 14px | serif | Seal / citation / findings grid |
 | Hint, caption | 12.5px / 1.6 | sans | `--muted` |
 | Badges | 11–11.5px | sans | |
 | Code, textarea | 13px / 1.62, `pre` 12.5px | mono | |
@@ -153,7 +158,7 @@ for a decided grade and **dashed** when checks could not run.
 
 ### Buttons
 Primary is oxblood fill, `--paper-raised` text, 8×15px, sans 13.5px/550. `.quiet` is transparent with
-a `--rule-strong` edge. Active nudges 1px down. Focus is a 2px `--seal` outline at 2px offset —
+an `--edge` border, which is the accessible one. Active nudges 1px down. Focus is a 2px `--seal` outline at 2px offset —
 **never remove it.**
 
 ### Tabs
@@ -162,8 +167,14 @@ fill. *A tab is a place you are, not a button you press* — and because `.tabs 
 `button:hover` on specificity, the tab rules must restate `background: none`.
 
 ### Verdict board
-A table. Grade seal column shrink-to-fit, findings column 42%, citation takes the slack. Rows are
-clickable, hover tints to `--paper`, selected adds `inset 3px 0 0 --seal`.
+**A list of `<button>`s, not a table of clickable rows.** The board is a set of citations you choose
+between, which is what a button is; a `<tr onclick>` is unreachable by keyboard and needs a pile of
+ARIA to pretend otherwise. Each button is a grid: seal, citation, findings. Hover tints to `--paper`,
+selected adds `inset 3px 0 0 --seal` and `aria-pressed`, focus draws a 2px `--seal` ring inset.
+
+Redrawing the board replaces the focused element, so the handler restores focus to the row it just
+selected. The first verdict opens itself as it arrives — an empty panel beside a filling board is a
+panel the reader has to be told about.
 
 **Badges carry the finding's words, never its number.** "no such case", "pinpoint does not exist" —
 the mode number belongs in a `title`, because `5` tells a reader nothing.
@@ -231,10 +242,28 @@ Touch targets: buttons are 34px tall at 13.5px text; keep ≥ 32px.
 
 ## 11. Known Gaps
 
-- **No focus-visible styling on table rows**, which are clickable `<tr>`s and not reachable by
-  keyboard. The board is mouse-only; this is the largest accessibility gap.
-- **No reduced-motion query.** Transitions are 60–150ms and few, but the query should exist.
-- **Contrast is unmeasured.** The palette was chosen by eye. `--faint` on `--paper-raised` is the pair
-  most likely to fail WCAG AA and should be measured before anyone relies on it.
-- **No print stylesheet**, for a tool whose output is a document that gets filed.
-- **No skip link**, and the masthead is before the tabs in the tab order.
+Five gaps were listed here when this file was written. All five are closed, and the entries are kept
+because what was wrong is more useful than a clean list:
+
+- ~~No keyboard access to the board~~ — it is a list of buttons now, verified focusable and operable
+  in a real browser rather than assumed.
+- ~~No reduced-motion query~~ — present, and it also stills the loading skeleton, which was the only
+  thing left carrying a "still working" signal by motion alone.
+- ~~Contrast unmeasured~~ — measured, and it failed. `--faint` was 3.36 against a card while carrying
+  every card label and empty state; the quiet button's border was 1.83 while being the only thing that
+  said it was a button. Both fixed, both now asserted in `tests/test_hardening.py` for both themes.
+- ~~No print stylesheet~~ — present, and it drops the masthead, tabs, controls and the input card,
+  which are furniture rather than document.
+- ~~No skip link~~ — present, and verified to be the first thing the Tab key reaches.
+
+What is still open:
+
+- **No focus trap or `Escape` handling**, because there is no modal yet. The first one added will need
+  both.
+- **The judgment viewer scrolls inside a fixed height** rather than the page, so a very long judgment
+  is a scroll within a scroll. Acceptable beside a board that must stay visible; worth revisiting.
+- **Colour is doing real work in the grade seals**, and although the letter is always present as text,
+  the mode badges are distinguished from *needs review* by colour and border style alone. A shape or
+  glyph difference would be safer.
+- **No automated axe/Lighthouse pass.** The checks in `test_hardening.py` are hand-written and cover
+  what was actually wrong, which is not the same as coverage.
