@@ -9,9 +9,9 @@
   `style=` attributes and no `onclick=` handlers here for the same reason; every handler is bound in
   app.js. tests/test_hardening.py asserts the policy, so inlining any of it back fails the suite.
 
-  Built to a brand reference rather than a UI one: flat cobalt, coral and cream colour blocks, a
-  high-contrast display serif over a clean grotesque, single-weight hand-drawn line accents, giant
-  serif numerals, and a staircase as the shape device -- which fits, because A to F is a staircase.
+  Three things on this page are built in three dimensions, in CSS, because they are the subject: a
+  bundle of pleadings whose pages turn as citations are found, a grade that lands on its row like a
+  stamp, and the staircase -- six steps, F to A -- that a citation is placed on once it is graded.
 -->
 <html lang="en">
 <head>
@@ -49,24 +49,23 @@
   <section id="view-check" role="tabpanel" aria-labelledby="tab-check">
     <div class="hero">
       <div class="block cobalt">
-        <!-- Loose lines, drawn on load. Decorative, so hidden from assistive tech. -->
-        <svg class="doodle" viewBox="0 0 600 700" aria-hidden="true" focusable="false" preserveAspectRatio="none">
-          <path d="M-20 120 C 120 20, 260 200, 180 300 S 40 420, 160 470 S 420 380, 520 520 S 560 700, 700 640"/>
-          <path d="M600 40 C 480 130, 560 260, 460 300"/>
-          <path d="M-10 640 C 90 560, 220 660, 300 720"/>
-        </svg>
-        <p class="eyebrow">Citation integrity · Indian case law</p>
-        <h2 class="display">
-          <span class="w">Every</span> <span class="w">citation,</span>
-          <span class="w"><em>checked</em></span> <span class="w">against</span>
-          <span class="w">the</span> <span class="w">court.</span>
-        </h2>
-        <svg class="scribble" viewBox="0 0 320 26" aria-hidden="true" focusable="false">
-          <path d="M4 16 C 60 6, 110 22, 170 12 S 260 4, 316 14 M 40 22 C 120 14, 210 22, 290 18"/>
-        </svg>
+        <h2 class="display">Every citation, <em>verified.</em></h2>
         <p class="lede">Paste a brief. Each case-law citation is resolved, located in the judgment, and read
-          against the paragraph it relies on — then graded one of three ways: supported, not supported, or
-          not checked. Never fewer than three.</p>
+          against the paragraph it relies on. Every one comes back supported, not supported, or not checked —
+          and the third is never disguised as either of the others.</p>
+
+        <!-- The bundle. Six pages of pleadings; the top ones turn as the citations in them are found. -->
+        <div class="bundle" id="bundle" data-flipped="0" aria-hidden="true">
+          <div class="stack">
+            <div class="page p6"></div>
+            <div class="page p5"></div>
+            <div class="page p4"></div>
+            <div class="page p3"></div>
+            <div class="page p2"></div>
+            <div class="page p1"></div>
+            <div class="clip"></div>
+          </div>
+        </div>
       </div>
 
       <div class="folder" id="input-card">
@@ -92,7 +91,7 @@
     </div>
 
     <div class="work">
-      <div class="card index">
+      <div class="index">
         <div class="index-head"><h2>Verdicts</h2></div>
         <div class="tally">
           <span id="count" class="numeral" aria-hidden="true">–</span>
@@ -106,10 +105,23 @@
       </div>
 
       <div class="card document">
-        <div class="tabs plain">
-          <button id="t-detail" class="on">Verdict</button>
-          <button id="t-judgment">Judgment</button>
-          <button id="t-memo">Memo</button>
+        <div class="doc-head">
+          <div class="tabs plain">
+            <button id="t-detail" class="on">Verdict</button>
+            <button id="t-judgment">Judgment</button>
+            <button id="t-memo">Memo</button>
+          </div>
+          <!-- The staircase. F at the foot, A at the top; the marker stands on the step this citation earned,
+               and off the stair entirely when the checks that would place it could not run. -->
+          <div class="stair" id="stair" data-grade="" aria-hidden="true">
+            <div class="step s1"><i class="top"></i><i class="side"></i><i class="front"></i></div>
+            <div class="step s2"><i class="top"></i><i class="side"></i><i class="front"></i></div>
+            <div class="step s3"><i class="top"></i><i class="side"></i><i class="front"></i></div>
+            <div class="step s4"><i class="top"></i><i class="side"></i><i class="front"></i></div>
+            <div class="step s5"><i class="top"></i><i class="side"></i><i class="front"></i></div>
+            <div class="step s6"><i class="top"></i><i class="side"></i><i class="front"></i></div>
+            <span class="marker"></span>
+          </div>
         </div>
         <div id="detail"><p class="none">Choose a citation to see what was found.</p></div>
         <div id="judgment" hidden><p class="none">Choose a citation to read the paragraph it rests on.</p></div>
@@ -122,21 +134,10 @@
   <section id="view-find" role="tabpanel" aria-labelledby="tab-find" hidden>
     <div class="hero">
       <div class="block cream">
-        <svg class="doodle" viewBox="0 0 600 700" aria-hidden="true" focusable="false" preserveAspectRatio="none">
-          <path d="M620 160 C 500 90, 380 220, 430 330 S 600 420, 560 560"/>
-          <path d="M-20 560 C 100 500, 140 640, 260 600 S 380 480, 470 560"/>
-        </svg>
-        <p class="eyebrow">Which judgment backs this — and which line</p>
-        <h2 class="display">
-          <span class="w">Start</span> <span class="w">from</span> <span class="w">the</span>
-          <span class="w"><em>proposition,</em></span> <span class="w">not</span> <span class="w">the</span> <span class="w">citation.</span>
-        </h2>
-        <svg class="scribble" viewBox="0 0 320 26" aria-hidden="true" focusable="false">
-          <path d="M4 16 C 60 6, 110 22, 170 12 S 260 4, 316 14 M 40 22 C 120 14, 210 22, 290 18"/>
-        </svg>
-        <p class="lede">Every paragraph of every judgment held is searched. A passage that is not the court speaking is
-          dropped before it reaches you — an advocate's submission matches a proposition's words better than a
-          holding does, because it is stated without the qualifications.</p>
+        <h2 class="display">Start from the <em>proposition.</em></h2>
+        <p class="lede">Every paragraph of every judgment held is searched for the line that backs it. A passage that is
+          not the court speaking is dropped before it reaches you — an advocate's submission matches a
+          proposition's words better than a holding does, because it is stated without the qualifications.</p>
       </div>
 
       <div class="folder">
@@ -153,7 +154,7 @@
     </div>
 
     <div class="work single">
-      <div class="card index">
+      <div class="index">
         <div class="index-head"><h2>Authorities</h2></div>
         <div id="results"><p class="none">Nothing searched yet.</p></div>
       </div>
@@ -164,22 +165,11 @@
   <section id="view-draft" role="tabpanel" aria-labelledby="tab-draft" hidden>
     <div class="hero">
       <div class="block ink">
-        <svg class="doodle" viewBox="0 0 600 700" aria-hidden="true" focusable="false" preserveAspectRatio="none">
-          <path d="M-20 200 C 140 120, 200 300, 120 380 S 20 520, 180 560 S 440 460, 520 600"/>
-          <path d="M620 80 C 520 160, 580 300, 470 320"/>
-        </svg>
-        <p class="eyebrow">A written submission, built through the gate</p>
-        <h2 class="display">
-          <span class="w">An</span> <span class="w">authority</span> <span class="w">behind</span>
-          <span class="w">every</span> <span class="w">sentence —</span>
-          <span class="w">or</span> <span class="w">a</span> <span class="w"><em>mark</em></span> <span class="w">saying</span> <span class="w">there</span> <span class="w">is</span> <span class="w">none.</span>
-        </h2>
-        <svg class="scribble" viewBox="0 0 320 26" aria-hidden="true" focusable="false">
-          <path d="M4 16 C 60 6, 110 22, 170 12 S 260 4, 316 14 M 40 22 C 120 14, 210 22, 290 18"/>
-        </svg>
+        <h2 class="display">An authority behind every <em>sentence.</em></h2>
         <p class="lede">The plan is yours: the court, the parties, the issues, the sentences you mean to argue, the
-          prayer. A proposition that finds nothing is <em>not</em> dropped — a draft that quietly loses its
-          unsupported sentences reads as though every sentence in it is supported.</p>
+          prayer. Each sentence is bound to an authority the verifier confirmed, or marked as having none. A
+          proposition that finds nothing is not dropped — a draft that quietly loses its unsupported sentences
+          reads as though every sentence in it is supported.</p>
       </div>
 
       <div class="folder">
@@ -202,7 +192,7 @@
     </div>
 
     <div class="work">
-      <div class="card index">
+      <div class="index">
         <div class="index-head"><h2>Propositions</h2></div>
         <div id="bindings"><p class="none">Nothing drafted yet.</p></div>
         <div class="controls" id="dexports" hidden>
@@ -211,9 +201,11 @@
         </div>
       </div>
       <div class="card document">
-        <div class="tabs plain">
-          <button id="t-doc" class="on">Submission</button>
-          <button id="t-attack">What they will say</button>
+        <div class="doc-head">
+          <div class="tabs plain">
+            <button id="t-doc" class="on">Submission</button>
+            <button id="t-attack">What they will say</button>
+          </div>
         </div>
         <div id="doc"><p class="none">Nothing drafted yet.</p></div>
         <div id="attack" hidden><p class="none">Nothing drafted yet.</p></div>
@@ -223,7 +215,6 @@
 </main>
 
 <footer>
-  <!-- The staircase, as the reference uses it: a stepped mass rising from the bottom. -->
   <svg class="steps" viewBox="0 0 1200 64" preserveAspectRatio="none" aria-hidden="true" focusable="false">
     <path d="M0 64 V44 H160 V30 H340 V16 H520 V44 H720 V24 H900 V8 H1080 V36 H1200 V64 Z"/>
   </svg>

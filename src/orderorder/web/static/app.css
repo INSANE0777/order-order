@@ -1,31 +1,35 @@
-/* OrderOrder — interface, fourth design. Built to a brand reference.
+/* OrderOrder — interface. Built to a brand reference, then stripped of everything that decorated it.
  *
- * The reference is a law firm's identity: flat colour blocks in cobalt, coral and cream; a
- * high-contrast display serif for headlines over a clean grotesque for everything else; single-weight
- * hand-drawn lines -- a scribble under a headline, loose curves across a block; giant serif numerals;
- * rounded cards stacked on colour; and a staircase used as the shape device, in the mark, around a
- * headline, and as a stepped mass rising from the bottom of a page.
+ * The reference is a law firm's identity: flat colour blocks in cobalt, coral and cream, a
+ * high-contrast display serif over a clean grotesque, hand-drawn lines that are drawings of things,
+ * giant serif numerals, rounded cards on colour, and a staircase as the shape device. It fits because
+ * every competitor in legal software is navy and gold and cold, and because a grade from A to F is a
+ * staircase.
  *
- * It fits this product better than anything before it, for two reasons. Every competitor in legal
- * software is navy and gold and cold; this is warm and human and it still means business. And the
- * staircase is not borrowed here -- a grade runs from A to F, which is a staircase, and the product's
- * whole claim is that it will tell you which step you are on.
+ * What was cut from the version before this one, and why. The floating curves on the hero block:
+ * decoration that meant nothing, which is what "vibecoded" looks like. The eyebrow above the headline
+ * and the italic-word-plus-clever-lede stack: the most recognisable AI hero there is. The words rising
+ * one at a time: template motion. The two identical white cards: card fatigue. The shimmering
+ * skeleton: a SaaS default. Each was replaced by something that does a job or by nothing.
  *
- * What the translation keeps from the product rather than the reference:
+ * What was added is three-dimensional and each piece is the subject, not an effect:
  *
- *   1. Colour means a finding. Green, amber and red are reserved for verdicts. The brand's own red is
- *      therefore the *verdict* red -- a flagged citation is the red thing on the page -- and it is
- *      spent on nothing decorative except the count of them.
- *   2. Three states, three treatments. Not checked is a dashed neutral, never a paler red.
- *   3. The court's words are set in the reading serif (Palatino stack) and the tool's in Geist. The
- *      *display* serif, Playfair, is the brand voice and appears only in headlines and the numeral.
+ *   the BUNDLE   a stack of pleadings on the hero, in CSS 3D, tilting a few degrees with the pointer.
+ *                As the check runs its pages turn, one for each share of the citations found. That is
+ *                the loading state.
+ *   the STAMP    a grade lands on its row from above, with a shadow that blooms and settles.
+ *   the STAIR    six isometric steps, F to A, in the verdict panel. The marker stands on the step the
+ *                citation earned -- and off the stair when the checks that would place it did not run.
  *
- * Fonts are self-hosted (`font-src 'self'`); Playfair Display is SIL OFL and on the taste skill's
- * approved serif list. Every colour pair is asserted in tests/test_hardening.py, both themes. No inline
- * styles anywhere, which is what buys `style-src 'self'`.
+ * The product's rules survive every redesign because they are the product: colour means a finding;
+ * three states get three treatments; the court's words are set in a reading serif and the tool's are
+ * not. Fonts are self-hosted (`font-src 'self'`). Every colour pair is asserted in
+ * tests/test_hardening.py, both themes. No `style=` attributes anywhere. The pointer tilt sets two
+ * custom properties through the CSSOM, which the policy permits and which the tests distinguish from
+ * an attribute; that carve-out is documented in DESIGN.md and is the only one.
  *
- * SHAPE LOCK: soft. Blocks and cards 28px, the folder 22px, controls full pill, fields 12px. Nothing
- * sharp except the staircase, which is the point of it.
+ * SHAPE LOCK: blocks and cards 28px, the folder 22px, fields 12px, the grade mark 9px, controls pill.
+ * Nothing sharp except the staircase, which is the point of it.
  */
 
 /* ---------- type ---------- */
@@ -66,29 +70,34 @@
 :root {
   color-scheme: light dark;
 
-  --bg: #f3ece5;              /* cream: the page */
-  --surface: #ffffff;         /* cards */
-  --surface-2: #e9ebfb;       /* cobalt tint: inset fields, hover */
+  --bg: #f3ece5;
+  --surface: #ffffff;
+  --surface-2: #e9ebfb;
   --ink: #141626;
   --ink-2: #3b3e55;
   --muted: #5f627a;
   --faint: #676a80;
 
   --line: rgba(20, 22, 38, .12);
-  --edge: #8286a4;            /* control boundaries; 3.04 */
+  --edge: #8286a4;
 
-  --accent: #2b34d6;          /* cobalt. the brand. */
+  --accent: #2b34d6;
   --accent-press: #1f27b3;
-  --accent-ink: #ffffff;      /* on cobalt: 8.19 */
+  --accent-ink: #ffffff;
   --accent-soft: rgba(43, 52, 214, .10);
+  --accent-deep: #1a2199;          /* the shaded face of anything cobalt in three dimensions */
 
-  --coral: #ef3b5c;           /* the brand's red, as a fill and as large type only (3.85 on white) */
-  --coral-deep: #d51135;      /* the same red where it must be read: 4.53 */
+  --coral: #ef3b5c;
+  --coral-deep: #d51135;
 
   --good: #1f7a4c;      --good-bg: rgba(31, 122, 76, .12);
   --warn: #975e0a;      --warn-bg: rgba(151, 94, 10, .13);
   --bad: #d51135;       --bad-bg: rgba(213, 17, 53, .10);
   --unchecked: #5f627a; --unchecked-bg: rgba(20, 22, 38, .07);
+
+  --paper: #fbf8f3;                /* a page in the bundle */
+  --paper-edge: #e6dfd5;
+  --paper-line: rgba(20, 22, 38, .18);
 
   --sans: "Geist", ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: "Geist Mono", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
@@ -121,6 +130,7 @@
     --accent-press: #aab0ff;
     --accent-ink: #0f1236;
     --accent-soft: rgba(143, 151, 255, .14);
+    --accent-deep: #1a2199;
 
     --coral: #ff7d93;
     --coral-deep: #ff7d93;
@@ -129,6 +139,9 @@
     --warn: #e9b949;      --warn-bg: rgba(233, 185, 73, .14);
     --bad: #ff7d93;       --bad-bg: rgba(255, 125, 147, .14);
     --unchecked: #a9a5bb; --unchecked-bg: rgba(243, 236, 229, .08);
+
+    --paper: #f3ece5;
+    --paper-edge: #d9d1c6;
 
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 24px 48px -32px rgba(0, 0, 0, .7);
   }
@@ -157,7 +170,6 @@ body {
   align-items: center;
   height: 72px;
   padding: 0 40px;
-  animation: fade .6s var(--ease) both;
 }
 
 .brand { margin: 0; display: flex; align-items: center; gap: 10px; }
@@ -189,7 +201,7 @@ body {
   position: relative;
   transition: color .2s var(--ease);
 }
-/* The underline is a hand-drawn stroke, not a rule: it sags a little, like the reference's scribbles. */
+/* One hand-drawn line on the whole page, under the tab you are on. */
 .tabs button::after {
   content: "";
   position: absolute;
@@ -229,14 +241,14 @@ body {
 
 main { max-width: 1400px; margin: 0 auto; padding: 14px 40px 96px; }
 
-/* ---------- the hero: a colour block and a folder ---------- */
+/* ---------- the hero ---------- */
 
 .hero {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
   gap: 24px;
   align-items: stretch;
-  min-height: 560px;
+  min-height: 580px;
 }
 @media (max-width: 1000px) { .hero { grid-template-columns: minmax(0, 1fr); min-height: 0; } }
 
@@ -247,8 +259,8 @@ main { max-width: 1400px; margin: 0 auto; padding: 14px 40px 96px; }
   padding: 56px 56px 52px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  animation: rise .8s var(--ease-out) both;
+  justify-content: flex-start;
+  animation: rise .7s var(--ease-out) both;
 }
 .block.cobalt { background: var(--accent); color: var(--accent-ink); }
 .block.cream  { background: var(--surface); color: var(--ink); border: 1px solid var(--line); }
@@ -258,91 +270,140 @@ main { max-width: 1400px; margin: 0 auto; padding: 14px 40px 96px; }
   .block.ink { background: #f3ece5; color: #141626; }
 }
 
-.block .eyebrow {
-  margin: 0 0 22px;
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  opacity: .82;
-  animation: rise .7s .15s var(--ease-out) both;
-}
-
 .display {
   margin: 0;
+  position: relative;
+  z-index: 1;
   font-family: var(--display);
   font-weight: 500;
-  font-size: clamp(40px, 4.6vw, 66px);
-  line-height: 1.02;
+  font-size: clamp(40px, 4.4vw, 62px);
+  line-height: 1.04;
   letter-spacing: -.02em;
   text-wrap: balance;
-  max-width: 14ch;
+  max-width: 13ch;
 }
 .display em { font-style: italic; font-weight: 500; }
-.display .w { display: inline-block; animation: word .9s var(--ease-out) both; }
-.display .w:nth-child(1) { animation-delay: .20s; }
-.display .w:nth-child(2) { animation-delay: .27s; }
-.display .w:nth-child(3) { animation-delay: .34s; }
-.display .w:nth-child(4) { animation-delay: .41s; }
-.display .w:nth-child(5) { animation-delay: .48s; }
-.display .w:nth-child(6) { animation-delay: .55s; }
-.display .w:nth-child(7) { animation-delay: .62s; }
-.display .w:nth-child(n+8) { animation-delay: .69s; }
-
-/* The scribble under the headline draws itself, left to right, once the words have landed. */
-.scribble {
-  display: block;
-  width: min(320px, 70%);
-  height: 26px;
-  margin: 10px 0 0 -4px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-dasharray: 700;
-  stroke-dashoffset: 700;
-  animation: draw 1.1s 1s var(--ease-out) forwards;
-  opacity: .9;
-}
-.block.cream .scribble { stroke: var(--coral); }
-.block.ink .scribble { stroke: var(--coral); }
 
 .lede {
-  margin: 26px 0 0;
-  font-size: 15.5px;
+  position: relative;
+  z-index: 1;
+  margin: 22px 0 0;
+  font-size: 15px;
   line-height: 1.6;
-  max-width: 46ch;
+  max-width: 44ch;
   opacity: .92;
   text-wrap: pretty;
-  animation: rise .8s .7s var(--ease-out) both;
 }
 
-/* Loose lines across the block. One weight, drawn on, then left. */
-.doodle {
+/* ---------- the bundle ---------- */
+
+/* A stack of pleadings, lying on the block. Perspective on the frame, the stack tilted so it reads as
+ * paper on a desk seen from where you sit, each page a little above the last. The two custom
+ * properties are the pointer's tilt, set through the CSSOM by app.js and clamped there. */
+.bundle {
+  position: absolute;
+  right: -30px;
+  bottom: -70px;
+  width: 380px;
+  height: 420px;
+  perspective: 1100px;
+  pointer-events: none;
+  animation: fade .9s .2s var(--ease) both;
+}
+.stack {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  opacity: .55;
-  pointer-events: none;
+  transform-style: preserve-3d;
+  transform: rotateX(calc(54deg + var(--ty, 0deg))) rotateZ(calc(-22deg + var(--tx, 0deg)));
+  transition: transform .5s var(--ease-out);
+  animation: settle 7s ease-in-out infinite;
 }
-.doodle path { stroke-dasharray: 1400; stroke-dashoffset: 1400; animation: draw 2.4s .3s var(--ease-out) forwards; }
-.doodle path:nth-child(2) { animation-delay: .9s; }
-.doodle path:nth-child(3) { animation-delay: 1.4s; }
-.block.cream .doodle { stroke: var(--accent); opacity: .5; }
-.block.ink .doodle { stroke: var(--coral); opacity: .55; }
 
-/* The folder. A tab on top of a card, which is what a brief arrives in. */
-.folder {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  animation: rise .8s .25s var(--ease-out) both;
+.page {
+  position: absolute;
+  left: 60px;
+  top: 40px;
+  width: 250px;
+  height: 330px;
+  background: var(--paper);
+  border-radius: 3px;
+  box-shadow: 0 1px 0 var(--paper-edge), 0 2px 0 rgba(20, 22, 38, .08), 0 14px 22px -10px rgba(20, 22, 38, .45);
+  transform-origin: 50% 0;
+  transform-style: preserve-3d;
+  transition: transform .9s var(--ease-out), box-shadow .9s var(--ease-out), opacity .9s var(--ease-out);
 }
+/* The text on a page: a paragraph-number column and lines of a paragraph, as one gradient. */
+.page::before {
+  content: "";
+  position: absolute;
+  inset: 28px 22px 26px 40px;
+  background:
+    repeating-linear-gradient(to bottom, var(--paper-line) 0 2px, transparent 2px 13px);
+  opacity: .55;
+  mask: linear-gradient(to right, #000 0 88%, transparent 100%);
+}
+.page::after {
+  content: "";
+  position: absolute;
+  left: 22px;
+  top: 28px;
+  width: 8px;
+  height: 100%;
+  background: repeating-linear-gradient(to bottom, var(--paper-line) 0 2px, transparent 2px 52px);
+  opacity: .5;
+}
+/* The pinpoint on the top page: one paragraph, marked. */
+.page.p1 { background: linear-gradient(var(--paper), var(--paper)); }
+.page.p1::before {
+  background:
+    linear-gradient(to bottom, transparent 0 78px, var(--accent-soft) 78px 118px, transparent 118px),
+    repeating-linear-gradient(to bottom, var(--paper-line) 0 2px, transparent 2px 13px);
+  opacity: .8;
+}
+
+.page.p6 { transform: translateZ(0)    rotateZ(4.5deg)  translate(14px, 12px); filter: brightness(.90); }
+.page.p5 { transform: translateZ(5px)  rotateZ(-3.2deg) translate(-12px, 8px);  filter: brightness(.93); }
+.page.p4 { transform: translateZ(10px) rotateZ(2.2deg)  translate(8px, 2px);    filter: brightness(.96); }
+.page.p3 { transform: translateZ(15px) rotateZ(-1.6deg) translate(-6px, -3px);  filter: brightness(.98); }
+.page.p2 { transform: translateZ(20px) rotateZ(.9deg)   translate(3px, -5px); }
+.page.p1 { transform: translateZ(25px); }
+
+/* A binder clip along the top edge. Cobalt, so it belongs to the brand and not to the paper. */
+.clip {
+  position: absolute;
+  left: 150px;
+  top: 32px;
+  width: 70px;
+  height: 24px;
+  border-radius: 6px 6px 3px 3px;
+  background: linear-gradient(180deg, var(--accent-press), var(--accent-deep));
+  transform: translateZ(31px);
+  box-shadow: 0 6px 10px -6px rgba(0, 0, 0, .5), inset 0 -3px 0 rgba(0, 0, 0, .18);
+}
+
+/* Read pages are set aside, not turned away. A page turned over its top edge is face-down and gone;
+ * a page slid off to the empty side of the block and faded is a page somebody has finished with, and
+ * a completed check leaves a reviewed bundle behind rather than a bare last sheet. Each share of the
+ * citations found sets the next page aside; the earlier ones travel a little further, so they fan. */
+.bundle[data-flipped="1"] .p1,
+.bundle[data-flipped="2"] .p1, .bundle[data-flipped="2"] .p2,
+.bundle[data-flipped="3"] .p1, .bundle[data-flipped="3"] .p2, .bundle[data-flipped="3"] .p3,
+.bundle[data-flipped="4"] .p1, .bundle[data-flipped="4"] .p2, .bundle[data-flipped="4"] .p3, .bundle[data-flipped="4"] .p4,
+.bundle[data-flipped="5"] .p1, .bundle[data-flipped="5"] .p2, .bundle[data-flipped="5"] .p3, .bundle[data-flipped="5"] .p4, .bundle[data-flipped="5"] .p5 {
+  opacity: .62;
+  box-shadow: 0 1px 0 var(--paper-edge), 0 10px 18px -10px rgba(20, 22, 38, .4);
+}
+.bundle[data-flipped]:not([data-flipped="0"]) .p1 { transform: translateZ(30px) translate(-190px, -44px) rotateZ(-14deg); }
+.bundle[data-flipped="2"] .p2, .bundle[data-flipped="3"] .p2, .bundle[data-flipped="4"] .p2, .bundle[data-flipped="5"] .p2 { transform: translateZ(28px) translate(-172px, -30px) rotateZ(-10deg); transition-delay: .1s; }
+.bundle[data-flipped="3"] .p3, .bundle[data-flipped="4"] .p3, .bundle[data-flipped="5"] .p3 { transform: translateZ(26px) translate(-156px, -18px) rotateZ(-7deg); transition-delay: .1s; }
+.bundle[data-flipped="4"] .p4, .bundle[data-flipped="5"] .p4 { transform: translateZ(24px) translate(-142px, -8px) rotateZ(-4deg); transition-delay: .1s; }
+.bundle[data-flipped="5"] .p5 { transform: translateZ(22px) translate(-130px, 0) rotateZ(-2deg); transition-delay: .1s; }
+
+.block.cream .bundle, .block.ink .bundle { display: none; }
+
+/* ---------- the folder ---------- */
+
+.folder { position: relative; display: flex; flex-direction: column; animation: rise .7s .12s var(--ease-out) both; }
 .folder-tab {
   align-self: flex-start;
   background: var(--surface);
@@ -354,13 +415,7 @@ main { max-width: 1400px; margin: 0 auto; padding: 14px 40px 96px; }
   position: relative;
   top: 1px;
 }
-.folder-tab label {
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
+.folder-tab label { font-size: 11.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
 .folder-body {
   flex: 1;
   background: var(--surface);
@@ -405,7 +460,7 @@ button {
   border-radius: 999px;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: transform .2s var(--ease), background .2s var(--ease), box-shadow .2s var(--ease), color .2s var(--ease);
+  transition: transform .2s var(--ease), background .2s var(--ease), box-shadow .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease);
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
@@ -426,12 +481,7 @@ button.primary:active { transform: translateY(0); }
 button.primary .arrow { display: inline-block; margin-left: 2px; transition: transform .25s var(--ease-out); }
 button.primary:hover .arrow { transform: translateX(4px); }
 
-button.quiet {
-  padding: 11px 18px;
-  background: transparent;
-  color: var(--ink);
-  border-color: var(--edge);
-}
+button.quiet { padding: 11px 18px; background: transparent; color: var(--ink); border-color: var(--edge); }
 button.quiet:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 button.quiet:active { transform: translateY(1px); }
 
@@ -447,22 +497,16 @@ label.check input { accent-color: var(--accent); width: 15px; height: 15px; }
 .work {
   display: grid;
   grid-template-columns: minmax(0, 520px) minmax(0, 1fr);
-  gap: 24px;
+  gap: 40px;
   align-items: start;
-  margin-top: 40px;
+  margin-top: 48px;
 }
 .work.single { grid-template-columns: minmax(0, 1fr); }
-@media (max-width: 1000px) { .work { grid-template-columns: minmax(0, 1fr); } }
-@media (min-width: 1001px) { .index { position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow: auto; } }
+@media (max-width: 1000px) { .work { grid-template-columns: minmax(0, 1fr); gap: 28px; } }
+@media (min-width: 1001px) { .index { position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow: auto; padding-right: 6px; } }
 
-.card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-block);
-  padding: 28px 30px;
-  box-shadow: var(--shadow);
-}
-
+/* The index is not a card. It is a list on the page, ruled, the way the reference sets an index. */
+.index { padding: 4px 0 0; }
 .index-head h2 {
   margin: 0;
   font-size: 11.5px;
@@ -472,8 +516,7 @@ label.check input { accent-color: var(--accent); width: 15px; height: 15px; }
   color: var(--accent);
 }
 
-/* The count, as the reference sets its section numbers: a giant serif numeral in the brand red. */
-.tally { display: flex; align-items: flex-end; gap: 22px; padding: 6px 0 18px; border-bottom: 1px solid var(--ink); margin-bottom: 6px; }
+.tally { display: flex; align-items: flex-end; gap: 22px; padding: 8px 0 16px; border-bottom: 1.5px solid var(--ink); margin-bottom: 4px; }
 .numeral {
   font-family: var(--display);
   font-size: 88px;
@@ -484,7 +527,7 @@ label.check input { accent-color: var(--accent); width: 15px; height: 15px; }
   font-variant-numeric: tabular-nums;
   min-width: 1ch;
 }
-.summary { display: flex; flex-direction: column; gap: 6px; padding-bottom: 6px; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.summary { display: flex; flex-direction: column; gap: 5px; padding-bottom: 8px; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .summary span { display: inline-flex; align-items: center; gap: 8px; }
 .summary span::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
 .summary .n-total { display: none; }
@@ -492,6 +535,15 @@ label.check input { accent-color: var(--accent); width: 15px; height: 15px; }
 .summary .n-good { color: var(--good); }
 .summary .n-part { color: var(--unchecked); }
 .summary .n-part::before { background: none; border: 1.5px dashed currentColor; width: 6px; height: 6px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-block);
+  padding: 26px 30px 30px;
+  box-shadow: var(--shadow);
+}
+.document { min-height: 300px; }
 
 .board-list { list-style: none; margin: 0; padding: 0; }
 
@@ -512,7 +564,7 @@ button.pick {
   padding: 15px 8px 15px 10px;
   position: relative;
   transition: background .2s var(--ease), padding-left .25s var(--ease);
-  animation: rise .6s var(--ease-out) both;
+  animation: rise .5s var(--ease-out) both;
 }
 button.pick::before {
   content: "";
@@ -532,19 +584,20 @@ button.pick.on::before { transform: scaleY(1); }
 button.pick:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 10px; }
 .board-list li:last-child button.pick { border-bottom: 0; }
 .board-list li:nth-child(1) button { animation-delay: 0ms; }
-.board-list li:nth-child(2) button { animation-delay: 50ms; }
-.board-list li:nth-child(3) button { animation-delay: 100ms; }
-.board-list li:nth-child(4) button { animation-delay: 150ms; }
-.board-list li:nth-child(5) button { animation-delay: 200ms; }
-.board-list li:nth-child(6) button { animation-delay: 250ms; }
-.board-list li:nth-child(7) button { animation-delay: 300ms; }
-.board-list li:nth-child(n+8) button { animation-delay: 350ms; }
+.board-list li:nth-child(2) button { animation-delay: 60ms; }
+.board-list li:nth-child(3) button { animation-delay: 120ms; }
+.board-list li:nth-child(4) button { animation-delay: 180ms; }
+.board-list li:nth-child(5) button { animation-delay: 240ms; }
+.board-list li:nth-child(6) button { animation-delay: 300ms; }
+.board-list li:nth-child(7) button { animation-delay: 360ms; }
+.board-list li:nth-child(n+8) button { animation-delay: 420ms; }
 
 .pick-cite { min-width: 0; overflow-wrap: anywhere; }
 .pick-cite b { display: block; font-weight: 600; letter-spacing: -.008em; font-variant-numeric: tabular-nums; }
 .pick-findings { min-width: 0; padding-top: 2px; }
 
-/* The grade mark: a step on the staircase, drawn as a serif letter in a soft square. */
+/* The grade lands like a stamp: from a little above the page, with a shadow that blooms and goes.
+ * The row's own rise is delayed by nth-child; the stamp inherits that delay and adds its own. */
 .g {
   display: inline-grid;
   place-items: center;
@@ -557,6 +610,7 @@ button.pick:focus-visible { outline: 2px solid var(--accent); outline-offset: -2
   border: 1px solid transparent;
   flex: none;
 }
+button.pick .g { animation: stamp .55s var(--ease-out) both; animation-delay: inherit; }
 .g.A, .g.B { color: var(--good); background: var(--good-bg); border-color: color-mix(in srgb, var(--good) 30%, transparent); }
 .g.C       { color: var(--warn); background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
 .g.D, .g.E, .g.F { color: var(--bad); background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
@@ -583,13 +637,67 @@ button.pick:focus-visible { outline: 2px solid var(--accent); outline-offset: -2
 .instead-inline { color: var(--muted); font-size: 12.5px; }
 .nums { font-variant-numeric: tabular-nums; }
 
-/* ---------- the document ---------- */
+/* ---------- the document, and the stair ---------- */
 
-.document { min-height: 280px; }
+.doc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.doc-head .tabs.plain { flex: 1; }
 
 .tabs.plain { justify-content: flex-start; gap: 26px; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
 .tabs.plain button { font-size: 13px; padding: 0 0 12px; }
 .tabs.plain button::after { bottom: -1px; }
+
+/* Six isometric steps in oblique projection: a front face, a top face skewed away, a side face skewed
+ * down. Each step is one unit taller than the last, F at the foot and A at the top. The marker is the
+ * citation, standing on the step it earned. */
+.stair {
+  --u: 22px;
+  position: relative;
+  width: calc(var(--u) * 6 + 30px);
+  height: 96px;
+  flex: none;
+  margin-top: -6px;
+  opacity: .95;
+  transition: opacity .3s var(--ease);
+}
+.step { position: absolute; bottom: 12px; width: var(--u); }
+.step .front { position: absolute; left: 0; bottom: 0; width: var(--u); background: var(--accent); border-radius: 0 0 2px 2px; }
+.step .top   { position: absolute; left: 0; width: var(--u); height: 12px; background: var(--paper); transform: skewX(-45deg); transform-origin: 0 100%; box-shadow: inset 0 0 0 1px rgba(20, 22, 38, .06); }
+.step .side  { position: absolute; left: var(--u); bottom: 0; width: 12px; background: var(--accent-deep); transform: skewY(-45deg); transform-origin: 0 100%; }
+.step.s1 { left: 0;                    } .step.s1 .front, .step.s1 .side { height: 14px; } .step.s1 .top { bottom: 14px; }
+.step.s2 { left: calc(var(--u) * 1); } .step.s2 .front, .step.s2 .side { height: 24px; } .step.s2 .top { bottom: 24px; }
+.step.s3 { left: calc(var(--u) * 2); } .step.s3 .front, .step.s3 .side { height: 34px; } .step.s3 .top { bottom: 34px; }
+.step.s4 { left: calc(var(--u) * 3); } .step.s4 .front, .step.s4 .side { height: 44px; } .step.s4 .top { bottom: 44px; }
+.step.s5 { left: calc(var(--u) * 4); } .step.s5 .front, .step.s5 .side { height: 54px; } .step.s5 .top { bottom: 54px; }
+.step.s6 { left: calc(var(--u) * 5); } .step.s6 .front, .step.s6 .side { height: 64px; } .step.s6 .top { bottom: 64px; }
+
+.marker {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  bottom: 12px;
+  left: -18px;                       /* off the stair: not checked */
+  background: var(--coral);
+  border: 2px solid var(--surface);
+  box-shadow: 0 4px 10px -3px rgba(213, 17, 53, .6);
+  transform: translate(0, 0);
+  transition: transform .6s var(--ease-out), opacity .3s var(--ease), background .3s var(--ease);
+  opacity: 0;
+}
+.stair[data-grade] .marker { opacity: 1; }
+.stair[data-grade=""]:not([data-partial="1"]) .marker { opacity: 0; }
+/* Each grade places the marker on its step's top face: x to the step, y to its height. */
+.stair[data-grade="F"] .marker { transform: translate(calc(var(--u) * 0 + 22px), -13px); }
+.stair[data-grade="E"] .marker { transform: translate(calc(var(--u) * 1 + 22px), -23px); }
+.stair[data-grade="D"] .marker { transform: translate(calc(var(--u) * 2 + 22px), -33px); }
+.stair[data-grade="C"] .marker { transform: translate(calc(var(--u) * 3 + 22px), -43px); }
+.stair[data-grade="B"] .marker { transform: translate(calc(var(--u) * 4 + 22px), -53px); }
+.stair[data-grade="A"] .marker { transform: translate(calc(var(--u) * 5 + 22px), -63px); }
+.stair[data-grade="A"] .marker, .stair[data-grade="B"] .marker { background: var(--good); box-shadow: 0 4px 10px -3px rgba(31, 122, 76, .6); }
+.stair[data-grade="C"] .marker { background: var(--warn); box-shadow: 0 4px 10px -3px rgba(151, 94, 10, .6); }
+/* Not checked: the marker stays where it started, off the stair, hollow. */
+.stair[data-partial="1"] .marker { transform: translate(0, 0); background: transparent; border: 2px dashed var(--unchecked); box-shadow: none; }
+.stair[data-partial="1"] .step .top { opacity: .6; }
 
 #detail > *, #judgment > *, #memo > *, #doc > *, #attack > *, #results > *, #parsed > * { animation: rise .45s var(--ease-out) both; }
 
@@ -602,7 +710,6 @@ button.pick:focus-visible { outline: 2px solid var(--accent); outline-offset: -2
   padding: 4px 0 4px 18px;
   margin: 16px 0;
 }
-
 blockquote {
   font-family: var(--serif);
   margin: 16px 0;
@@ -613,7 +720,6 @@ blockquote {
   font-size: 15.5px;
   line-height: 1.62;
 }
-
 .finding {
   border: 1px solid var(--line);
   border-left: 3px solid var(--bad);
@@ -624,7 +730,6 @@ blockquote {
 }
 .finding b { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 3px; color: var(--bad); }
 .finding span { font-size: 13.25px; color: var(--ink-2); }
-
 pre {
   font-family: var(--mono);
   font-size: 12.25px;
@@ -639,7 +744,6 @@ pre {
   max-height: 620px;
   overflow: auto;
 }
-
 #para { max-height: 62vh; overflow: auto; margin-top: 12px; padding-right: 8px; }
 .p {
   font-family: var(--serif);
@@ -682,7 +786,6 @@ mark { background: var(--accent-soft); color: inherit; padding: 1px 3px; border-
 }
 .st.bound { color: var(--good); background: var(--good-bg); border-color: color-mix(in srgb, var(--good) 30%, transparent); }
 .st.refused { color: var(--bad); background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
-
 li.bind {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -695,21 +798,18 @@ li.bind {
 }
 li.bind:last-child { border-bottom: 0; }
 .bind-text { min-width: 0; overflow-wrap: anywhere; }
-
 #results .p { border-left: 0; padding: 18px 6px; border-bottom: 1px solid var(--line); font-family: var(--sans); font-size: 13.5px; line-height: 1.5; }
 #results .p:last-child { border-bottom: 0; }
 #results .p > b { font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--ink); margin: 0; }
 #results blockquote { margin: 10px 0 4px; }
-
 .attack { margin: 12px 0; padding: 12px 0 12px 16px; border-left: 3px solid var(--warn); }
 .attack b { display: block; font-size: 13.5px; font-weight: 600; margin-bottom: 3px; }
 .attack span { color: var(--muted); font-size: 12.75px; }
-
 a { color: var(--accent); text-underline-offset: 3px; }
 
-/* ---------- footer: the stepped mass ---------- */
+/* ---------- footer ---------- */
 
-footer { margin-top: 40px; color: #f3ece5; }
+footer { margin-top: 48px; color: #f3ece5; }
 .steps { display: block; width: 100%; height: 64px; fill: #2b34d6; }
 .foot {
   background: #2b34d6;
@@ -730,21 +830,19 @@ footer { margin-top: 40px; color: #f3ece5; }
 
 /* ---------- motion ---------- */
 
-@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-@keyframes word { from { opacity: 0; transform: translateY(.35em); } to { opacity: 1; transform: none; } }
-@keyframes draw { to { stroke-dashoffset: 0; } }
-@keyframes sweep { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-
-.skeleton { list-style: none; margin: 0; padding: 0; }
-.skeleton li {
-  height: 13px;
-  margin: 22px 8px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--line) 0%, var(--surface-2) 50%, var(--line) 100%);
-  background-size: 200% 100%;
-  animation: sweep 1.5s ease-in-out infinite;
+@keyframes fade   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise   { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes settle { 0%, 100% { translate: 0 0; } 50% { translate: 0 -6px; } }
+@keyframes stamp  {
+  0%   { opacity: 0; transform: translateY(-14px) scale(1.35) rotate(-6deg); box-shadow: 0 18px 24px -8px rgba(20, 22, 38, .35); }
+  60%  { opacity: 1; transform: translateY(0) scale(.96) rotate(0); box-shadow: 0 2px 4px -2px rgba(20, 22, 38, .3); }
+  100% { opacity: 1; transform: none; box-shadow: none; }
 }
+
+/* Loading: a quiet line of text, not a shimmer. On the check surface the bundle's pages are turning,
+ * which says the same thing better. */
+.skeleton { list-style: none; margin: 0; padding: 0; }
+.skeleton li { height: 1px; margin: 26px 8px; background: var(--line); }
 .skeleton li:nth-child(2n) { width: 74%; }
 .skeleton li:nth-child(3n) { width: 58%; }
 
@@ -756,8 +854,7 @@ footer { margin-top: 40px; color: #f3ece5; }
     transition-duration: .001ms !important;
     scroll-behavior: auto !important;
   }
-  .scribble, .doodle path { stroke-dashoffset: 0; }
-  .skeleton li { background: var(--line); }
+  .stack { animation: none; transform: rotateX(54deg) rotateZ(-22deg); }
 }
 
 /* ---------- keyboard, print, small screens ---------- */
@@ -782,7 +879,7 @@ h1, h2 { text-wrap: balance; }
 @media print {
   html, body { background: #fff !important; }
   :root { --surface: #fff; --ink: #000; }
-  .nav, .hero, .skip, footer, .controls { display: none !important; }
+  .nav, .hero, .skip, footer, .controls, .stair { display: none !important; }
   .work { display: block; margin: 0; }
   .index { position: static; max-height: none; }
   .card { box-shadow: none; border: 0; padding: 0; }
@@ -797,11 +894,14 @@ h1, h2 { text-wrap: balance; }
   .tabs button { font-size: 12.5px; white-space: nowrap; }
   #status { display: none; }
   main { padding-left: 14px; padding-right: 14px; }
-  .block { padding: 34px 26px 32px; border-radius: 22px; }
+  .block { padding: 34px 26px 32px; border-radius: 22px; min-height: 420px; }
   .display { font-size: 38px; }
+  .bundle { right: -80px; bottom: -110px; width: 300px; height: 330px; }
   .folder-tab { margin-left: 16px; }
   .folder-body, .card { padding: 18px 16px; border-radius: 20px; }
   .numeral { font-size: 64px; }
+  .doc-head { flex-direction: column-reverse; align-items: flex-start; gap: 6px; }
+  .doc-head .tabs.plain { width: 100%; }
   button.pick { grid-template-columns: 30px minmax(0, 1fr); }
   .pick-findings { grid-column: 2; }
 }

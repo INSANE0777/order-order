@@ -8,37 +8,35 @@ guessing from the code.
 `src/orderorder/web/static/app.css`; if the two disagree, the stylesheet is the fact and this file is
 the bug. Every colour pair is asserted in `tests/test_hardening.py`, both themes.
 
-> **Fourth design, and the first built to a brand rather than to a mood.** The first was warm paper,
-> oxblood and a serif — the palette the taste skill bans by hex. The second was cool greys and cobalt —
-> competent and indistinguishable from every tool that year. The third copied a CGI studio site's
-> props (stone, a glossy porthole) in CSS, which reads cheaper than doing nothing. The reference that
-> fixed it is a law firm's identity by Redis Agency, *L'escalier*: flat cobalt, coral and cream colour
-> blocks, a high-contrast display serif over a clean grotesque, single-weight hand-drawn lines, giant
-> serif numerals, rounded cards on colour, and a staircase as the shape device. It fits because every
+> **Built to a brand, then stripped of everything that decorated it.** The reference is a law firm's
+> identity by Redis Agency, *L'escalier*: flat cobalt, coral and cream colour blocks, a high-contrast
+> display serif over a clean grotesque, hand-drawn lines that are drawings of *things*, giant serif
+> numerals, rounded cards on colour, and a staircase as the shape device. It fits because every
 > competitor in legal software is navy and gold and cold, and because **a grade from A to F is a
-> staircase**. What was wrong before is kept here on purpose.
+> staircase**. The first pass at it still read as machine-made, and the reasons were specific: floating
+> curves that meant nothing, an eyebrow-headline-lede stack, words rising one at a time, two identical
+> cards, a shimmering skeleton. Each is gone. What replaced them is three-dimensional and each piece is
+> the subject.
 
 ---
 
 ## 1. Visual Theme & Atmosphere
 
 **Warm, confident, human — and it still means business.** Large flat colour blocks with generous
-radius; a display serif that speaks; a grotesque that works; hand-drawn lines that make it feel made by
-a person. Editorial rather than SaaS. It should feel like a firm you would trust with a matter, not a
-dashboard you would trust with a metric.
+radius; a display serif that speaks; a grotesque that works; one hand-drawn line on the whole page,
+under the tab you are on. Editorial rather than SaaS. It should feel like a firm you would trust with a
+matter, not a dashboard you would trust with a metric.
 
-Each device is the product, not decoration:
+Nothing on the page is decoration. The three things that move in three dimensions are the product:
 
-| device | what it is here |
-|---|---|
-| **the colour block** | the surface's voice: cobalt for checking, cream for finding, ink for drafting |
-| **the folder** | a card with a tab, because a brief arrives in one |
-| **the scribble** | the underline a person draws under the thing that matters |
-| **the numeral** | the count, set the way the reference sets section numbers — huge, serif, red |
-| **the staircase** | the mark, and the stepped mass the footer rises from; A to F |
+| object | what it is | what it does |
+|---|---|---|
+| **the bundle** | a stack of pleadings on the hero, in CSS 3D | leans toward the pointer; as the check runs, read pages are set aside |
+| **the stamp** | a grade landing on its row | arrives from above with a shadow that blooms and settles |
+| **the stair** | six isometric steps, F to A, in the verdict panel | the marker stands on the step the citation earned — or off the stair if it was not checked |
 
 **Density:** hero airy, work dense. **Mood words:** warm, exact, editorial, assured.
-**Never:** navy-and-gold, glassy, stone, gradients, cold SaaS grey.
+**Never:** navy-and-gold, glassy, stone, gradients, cold SaaS grey, decorative squiggles, eyebrows.
 
 **Dials** (taste-skill convention): `DESIGN_VARIANCE 8 · MOTION_INTENSITY 6 · VISUAL_DENSITY 4`.
 
@@ -50,25 +48,27 @@ Three rules, in priority order.
 
 1. **Colour means a finding.** Green, amber and red are reserved for verdicts. The brand's own red is
    therefore *the verdict red*: a flagged citation is the red thing on the page, and the only
-   decorative red is the count of them.
+   decorative red is the count of them and the marker on the stair.
 2. **Cobalt is the brand.** The mark, the primary button, links, focus, the selected row, the tab
-   scribble, the footer. Coral and cream are the other two blocks; nothing else is introduced.
+   underline, the binder clip, the stair, the footer. Coral and cream are the other two blocks.
 3. **Three states, three treatments.** *Not checked* is a dashed neutral — never a paler red, never
-   folded into a total.
+   folded into a total, and on the stair it stands *off* the steps.
 
 ### The blocks
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
 | `--bg` | `#f3ece5` | `#0f1236` | Cream page / navy page |
-| `--surface` | `#ffffff` | `#171b48` | Cards, the folder, the status pill |
+| `--surface` | `#ffffff` | `#171b48` | The folder, the document card, the status pill |
 | `--surface-2` | `#e9ebfb` | `#1e2358` | Cobalt tint: inset fields, hover |
 | `--accent` | `#2b34d6` | `#8f97ff` | Cobalt. The brand. |
 | `--accent-press` | `#1f27b3` | `#aab0ff` | Hover and press |
+| `--accent-deep` | `#1a2199` | `#1a2199` | The shaded face of anything cobalt in three dimensions |
 | `--accent-ink` | `#ffffff` | `#0f1236` | Text **on** cobalt — 8.19 |
-| `--accent-soft` | `rgba(43,52,214,.10)` | `rgba(143,151,255,.14)` | Selected row, read paragraph, hover |
-| `--coral` | `#ef3b5c` | `#ff7d93` | The numeral and large type only — 3.85 on white |
+| `--accent-soft` | `rgba(43,52,214,.10)` | `rgba(143,151,255,.14)` | Selected row, read paragraph, the pinpoint on the top page |
+| `--coral` | `#ef3b5c` | `#ff7d93` | The numeral, the marker — large or non-text only; 3.85 on white |
 | `--coral-deep` | `#d51135` | `#ff7d93` | The same red where it must be read — 4.53 |
+| `--paper` / `--paper-edge` | `#fbf8f3` / `#e6dfd5` | `#f3ece5` / `#d9d1c6` | A page in the bundle, and its edge |
 
 The cobalt hero block stays `#2b34d6` with cream text in **both** themes: it is a brand colour, not a
 surface, and it does not invert.
@@ -93,8 +93,6 @@ surface, and it does not invert.
 | `--bad` | `#d51135` | `#ff7d93` | Grades D–F; a finding chip |
 | `--unchecked` | `#5f627a` | `#a9a5bb` | **Not checked.** Always dashed |
 
-Each has a `-bg` at ~12% alpha of itself, so the tints sit on cream and on white alike.
-
 ---
 
 ## 3. Typography
@@ -106,31 +104,30 @@ Each has a `-bg` at ~12% alpha of itself, so the tints sit on cream and on white
 | `--mono` | **Geist Mono** 400–600, self-hosted | Verbatim input and output |
 | `--serif` | Iowan Old Style / Palatino / Georgia | **The court's words**: judgment paragraphs, the claim, a verified quote |
 
-**Two serifs, two jobs, never swapped.** Playfair is the *brand voice*: high-contrast, editorial,
-present only in headlines and the numeral. The Palatino stack is the *reading voice*: it marks text
-somebody else wrote. A judgment paragraph in Playfair, or a headline in Palatino, is wrong.
+**Two serifs, two jobs, never swapped.** Playfair is the *brand voice*, in headlines and the numeral.
+The Palatino stack is the *reading voice*; it marks text somebody else wrote.
 
-**Self-hosted, not a CDN.** The policy is `font-src 'self'`. Six latin `woff2` subsets, 158 KB total,
-both fonts under the SIL Open Font License (`fonts/OFL.txt`, `fonts/OFL-Playfair.txt`), served by an
-allowlisted route rather than a directory mount. Playfair is on the taste skill's approved serif list;
-the brief names a serif, so the serif is earned.
+**Self-hosted, not a CDN.** `font-src 'self'`. Six latin `woff2` subsets, 158 KB, both under the SIL
+Open Font License (`fonts/OFL.txt`, `fonts/OFL-Playfair.txt`), served by an allowlisted route.
 
 ### Scale
 
 | Role | Size / weight | Family |
 |---|---|---|
-| Headline | `clamp(40px, 4.6vw, 66px)` / 500, `-.02em`, 1.02 | display; one italic word per headline, same family |
+| Headline | `clamp(40px, 4.4vw, 62px)` / 500, `-.02em`, 1.04, `max-width: 13ch` | display; one italic word, same family |
 | Wordmark | 20px / 600 | display |
 | Numeral | 88px / 500, `-.03em` | display, `--coral` |
 | Footer lead | 22px | display |
-| Eyebrow | 11.5px / 600, uppercase `.12em` | sans |
 | Navigation | 13.5px / 500, active 600 | sans |
-| Lede | 15.5px / 1.6, `max-width: 46ch` | sans |
+| Lede | 15px / 1.6, `max-width: 44ch` | sans |
 | Body | 15px / 1.55 | sans |
+| Index heading | 11.5px / 600, uppercase `.12em`, cobalt | sans |
 | Index row | 13.5px, citation 600 tabular | sans |
 | Grade mark | 15px / 600 in a 30px square | display |
 | Judgment paragraph | 15.5px / 1.7 | serif |
 | Fields, `pre` | 12.75px / 12.25px | mono |
+
+Headlines are three or four words. *Every citation, verified.* The lede does the explaining.
 
 ---
 
@@ -140,21 +137,32 @@ the brief names a serif, so the serif is earned.
 |---|---|
 | Navigation | 72px, three-column grid: brand · centred tabs at 34px gap · status |
 | Page | `max-width: 1400px`, padding `14px 40px 96px` |
-| Hero | `grid`, `1.05fr / .95fr`, gap 24px, `min-height: 560px`; block left, folder right |
-| Block | radius 28px, padding `56px 56px 52px`, content vertically centred |
+| Hero | `grid`, `1.05fr / .95fr`, gap 24px, `min-height: 580px`; block left, folder right |
+| Block | radius 28px, padding `56px 56px 52px`, `overflow: hidden`; the bundle sits in its bottom-right, cropped by the edge |
 | Folder | tab `12px 24px 10px` offset 22px; body radius 22px, padding `22px 24px 20px` |
-| Work | `grid`, `minmax(0,520px) / minmax(0,1fr)`, gap 24px, `margin-top: 40px`; index sticky at 20px |
-| Card | radius 28px, padding `28px 30px` |
+| Work | `grid`, `minmax(0,520px) / minmax(0,1fr)`, gap 40px, `margin-top: 48px`; the index is sticky at 20px |
+| Index | **not a card** — a ruled list on the page, heading in cobalt, a 1.5px ink rule under the tally |
+| Document | the one card: radius 28px, padding `26px 30px 30px`, with the stair top-right of its head |
 | Footer | stepped SVG edge 64px, then cobalt at `36px 40px 56px`, three columns |
 
 ---
 
 ## 5. Elevation & Depth
 
-One shadow, tinted to the ink, on cards and the folder: `0 1px 2px .05, 0 24px 48px -32px .28`. The
-primary button casts a cobalt shadow (`0 10px 24px -14px var(--accent)`) that deepens on hover, because
-the one thing you press should look like it can be pressed. Nothing else has a shadow. Depth is
-otherwise flat colour against flat colour, which is the reference's whole manner.
+Two kinds. **Flat depth**, the reference's manner: colour against colour, one tinted shadow on the
+folder and the document card, a cobalt shadow under the primary button. And **real depth**, in three
+places only, built in CSS 3D:
+
+- **The bundle** sits in a 1100px perspective, the stack rotated `54deg` on X and `-22deg` on Z. Six
+  pages, each 5px above the last and offset in the plane by a few pixels and degrees so their edges
+  peek out; lower pages a shade darker. A cobalt binder clip grips the top edge. The pointer adds up to
+  `±5deg` / `±4deg` through two custom properties. The whole stack breathes 6px over 7s.
+- **The stamp** is a keyframe on the grade mark: from 14px above, 135%, `-6deg`, with a cast shadow,
+  to rest — 550ms, inheriting the row's stagger.
+- **The stair** is oblique projection, not perspective: for each step a front face, a top face
+  `skewX(-45deg)`, a side face `skewY(-45deg)`, on a 22px unit rising 10px a step.
+
+Nothing else casts a shadow or leaves the plane.
 
 ---
 
@@ -163,68 +171,68 @@ otherwise flat colour against flat colour, which is the reference's whole manner
 **SHAPE LOCK — soft.** Blocks and cards `28px`, the folder `22px`, fields `12px`, the grade mark `9px`,
 controls and chips full pill. **Nothing is sharp except the staircase**, which is the point of it.
 
-The staircase appears exactly three times: the mark (a three-step path in a cobalt square), the footer
-edge (a stepped cobalt mass rising from the bottom), and — implicitly — the grade letters, which are
-its steps. Do not add a fourth without a reason as good as those.
+The staircase appears three times: the mark, the stair in the verdict panel, the footer edge. Do not
+add a fourth without a reason as good as those.
 
 ---
 
 ## 7. Components
 
 ### The colour block
-The hero's left half and the surface's voice. **Cobalt** with cream text for *Check*; **cream** with
-ink and a coral scribble for *Find*; **ink** with cream and a coral scribble for *Draft*. Contains an
-eyebrow, the headline, the scribble, the lede, and a `doodle` SVG of two or three loose curves at 1.6px
-that draw on over 2.4s and stay. The block rises in over .8s.
+The hero's left half and the surface's voice: **cobalt** for *Check*, **cream** for *Find*, **ink** for
+*Draft*. Headline, lede, and — on the cobalt block only — the bundle. No eyebrow. The block rises in
+once; nothing in it staggers.
 
-### The headline
-Playfair, balanced, `max-width: 14ch`, one italic word set in the same family. Words are wrapped in
-`.w` spans and rise in sequence, 70ms apart. The scribble beneath is an SVG path drawn by
-`stroke-dashoffset` over 1.1s, starting once the words have landed.
+### The bundle
+`#bundle[data-flipped]`, `0`–`5`. As citations are found, each fifth **sets the next page aside**: it
+slides to the block's empty bottom-left, tilts, and fades to 62%, the earlier pages travelling further
+so they fan. A finished check leaves a reviewed bundle — five pages set aside, one still on the stack —
+rather than a bare sheet. Pages are never turned over: a turned page is face-down and gone.
+
+The tilt is the one place JavaScript writes a style: `--tx` and `--ty` through `style.setProperty`,
+which the Content-Security-Policy permits (it governs `style=` attributes and stylesheets, not CSSOM
+property writes) and which `test_nothing_generated_carries_an_inline_style_either` distinguishes from an
+attribute. Off for coarse pointers and under `prefers-reduced-motion`.
 
 ### The folder
-A tab (`label`, uppercase, cobalt) sitting on a card. The field inside is mono on cream with an `--edge`
-border; focus turns the border cobalt and adds a 4px soft ring. Controls sit in two rows: actions,
-then the model toggle and progress.
+A tab (`label`, uppercase, cobalt) on a card. Mono field on cream with an `--edge` border; focus turns
+it cobalt with a 4px soft ring. Two rows of controls: actions, then the model toggle and progress.
 
 ### Buttons
-**Primary:** cobalt pill, white text, 12×22px, cobalt shadow; the arrow nudges 4px right on hover and
-the button lifts 1px. Working state writes `Checking…` into the label and takes `cursor: progress`.
-**Quiet:** transparent pill with an `--edge` border; hover fills with the cobalt tint and turns the text
-cobalt. Focus is a 2px cobalt outline at 3px offset on everything — **never remove it.**
+**Primary:** cobalt pill, white text, cobalt shadow; the arrow nudges 4px on hover; lifts 1px. Working
+state writes `Checking…` into the label. **Quiet:** transparent pill with an `--edge` border; hover
+fills with the cobalt tint. Focus is a 2px cobalt outline at 3px offset — **never remove it.**
 
 ### Navigation tabs
-Text at 13.5px. The active tab carries a **hand-drawn underline** — an SVG scribble in a data URI —
-that grows from the left over .38s. The active surface is written to `location.hash` and to
-`body[data-surface]`. Panel tabs (`.tabs.plain`) are the same device at 13px inside a card.
+Text at 13.5px. The active tab carries **the one hand-drawn line on the page** — an SVG scribble in a
+data URI — growing from the left over .38s. The surface is written to `location.hash` and to
+`body[data-surface]`.
 
 ### The tally
 A giant coral numeral beside three lines — `5 flagged · 0 clean · 1 not checked`, each with its dot,
-*not checked* with a dashed one — over a 1px ink rule. The numeral **rolls up** to its value over 600ms
-with an ease-out cubic; under `prefers-reduced-motion` it appears. The total is deliberately not
-repeated as a fourth line: the three states *are* the total.
+*not checked* with a dashed one — over a 1.5px ink rule. The numeral rolls up over 600ms. The total is
+not repeated as a fourth line.
 
 ### The index
-Rows are `<button>`s in a three-column grid: grade mark · citation and parties · finding chips. A
-hairline between rows; hover tints cobalt; selected indents 6px and grows a 3px cobalt bar from the
-left. Rows rise on arrival, staggered 50ms by `nth-child`. **Chips carry the finding's words, never its
+Rows are `<button>`s in a three-column grid: grade mark · citation and parties · chips. Hairlines
+between; hover tints cobalt; selected indents 6px and grows a 3px cobalt bar. Rows rise, staggered 60ms,
+and each **grade lands as a stamp** on its row's delay. **Chips carry the finding's words, never its
 number.**
 
-### The grade mark
-A Playfair letter in a 30px soft square: A/B green, C amber, D–F red, and **dashed neutral when checks
-could not run**.
+### The stair
+`#stair[data-grade][data-partial]` in the document card's head, beside the panel tabs. The marker is
+coral for D–F, amber for C, green for A–B, and it slides between steps over 600ms. When a citation was
+*not checked*, `data-partial="1"`: the marker stands to the left of the first step, hollow and dashed,
+and the step tops dim. Placement is by fixed rule per grade — six rules, no arithmetic in the script.
 
 ### The document
-A card. Serif for the court's text, sans for the apparatus. The read paragraph takes a 3px cobalt bar
-and the cobalt tint; the verified sentence is `<mark>`ed with the tint and a 2px cobalt underline.
-Every panel redraw rises in — a redraw makes new nodes, so the animation re-fires with no JS.
-
-### Footer
-The staircase edge, then a cobalt block: a Playfair lead, the three-state sentence, the attribution.
+Serif for the court's text, sans for the apparatus. The read paragraph takes a 3px cobalt bar and the
+tint; the verified sentence is `<mark>`ed with a 2px cobalt underline.
 
 ### Empty and loading
-Empty: one plain sentence in `--muted`; the numeral shows an en dash. Loading: a skeleton shaped like
-the rows about to arrive, and the button saying so.
+Empty: one plain sentence in `--muted`; the numeral shows an en dash; the stair has no marker. Loading:
+five quiet hairlines where rows will be — **no shimmer** — and, on the check surface, the bundle doing
+the talking.
 
 ---
 
@@ -232,21 +240,21 @@ the rows about to arrive, and the button saying so.
 
 ### Do
 - Set headlines in Playfair and the court's words in Palatino; never the reverse.
-- One italic word per headline, same family — that is the emphasis device.
-- Keep coral for the numeral and for findings. It is the verdict red.
-- Give *not checked* a dashed neutral and its own line in the tally.
-- Draw lines by hand: an SVG path at one weight, with `stroke-dashoffset` if it should arrive.
-- Keep the focus ring, and the 46ch measure on prose.
+- Keep headlines to three or four words. Explain in the lede.
+- Keep coral for the numeral, the marker and findings. It is the verdict red.
+- Give *not checked* a dashed neutral, its own line in the tally, and a place off the stair.
+- Keep the focus ring, and the 44ch measure on prose.
 
 ### Don't
 - **Never add inline `<script>`, `<style>`, `style=` or `on*=`.** The CSP is `script-src 'self'` with
-  no `unsafe-inline`, and `tests/test_hardening.py` fails the build if any appears. SVG presentation
-  attributes are fine; `style` is not.
-- Never load a font, script or stylesheet from another origin — Google Fonts included.
+  no `unsafe-inline`, and `tests/test_hardening.py` fails the build if any appears. The only style the
+  script writes is the two tilt properties, through the CSSOM.
+- **No decoration.** No floating curves, no eyebrows, no words rising one at a time, no shimmer. If a
+  thing on the page is not the product, remove it.
+- Never load a font, script or stylesheet from another origin.
 - Never introduce a fourth colour, or use cobalt for a verdict.
-- Never set body text in `--coral` — it is 3.29 on cream. Use `--coral-deep`.
-- Never round a corner under 9px or over 28px, except a pill.
-- No gradients, no glass, no shadows beyond the two named, no icon set, no emoji.
+- Never set body text in `--coral`. Use `--coral-deep`.
+- Never turn a page over. Set it aside.
 - Never interpolate server text into markup without `escape()`.
 
 ---
@@ -257,36 +265,33 @@ the rows about to arrive, and the button saying so.
 |---|---|
 | ≥ 1001px | Hero two-up; index beside document, sticky |
 | ≤ 1000px | Hero stacks block over folder; work stacks |
-| ≤ 720px | Nav becomes brand + scrolling tabs, status hidden; block padding 34/26, headline 38px, radius 22px; numeral 64px; finding chips stack under the citation |
+| ≤ 720px | Nav becomes brand + scrolling tabs, status hidden; block 22px radius with a 420px minimum so the bundle still shows; headline 38px; numeral 64px; the stair moves under the panel tabs; chips stack under the citation |
 
 Verified in headless Chromium at 1440px and 390px, both themes: no console errors, no CSP violations,
 no horizontal overflow, the skip link first in the tab order, the board focusable and operable, the
-tab state reaching the URL.
+stair placing the marker on the correct step for a graded row.
 
 ---
 
 ## 10. Iteration Guide
 
-1. Read `app.css` — the header comment carries the reasoning and what the first three designs got wrong.
-2. Change tokens, not literals. Solve contrast *before* writing CSS; the solver is in the commit history.
-3. Add both themes at once, and remember the cobalt block does not invert.
-4. Run `uv run pytest tests/test_hardening.py`: contrast in both themes, no inline script or style, no
-   `on*=`, every class styled, every id the script reaches for present.
-5. **Look at it**, at 1440 and 390, light and dark, and at the loading state. Every visual bug in this
-   project's history was invisible in the source.
+1. Read `app.css` — the header comment carries the reasoning and the list of what was cut.
+2. Change tokens, not literals. Solve contrast *before* writing CSS.
+3. Add both themes at once; the cobalt block does not invert.
+4. Run `uv run pytest tests/test_hardening.py`: contrast, no inline script or style, no `on*=`, every
+   class styled, every id the script reaches for present.
+5. **Look at it**, at 1440 and 390, light and dark, idle and mid-check and finished. The bundle's
+   first version *worked* and looked like a single sheet, because turned pages are face-down and
+   invisible; nothing but a render could have said so.
 
 ---
 
 ## 11. Known Gaps
 
-- **The reference is a motion piece; this is a page with motion.** Words rise, lines draw, the numeral
-  rolls, rows stagger — MOTION 6. There is no transition *between* surfaces; switching tabs cuts. A
-  colour-block crossfade keyed on `body[data-surface]` is the next step, and the attribute is already
-  there for it.
-- **No photography.** The reference leans on warm portraits of lawyers at work; this product has none
-  and should not fake them. If real photography arrives, it belongs on the cream block, not the cobalt.
+- **Switching surfaces cuts.** A colour-block crossfade keyed on `body[data-surface]` is the next step.
+- **The bundle is decorative below 1000px** — it shows but does not respond to touch, correctly. On the
+  cream and ink blocks it is hidden; *Find* and *Draft* have no object of their own yet.
 - **Colour and border style alone** separate a failure chip from *needs review*. A glyph would be safer.
-- **The doodles are three fixed paths.** They do not vary per visit or per surface beyond what is
-  hand-drawn; a small library of curves would keep them from becoming furniture.
+- **The stair's grade rules are fixed per letter.** A seventh grade would need a seventh rule.
 - **No automated axe or Lighthouse pass.** The hand-written checks cover what was found wrong, which is
   not the same as coverage.

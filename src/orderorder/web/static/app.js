@@ -20,6 +20,30 @@ function decided(iso) {
     .format(when);
 }
 
+// The bundle leans a few degrees toward the pointer. Two custom properties set through the CSSOM,
+// which the Content-Security-Policy permits (it governs style attributes and stylesheets, not
+// property writes) and which is the one carve-out from "no inline styles", recorded in DESIGN.md.
+// Nothing happens for a coarse pointer or for anyone who has asked for less motion.
+(() => {
+  const bundle = $("bundle");
+  const block = bundle && bundle.closest(".block");
+  if (!block) return;
+  const fine = matchMedia("(pointer: fine)").matches;
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!fine || still) return;
+  block.addEventListener("pointermove", (e) => {
+    const r = block.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - .5;    // -.5 .. .5
+    const y = (e.clientY - r.top) / r.height - .5;
+    bundle.style.setProperty("--tx", `${(x * 10).toFixed(2)}deg`);
+    bundle.style.setProperty("--ty", `${(-y * 8).toFixed(2)}deg`);
+  });
+  block.addEventListener("pointerleave", () => {
+    bundle.style.setProperty("--tx", "0deg");
+    bundle.style.setProperty("--ty", "0deg");
+  });
+})();
+
 // ---------- tabs ----------
 function showTab(which) {
   for (const name of ["check", "find", "draft"]) {
@@ -92,6 +116,8 @@ $("go").onclick = async () => {
   verdicts = []; chosen = null;
   $("summary").textContent = "";
   $("count").textContent = "–"; countShown = 0;
+  $("bundle").dataset.flipped = "0";
+  $("stair").dataset.grade = ""; $("stair").dataset.partial = "0";
   $("board").innerHTML = skeleton(5);
   $("detail").innerHTML = '<p class="none">Choose a citation to see what was found.</p>';
   $("exports").hidden = true;
@@ -111,6 +137,8 @@ function listen(id) {
   stream.addEventListener("progress", (e) => {
     const d = JSON.parse(e.data);
     $("prog").textContent = d.total ? `${d.done} of ${d.total} checked` : "finding citations…";
+    // Five pages can turn. Each fifth of the citations found turns the next one.
+    if (d.total) $("bundle").dataset.flipped = String(Math.min(5, Math.floor(5 * d.done / d.total)));
   });
   stream.addEventListener("verdict", (e) => {
     const d = JSON.parse(e.data);
@@ -126,6 +154,7 @@ function listen(id) {
     const d = JSON.parse(e.data);
     stream.close();
     idle("go");
+    $("bundle").dataset.flipped = "5";
     $("prog").textContent = d.error ? d.error : `${d.checked} citation${d.checked === 1 ? "" : "s"} checked`;
     if (verdicts.length) $("exports").hidden = false;
     else $("board").innerHTML = '<p class="none">No case-law citations found in that text.</p>';
@@ -210,6 +239,10 @@ function drawSummary() {
 function drawDetail() {
   const v = verdicts[chosen];
   if (!v) return;
+  // Not checked is not a low grade. The marker stays off the stair, hollow, rather than on a step.
+  const unchecked = !v.findings.length && v.needs_review;
+  $("stair").dataset.grade = unchecked ? "" : v.grade;
+  $("stair").dataset.partial = unchecked ? "1" : "0";
   const findings = v.findings.map(f =>
     `<div class="finding"><b>[${f.mode}] ${escape(f.label)}</b><span>${escape(f.detail)}</span></div>`).join("");
   const quote = v.quote
