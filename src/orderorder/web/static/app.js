@@ -20,36 +20,56 @@ function decided(iso) {
     .format(when);
 }
 
-// The bundle leans a few degrees toward the pointer. Two custom properties set through the CSSOM,
-// which the Content-Security-Policy permits (it governs style attributes and stylesheets, not
-// property writes) and which is the one carve-out from "no inline styles", recorded in DESIGN.md.
-// Nothing happens for a coarse pointer or for anyone who has asked for less motion.
+// Each surface's object -- the bundle, the shelf, the tome -- leans a few degrees toward the pointer.
+// Two custom properties set through the CSSOM, which the Content-Security-Policy permits (it governs
+// style attributes and stylesheets, not property writes) and which is the one carve-out from "no
+// inline styles", recorded in DESIGN.md. Nothing happens for a coarse pointer or for anyone who has
+// asked for less motion.
 (() => {
-  const bundle = $("bundle");
-  const block = bundle && bundle.closest(".block");
-  if (!block) return;
   const fine = matchMedia("(pointer: fine)").matches;
   const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (!fine || still) return;
-  block.addEventListener("pointermove", (e) => {
-    const r = block.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width - .5;    // -.5 .. .5
-    const y = (e.clientY - r.top) / r.height - .5;
-    bundle.style.setProperty("--tx", `${(x * 10).toFixed(2)}deg`);
-    bundle.style.setProperty("--ty", `${(-y * 8).toFixed(2)}deg`);
-  });
-  block.addEventListener("pointerleave", () => {
-    bundle.style.setProperty("--tx", "0deg");
-    bundle.style.setProperty("--ty", "0deg");
-  });
+  for (const object of document.querySelectorAll(".block > .object")) {
+    const block = object.parentElement;
+    block.addEventListener("pointermove", (e) => {
+      const r = block.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width - .5;    // -.5 .. .5
+      const y = (e.clientY - r.top) / r.height - .5;
+      object.style.setProperty("--tx", `${(x * 10).toFixed(2)}deg`);
+      object.style.setProperty("--ty", `${(-y * 8).toFixed(2)}deg`);
+    });
+    block.addEventListener("pointerleave", () => {
+      object.style.setProperty("--tx", "0deg");
+      object.style.setProperty("--ty", "0deg");
+    });
+  }
 })();
 
-// ---------- tabs ----------
-function showTab(which) {
-  for (const name of ["check", "find", "draft"]) {
+// The bar stays. A hairline appears under it once the page has moved, so that it reads as a bar and
+// not as a strip of the page that failed to scroll.
+(() => {
+  let queued = false;
+  const mark = () => { queued = false; document.body.dataset.scrolled = scrollY > 8 ? "1" : "0"; };
+  addEventListener("scroll", () => { if (!queued) { queued = true; requestAnimationFrame(mark); } }, { passive: true });
+  mark();
+})();
+
+// ---------- surfaces ----------
+const SURFACES = ["check", "find", "draft"];
+let surface = "check", swapping = 0;
+
+// Changing surface is a crossfade, not a cut. The words on the block that is leaving go first; then
+// the sections swap, and the new block starts in the old block's colour and turns into its own. Three
+// attributes on <body> are the whole mechanism: `data-surface` moves the thumb, `data-leaving` fades
+// the outgoing words, `data-prev` tells the stylesheet which colour to start from. No style is written.
+// Under prefers-reduced-motion, and on arrival from a link, the swap is immediate.
+function showTab(which, instant) {
+  if (which === surface && !instant) return;
+  const prev = surface;
+  surface = which;
+  for (const name of SURFACES) {
     const tab = $("tab-" + name);
     const on = which === name;
-    $("view-" + name).hidden = !on;
     tab.classList.toggle("on", on);
     // The class is what a sighted reader sees; this is what everyone else gets told.
     tab.setAttribute("aria-selected", String(on));
@@ -58,11 +78,26 @@ function showTab(which) {
   // The surface is part of where you are, so it belongs in the URL: reloading, or sending somebody
   // the link, should not drop them back on the first tab.
   if (location.hash.slice(1) !== which) history.replaceState(null, "", "#" + which);
+
+  const swap = () => {
+    for (const name of SURFACES) $("view-" + name).hidden = name !== which;
+    delete document.body.dataset.leaving;
+    if (!instant) document.body.dataset.prev = prev;
+  };
+  clearTimeout(swapping);
+  if (instant || matchMedia("(prefers-reduced-motion: reduce)").matches) { swap(); return; }
+  // The thumb's squash is a class put back on, so it plays again for every change.
+  const thumb = document.querySelector(".tabs .thumb");
+  if (thumb) { thumb.classList.remove("moving"); void thumb.offsetWidth; thumb.classList.add("moving"); }
+  document.body.dataset.leaving = "1";
+  swapping = setTimeout(swap, 160);
 }
 $("tab-check").onclick = () => showTab("check");
 $("tab-find").onclick = () => showTab("find");
 $("tab-draft").onclick = () => showTab("draft");
-if (["check", "find", "draft"].includes(location.hash.slice(1))) showTab(location.hash.slice(1));
+if (SURFACES.includes(location.hash.slice(1))) showTab(location.hash.slice(1), true);
+// The URL is the surface, so the browser's back button and a hash typed by hand both count.
+addEventListener("hashchange", () => { if (SURFACES.includes(location.hash.slice(1))) showTab(location.hash.slice(1)); });
 
 function showPanel(which) {
   for (const [tab, panel] of [["t-detail","detail"],["t-judgment","judgment"],["t-memo","memo"]]) {
@@ -326,9 +361,12 @@ $("search").onclick = async () => {
   working("search", "Searching…");
   $("results").innerHTML = skeleton(4);
   $("sprog").textContent = "searching every paragraph…";
+  // The shelf: volumes come down one after another while this runs, and one stays out if it found any.
+  $("shelf").dataset.state = "searching";
   try {
     const r = await (await fetch(`/api/search?q=${encodeURIComponent(q)}`)).json();
     if (r.detail) throw new Error(r.detail);
+    $("shelf").dataset.state = r.authorities.length ? "found" : "idle";
     $("results").innerHTML = r.authorities.length ? r.authorities.map(a => `
       <div class="p">
         <b>${escape(a.pinpoint)}</b>
@@ -342,6 +380,7 @@ $("search").onclick = async () => {
   } catch (e) {
     $("results").innerHTML = `<p class="none">${escape(String(e.message || e))}</p>`;
     $("sprog").textContent = "";
+    $("shelf").dataset.state = "idle";
   }
   idle("search");
 };
@@ -426,6 +465,9 @@ $("build").onclick = async () => {
   $("bindings").innerHTML = skeleton(4);
   $("dprog").textContent = "reading the plan…";
   bindings = []; attacks = [];
+  // The tome: its lines write themselves while the plan is read, and its tabs go back in.
+  $("book").dataset.state = "drafting";
+  drawTabs();
   try {
     const response = await fetch("/api/draft", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -439,6 +481,7 @@ $("build").onclick = async () => {
   } catch (e) {
     $("dprog").textContent = "";
     $("parsed").innerHTML = `<p class="review">${escape(String(e.message || e))}</p>`;
+    $("book").dataset.state = "idle";
     idle("build");
   }
 };
@@ -453,17 +496,30 @@ function watchDraft(total) {
     bindings.push(JSON.parse(e.data).binding);
     $("dprog").textContent = `${bindings.length} of ${total} bound…`;
     drawBindings();
+    drawTabs();
   });
   stream.addEventListener("done", async (e) => {
     stream.close();
     idle("build");
     const d = JSON.parse(e.data);
     $("dprog").textContent = d.error ? `stopped: ${d.error}` : "";
+    $("book").dataset.state = "done";
     const full = await (await fetch(`/api/draft/${draftJob}`)).json();
     bindings = full.bindings; attacks = full.attacks;
-    drawBindings(); drawAttacks();
+    drawBindings(); drawAttacks(); drawTabs();
     $("doc").innerHTML = `<pre>${escape(await (await fetch(`/api/draft/${draftJob}/document`)).text())}</pre>`;
     $("dexports").hidden = false;
+  });
+  stream.onerror = () => { stream.close(); $("book").dataset.state = "idle"; idle("build"); };
+}
+
+// One index tab per sentence, out of the right edge of the tome: cobalt where an authority stands
+// behind it, coral where the draft says in terms that none does. Eight tabs; a longer plan fills them.
+function drawTabs() {
+  document.querySelectorAll("#book .tab").forEach((tab, i) => {
+    const b = bindings[i];
+    tab.classList.toggle("out", Boolean(b));
+    tab.dataset.state = b ? (b.usable ? "bound" : "none") : "";
   });
 }
 

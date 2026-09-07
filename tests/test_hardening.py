@@ -349,6 +349,7 @@ CONTRAST_PAIRS = [
     ("accent", "bg", "links, the folder tab label", 4.5),
     ("accent", "surface", "the index heading, links on a card", 4.5),
     ("accent-ink", "accent", "cream on the cobalt block, the button label", 4.5),
+    ("bg", "ink", "the label on the thumb of the surface control", 4.5),
     ("coral", "surface", "the numeral, as large text", 3.0),
     ("coral-deep", "surface", "the brand red where it must be read", 4.5),
     ("good", "surface", "verified-quote text, grade A/B mark", 4.5),

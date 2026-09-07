@@ -1,25 +1,36 @@
 /* OrderOrder — interface. Built to a brand reference, then stripped of everything that decorated it.
  *
  * The reference is a law firm's identity: flat colour blocks in cobalt, coral and cream, a
- * high-contrast display serif over a clean grotesque, hand-drawn lines that are drawings of things,
- * giant serif numerals, rounded cards on colour, and a staircase as the shape device. It fits because
- * every competitor in legal software is navy and gold and cold, and because a grade from A to F is a
- * staircase.
+ * high-contrast display serif over a clean grotesque, giant serif numerals, rounded cards on colour,
+ * and a staircase as the shape device. It fits because every competitor in legal software is navy and
+ * gold and cold, and because a grade from A to F is a staircase.
  *
- * What was cut from the version before this one, and why. The floating curves on the hero block:
- * decoration that meant nothing, which is what "vibecoded" looks like. The eyebrow above the headline
- * and the italic-word-plus-clever-lede stack: the most recognisable AI hero there is. The words rising
- * one at a time: template motion. The two identical white cards: card fatigue. The shimmering
- * skeleton: a SaaS default. Each was replaced by something that does a job or by nothing.
+ * What was cut, and why. The floating curves on the hero block: decoration that meant nothing, which
+ * is what "vibecoded" looks like. The eyebrow above the headline and the italic-word-plus-clever-lede
+ * stack: the most recognisable AI hero there is. The words rising one at a time: template motion. The
+ * two identical white cards: card fatigue. The shimmering skeleton: a SaaS default. The hand-drawn
+ * scribble under the active tab and the green-dot status pill: a header that looked drawn by a
+ * template rather than by anyone. Each was replaced by something that does a job or by nothing.
  *
- * What was added is three-dimensional and each piece is the subject, not an effect:
+ * What stands instead is three-dimensional and each piece is the subject, not an effect:
  *
- *   the BUNDLE   a stack of pleadings on the hero, in CSS 3D, tilting a few degrees with the pointer.
- *                As the check runs its pages turn, one for each share of the citations found. That is
- *                the loading state.
+ *   the MARK     the staircase, in the same oblique projection as the one in the verdict panel. It is
+ *                the logo because it is the product's shape; it climbs a pixel a step under the pointer.
+ *   the BUNDLE   a stack of pleadings on the check surface, in CSS 3D, tilting a few degrees with the
+ *                pointer. As the check runs its pages are set aside, one for each share of the
+ *                citations found. That is the loading state.
+ *   the SHELF    six volumes of reports on the find surface. While a search runs they are taken down
+ *                one after another and put back; when it finds something, one stays out.
+ *   the TOME     the submission being bound, on the draft surface. As each sentence is bound an index
+ *                tab comes out of the right edge: cobalt where an authority stands behind it, coral
+ *                where none does. While the plan is read, the lines on the top page write themselves.
  *   the STAMP    a grade lands on its row from above, with a shadow that blooms and settles.
  *   the STAIR    six isometric steps, F to A, in the verdict panel. The marker stands on the step the
  *                citation earned -- and off the stair when the checks that would place it did not run.
+ *
+ * Changing surface is a crossfade and not a cut: the words on the outgoing block go first, then the
+ * incoming block starts in the colour of the one before it and turns into its own. That is done with
+ * three attributes on <body> and no style written anywhere.
  *
  * The product's rules survive every redesign because they are the product: colour means a finding;
  * three states get three treatments; the court's words are set in a reading serif and the tool's are
@@ -95,9 +106,11 @@
   --bad: #d51135;       --bad-bg: rgba(213, 17, 53, .10);
   --unchecked: #5f627a; --unchecked-bg: rgba(20, 22, 38, .07);
 
-  --paper: #fbf8f3;                /* a page in the bundle */
+  --paper: #fbf8f3;                /* a page in the bundle, the top of a volume, the shelf */
   --paper-edge: #e6dfd5;
   --paper-line: rgba(20, 22, 38, .18);
+  --tome: #fbf8f3;                 /* the pages of the tome, which lie on the ink block */
+  --tome-edge: #ddd4c8;
 
   --sans: "Geist", ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: "Geist Mono", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
@@ -142,6 +155,8 @@
 
     --paper: #f3ece5;
     --paper-edge: #d9d1c6;
+    --tome: #ffffff;               /* the draft block is cream in the dark, so its pages go white */
+    --tome-edge: #d9d1c6;
 
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 24px 48px -32px rgba(0, 0, 0, .7);
   }
@@ -164,80 +179,93 @@ body {
 
 /* ---------- navigation ---------- */
 
+/* A bar, not a strip of the page: it stays, and a hairline appears under it once the page has moved. */
 .nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   height: 72px;
   padding: 0 40px;
+  background: var(--bg);
+  border-bottom: 1px solid transparent;
+  transition: border-color .25s var(--ease);
 }
+body[data-scrolled="1"] .nav { border-bottom-color: var(--line); }
 
-.brand { margin: 0; display: flex; align-items: center; gap: 10px; }
-.brand .mark {
-  width: 26px;
-  height: 26px;
-  padding: 5px;
-  border-radius: 7px;
-  background: var(--accent);
-  fill: none;
-  stroke: var(--accent-ink);
-  stroke-width: 2.6;
-  stroke-linejoin: round;
-  stroke-linecap: round;
+.brand { margin: 0; display: flex; align-items: center; gap: 11px; }
+/* The mark is the staircase: three steps in the projection the verdict panel uses, cream faces and one
+ * deep side, on the brand's cobalt. Brand colours, so it is the same in both themes. */
+.brand .mark { width: 30px; height: 30px; display: block; flex: none; }
+.mark .mark-bg { fill: #2b34d6; }
+.mark .front { fill: #f3ece5; }
+.mark .top { fill: #ffffff; }
+.mark .side { fill: #1a2199; }
+.mark .s { transition: transform .3s var(--ease-out); }
+.brand:hover .mark .s1 { transform: translateY(-1px); }
+.brand:hover .mark .s2 { transform: translateY(-2px); transition-delay: .05s; }
+.brand:hover .mark .s3 { transform: translateY(-3px); transition-delay: .1s; }
+.brand .wordmark { font-family: var(--display); font-size: 21px; font-weight: 600; letter-spacing: -.015em; color: var(--ink); }
+
+/* The surfaces are a segmented control: three equal segments on a pill, and one thumb in ink that
+ * slides to the one you are on. Equal segments are what let the thumb be placed by rule -- a third of
+ * the width, moved one or two of its own widths over -- with nothing measured or written by script. */
+.tabs {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
 }
-.brand .wordmark { font-family: var(--display); font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); }
-
-.tabs { display: flex; gap: 34px; justify-content: center; }
+.tabs .thumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / 3);
+  border-radius: 999px;
+  background: var(--ink);
+  translate: 0 0;
+  transition: translate .42s var(--ease-out);
+}
+body[data-surface="find"]  .tabs .thumb { translate: 100% 0; }
+body[data-surface="draft"] .tabs .thumb { translate: 200% 0; }
+.tabs .thumb.moving { animation: squash .42s var(--ease-out); }
 .tabs button {
+  position: relative;
+  z-index: 1;
   appearance: none;
   border: 0;
   background: none;
   font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -.004em;
   color: var(--ink-2);
-  padding: 8px 2px;
+  padding: 7px 24px;
+  border-radius: 999px;
   cursor: pointer;
-  position: relative;
-  transition: color .2s var(--ease);
-}
-/* One hand-drawn line on the whole page, under the tab you are on. */
-.tabs button::after {
-  content: "";
-  position: absolute;
-  left: -2px;
-  right: -2px;
-  bottom: 1px;
-  height: 6px;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 6' preserveAspectRatio='none'%3E%3Cpath d='M1 3 C 20 1, 40 5, 60 3 S 85 1, 99 3.5' fill='none' stroke='%232b34d6' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center / 100% 100%;
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform .38s var(--ease-out);
+  white-space: nowrap;
+  transition: color .3s var(--ease) .06s;
 }
 .tabs button:hover { color: var(--ink); }
-.tabs button.on { color: var(--ink); font-weight: 600; }
-.tabs button.on::after { transform: scaleX(1); }
-.tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
-@media (prefers-color-scheme: dark) {
-  .tabs button::after { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 6' preserveAspectRatio='none'%3E%3Cpath d='M1 3 C 20 1, 40 5, 60 3 S 85 1, 99 3.5' fill='none' stroke='%238f97ff' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E"); }
-}
+.tabs button.on { color: var(--bg); }
+.tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* What is loaded, said once, in the type that says numbers: no pill, no dot. */
 #status {
   justify-self: end;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: .01em;
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 13px 7px 11px;
-  border-radius: 999px;
-  background: var(--surface);
-  border: 1px solid var(--line);
   white-space: nowrap;
 }
-#status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--good); flex: none; }
 
 main { max-width: 1400px; margin: 0 auto; padding: 14px 40px 96px; }
 
@@ -260,7 +288,6 @@ main { max-width: 1400px; margin: 0 auto; padding: 14px 40px 96px; }
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  animation: rise .7s var(--ease-out) both;
 }
 .block.cobalt { background: var(--accent); color: var(--accent-ink); }
 .block.cream  { background: var(--surface); color: var(--ink); border: 1px solid var(--line); }
@@ -295,21 +322,36 @@ main { max-width: 1400px; margin: 0 auto; padding: 14px 40px 96px; }
   text-wrap: pretty;
 }
 
-/* ---------- the bundle ---------- */
+/* ---------- changing surface ---------- */
 
-/* A stack of pleadings, lying on the block. Perspective on the frame, the stack tilted so it reads as
- * paper on a desk seen from where you sit, each page a little above the last. The two custom
- * properties are the pointer's tilt, set through the CSSOM by app.js and clamped there. */
-.bundle {
-  position: absolute;
-  right: -30px;
-  bottom: -70px;
-  width: 380px;
-  height: 420px;
-  perspective: 1100px;
-  pointer-events: none;
-  animation: fade .9s .2s var(--ease) both;
-}
+/* First paint: the block and the folder rise. Every change after that is a crossfade. The words on the
+ * outgoing block go first (`data-leaving`); then the sections swap and the incoming block starts in
+ * the colour of the block before it (`data-prev`) and turns into its own while its words and its
+ * object arrive. The colour it starts from is a rule per surface, not a value computed anywhere. */
+body:not([data-prev]) .block  { animation: rise .7s var(--ease-out) backwards; }
+body:not([data-prev]) .folder { animation: rise .7s .12s var(--ease-out) backwards; }
+body[data-prev="check"] .block { animation: from-cobalt .55s var(--ease) backwards; }
+body[data-prev="find"]  .block { animation: from-cream .55s var(--ease) backwards; }
+body[data-prev="draft"] .block { animation: from-ink .55s var(--ease) backwards; }
+body[data-prev] .block > .display, body[data-prev] .block > .lede { animation: fade .45s .14s var(--ease) backwards; }
+body[data-prev] .folder { animation: fade .45s .1s var(--ease) backwards; }
+body[data-prev] .work { animation: fade .45s .18s var(--ease) backwards; }
+body[data-leaving] .block > .display, body[data-leaving] .block > .lede, body[data-leaving] .block > .object,
+body[data-leaving] .folder, body[data-leaving] .work { opacity: 0; transition: opacity .16s var(--ease); }
+@keyframes from-cobalt { from { background-color: #2b34d6; } }
+@keyframes from-cream  { from { background-color: var(--surface); } }
+@keyframes from-ink    { from { background-color: var(--ink); } }
+
+/* ---------- the objects ---------- */
+
+/* One per surface, in the block's lower right, cropped by its edge. Each is a perspective frame around
+ * something built from faces; the two custom properties are the pointer's tilt, set through the CSSOM
+ * by app.js and clamped there. */
+.object { position: absolute; pointer-events: none; animation: fade .9s .2s var(--ease) backwards; }
+
+/* THE BUNDLE. A stack of pleadings lying on the block, tilted so it reads as paper on a desk seen from
+ * where you sit, each page a little above the last. */
+.bundle { right: -30px; bottom: -70px; width: 380px; height: 420px; perspective: 1100px; }
 .stack {
   position: absolute;
   inset: 0;
@@ -399,11 +441,206 @@ main { max-width: 1400px; margin: 0 auto; padding: 14px 40px 96px; }
 .bundle[data-flipped="4"] .p4, .bundle[data-flipped="5"] .p4 { transform: translateZ(24px) translate(-142px, -8px) rotateZ(-4deg); transition-delay: .1s; }
 .bundle[data-flipped="5"] .p5 { transform: translateZ(22px) translate(-130px, 0) rotateZ(-2deg); transition-delay: .1s; }
 
-.block.cream .bundle, .block.ink .bundle { display: none; }
+/* THE SHELF. Six volumes of reports standing on a plank, seen from a little above and to the left, so
+ * the spines, the tops of the pages and the last cover all show. Each volume is three faces of a box:
+ * the spine, the top rotated back from its upper edge, the cover rotated back from its right edge. The
+ * neighbours hide the covers of all but the last, which is what a shelf does. */
+.shelf { right: 10px; bottom: -6px; width: 420px; height: 380px; perspective: 1200px; }
+.row {
+  position: absolute;
+  left: 100px;
+  bottom: 60px;
+  width: 236px;
+  height: 200px;
+  transform-style: preserve-3d;
+  transform-origin: 50% 100%;
+  transform: rotateX(calc(12deg + var(--ty, 0deg))) rotateY(calc(-24deg + var(--tx, 0deg)));
+  transition: transform .5s var(--ease-out);
+}
+.plank { position: absolute; left: -40px; right: -40px; bottom: -12px; height: 12px; transform-style: preserve-3d; }
+.plank .face { position: absolute; inset: 0; background: var(--paper-edge); }
+.plank .lid {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 150px;
+  background: var(--paper);
+  transform-origin: 0 0;
+  transform: rotateX(-90deg);
+  box-shadow: inset 0 0 44px rgba(20, 22, 38, .14);
+}
+.vol {
+  position: absolute;
+  bottom: 0;
+  --d: 110px;
+  transform-style: preserve-3d;
+  transition: transform .6s var(--ease-out);
+}
+.vol .spine {
+  position: absolute;
+  inset: 0;
+  background: var(--c);
+  border-radius: 2px 2px 0 0;
+  box-shadow: inset 3px 0 0 rgba(255, 255, 255, .14), inset -3px 0 0 rgba(0, 0, 0, .2);
+}
+/* The label band a bound volume carries, and the volume number near the foot. */
+.vol .spine::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  top: 22px;
+  height: 28px;
+  border-top: 2px solid rgba(255, 255, 255, .85);
+  border-bottom: 2px solid rgba(255, 255, 255, .85);
+}
+.vol .spine::after {
+  content: "";
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  bottom: 26px;
+  height: 7px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, .8);
+}
+.vol .lid {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: var(--d);
+  transform-origin: 0 0;
+  transform: rotateX(-90deg);
+  background: repeating-linear-gradient(to right, var(--paper-line) 0 1px, transparent 1px 3px), var(--paper);
+}
+.vol .cover {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: var(--d);
+  height: 100%;
+  transform-origin: 100% 0;
+  transform: rotateY(-90deg);
+  background: color-mix(in srgb, var(--c) 78%, #000);
+}
+.vol.v1 { left: 0;     width: 40px; height: 178px; --c: #2b34d6; }
+.vol.v2 { left: 40px;  width: 34px; height: 168px; --c: var(--ink); }
+.vol.v3 { left: 74px;  width: 46px; height: 190px; --c: #1f27b3; }
+.vol.v4 { left: 120px; width: 38px; height: 172px; --c: #1a2199; }
+.vol.v5 { left: 158px; width: 42px; height: 184px; --c: var(--ink); }
+.vol.v6 { left: 200px; width: 36px; height: 176px; --c: #2b34d6; }
+@media (prefers-color-scheme: dark) {
+  .vol.v3 { --c: #3d47e8; }
+  .vol.v4 { --c: #4a55f2; }
+}
+/* Searching: the volumes are taken down one after another and put back. Found: one stays out. */
+.shelf[data-state="searching"] .vol { animation: browse 2.4s var(--ease) infinite; }
+.shelf[data-state="searching"] .v2 { animation-delay: .4s; }
+.shelf[data-state="searching"] .v3 { animation-delay: .8s; }
+.shelf[data-state="searching"] .v4 { animation-delay: 1.2s; }
+.shelf[data-state="searching"] .v5 { animation-delay: 1.6s; }
+.shelf[data-state="searching"] .v6 { animation-delay: 2s; }
+.shelf[data-state="found"] .v3 { transform: translateZ(52px) rotateY(-12deg); }
+@keyframes browse { 0%, 40%, 100% { transform: none; } 14%, 26% { transform: translateZ(46px) rotateY(-9deg); } }
+
+/* THE TOME. The submission being bound, lying the way the bundle lies, with the binding along the left
+ * edge. The top page is a face lifted by the thickness of the block; the two edges you can see are
+ * faces dropped from it and striped like the ends of pages. The index tabs sit a pixel under the top
+ * page, so the part inside the block is covered and the part outside is not. */
+.book { right: -50px; bottom: -100px; width: 400px; height: 420px; perspective: 1100px; }
+.tome {
+  position: absolute;
+  left: 70px;
+  top: 60px;
+  width: 240px;
+  height: 320px;
+  transform-style: preserve-3d;
+  transform: rotateX(calc(56deg + var(--ty, 0deg))) rotateZ(calc(16deg + var(--tx, 0deg)));
+  transition: transform .5s var(--ease-out);
+  animation: settle 7s ease-in-out infinite;
+}
+.tome .shadow {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+  filter: blur(16px);
+  transform: translate(14px, 22px) scale(.98);
+}
+.tome .face {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(var(--paper-line), var(--paper-line)) 56% 30px / 34% 3px no-repeat,
+    linear-gradient(var(--paper-line), var(--paper-line)) 56% 39px / 22% 2px no-repeat,
+    var(--tome);
+  transform: translateZ(16px);
+  border-radius: 2px;
+}
+.tome .face::before {
+  content: "";
+  position: absolute;
+  inset: 58px 28px 30px 46px;
+  background: repeating-linear-gradient(to bottom, var(--paper-line) 0 2px, transparent 2px 12px);
+  opacity: .55;
+  mask: linear-gradient(#000, #000) 0 0 / 100% 100% no-repeat;
+}
+.tome .face::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  border-radius: 2px 0 0 2px;
+  background: linear-gradient(90deg, #1a2199, #2b34d6 70%);
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, .2);
+}
+.tome .edge-x {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  width: 100%;
+  height: 16px;
+  transform-origin: 0 0;
+  transform: translateZ(16px) rotateX(-90deg);
+  background:
+    linear-gradient(90deg, #1a2199 0 20px, transparent 20px),
+    repeating-linear-gradient(to bottom, var(--tome-edge) 0 1px, var(--tome) 1px 3px);
+}
+.tome .edge-y {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  width: 16px;
+  height: 100%;
+  transform-origin: 0 0;
+  transform: translateZ(16px) rotateY(90deg);
+  background: repeating-linear-gradient(to right, var(--tome-edge) 0 1px, var(--tome) 1px 3px);
+}
+.tome .tab {
+  position: absolute;
+  left: 100%;
+  width: 30px;
+  height: 20px;
+  border-radius: 0 5px 5px 0;
+  background: var(--accent-press);
+  transform: translateZ(15px) translateX(-30px);
+  opacity: 0;
+  transition: transform .5s var(--ease-out), opacity .3s var(--ease);
+}
+.tome .tab.out { transform: translateZ(15px) translateX(-6px); opacity: 1; }
+.tome .tab[data-state="none"] { background: var(--coral); }
+.tome .t1 { top: 30px; }  .tome .t2 { top: 64px; }  .tome .t3 { top: 98px; }  .tome .t4 { top: 132px; }
+.tome .t5 { top: 166px; } .tome .t6 { top: 200px; } .tome .t7 { top: 234px; } .tome .t8 { top: 268px; }
+/* Reading the plan: the lines on the top page write themselves, top to bottom, until something is bound. */
+.book[data-state="drafting"] .face::before { animation: write 2.2s linear infinite; }
+@keyframes write { from { mask-size: 100% 0%; } to { mask-size: 100% 100%; } }
 
 /* ---------- the folder ---------- */
 
-.folder { position: relative; display: flex; flex-direction: column; animation: rise .7s .12s var(--ease-out) both; }
+.folder { position: relative; display: flex; flex-direction: column; }
 .folder-tab {
   align-self: flex-start;
   background: var(--surface);
@@ -503,7 +740,8 @@ label.check input { accent-color: var(--accent); width: 15px; height: 15px; }
 }
 .work.single { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 1000px) { .work { grid-template-columns: minmax(0, 1fr); gap: 28px; } }
-@media (min-width: 1001px) { .index { position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow: auto; padding-right: 6px; } }
+/* Under the bar, which is 72px and stays. */
+@media (min-width: 1001px) { .index { position: sticky; top: 92px; max-height: calc(100vh - 112px); overflow: auto; padding-right: 6px; } }
 
 /* The index is not a card. It is a list on the page, ruled, the way the reference sets an index. */
 .index { padding: 4px 0 0; }
@@ -640,11 +878,39 @@ button.pick .g { animation: stamp .55s var(--ease-out) both; animation-delay: in
 /* ---------- the document, and the stair ---------- */
 
 .doc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
-.doc-head .tabs.plain { flex: 1; }
 
-.tabs.plain { justify-content: flex-start; gap: 26px; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
-.tabs.plain button { font-size: 13px; padding: 0 0 12px; }
-.tabs.plain button::after { bottom: -1px; }
+/* The panels of the document card: text with a rule under it, and a 2px line under the one open. */
+.panel-tabs { flex: 1; display: flex; gap: 26px; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
+.panel-tabs button {
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+  padding: 0 0 12px;
+  position: relative;
+  cursor: pointer;
+  transition: color .2s var(--ease);
+}
+.panel-tabs button::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--ink);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform .3s var(--ease-out);
+}
+.panel-tabs button:hover { color: var(--ink); }
+.panel-tabs button.on { color: var(--ink); font-weight: 600; }
+.panel-tabs button.on::after { transform: scaleX(1); }
+.panel-tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 
 /* Six isometric steps in oblique projection: a front face, a top face skewed away, a side face skewed
  * down. Each step is one unit taller than the last, F at the foot and A at the top. The marker is the
@@ -833,14 +1099,14 @@ footer { margin-top: 48px; color: #f3ece5; }
 @keyframes fade   { from { opacity: 0; } to { opacity: 1; } }
 @keyframes rise   { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes settle { 0%, 100% { translate: 0 0; } 50% { translate: 0 -6px; } }
+@keyframes squash { 0%, 100% { scale: 1 1; } 45% { scale: 1.1 .9; } }
 @keyframes stamp  {
   0%   { opacity: 0; transform: translateY(-14px) scale(1.35) rotate(-6deg); box-shadow: 0 18px 24px -8px rgba(20, 22, 38, .35); }
   60%  { opacity: 1; transform: translateY(0) scale(.96) rotate(0); box-shadow: 0 2px 4px -2px rgba(20, 22, 38, .3); }
   100% { opacity: 1; transform: none; box-shadow: none; }
 }
 
-/* Loading: a quiet line of text, not a shimmer. On the check surface the bundle's pages are turning,
- * which says the same thing better. */
+/* Loading: a quiet line of text, not a shimmer. On each surface the object is doing the talking. */
 .skeleton { list-style: none; margin: 0; padding: 0; }
 .skeleton li { height: 1px; margin: 26px 8px; background: var(--line); }
 .skeleton li:nth-child(2n) { width: 74%; }
@@ -855,6 +1121,8 @@ footer { margin-top: 48px; color: #f3ece5; }
     scroll-behavior: auto !important;
   }
   .stack { animation: none; transform: rotateX(54deg) rotateZ(-22deg); }
+  .row   { transform: rotateX(12deg) rotateY(-24deg); }
+  .tome  { animation: none; transform: rotateX(56deg) rotateZ(16deg); }
 }
 
 /* ---------- keyboard, print, small screens ---------- */
@@ -863,7 +1131,7 @@ footer { margin-top: 48px; color: #f3ece5; }
   position: absolute;
   left: -9999px;
   top: 0;
-  z-index: 10;
+  z-index: 30;
   background: var(--surface);
   color: var(--ink);
   border: 1px solid var(--edge);
@@ -888,20 +1156,24 @@ h1, h2 { text-wrap: balance; }
 }
 
 @media (max-width: 720px) {
-  .nav { grid-template-columns: auto 1fr; height: 64px; padding: 0 18px; }
-  .tabs { justify-content: flex-end; gap: 16px; overflow-x: auto; scrollbar-width: none; }
-  .tabs::-webkit-scrollbar { display: none; }
-  .tabs button { font-size: 12.5px; white-space: nowrap; }
+  .nav { grid-template-columns: auto 1fr; height: 64px; padding: 0 16px; }
+  .brand .wordmark { display: none; }
+  .tabs { justify-self: end; }
+  .tabs button { font-size: 12.5px; padding: 6px 16px; }
   #status { display: none; }
   main { padding-left: 14px; padding-right: 14px; }
-  .block { padding: 34px 26px 32px; border-radius: 22px; min-height: 420px; }
+  /* The object gets a band of its own at the foot of the block, under the words rather than over them. */
+  .block { padding: 34px 26px 210px; border-radius: 22px; }
   .display { font-size: 38px; }
   .bundle { right: -80px; bottom: -110px; width: 300px; height: 330px; }
+  .shelf, .book { scale: .72; transform-origin: 100% 100%; }
+  .shelf { right: 0; bottom: -20px; }
+  .book { right: -40px; bottom: -50px; }
   .folder-tab { margin-left: 16px; }
   .folder-body, .card { padding: 18px 16px; border-radius: 20px; }
   .numeral { font-size: 64px; }
   .doc-head { flex-direction: column-reverse; align-items: flex-start; gap: 6px; }
-  .doc-head .tabs.plain { width: 100%; }
+  .doc-head .panel-tabs { width: 100%; }
   button.pick { grid-template-columns: 30px minmax(0, 1fr); }
   .pick-findings { grid-column: 2; }
 }

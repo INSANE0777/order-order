@@ -9,9 +9,11 @@
   `style=` attributes and no `onclick=` handlers here for the same reason; every handler is bound in
   app.js. tests/test_hardening.py asserts the policy, so inlining any of it back fails the suite.
 
-  Three things on this page are built in three dimensions, in CSS, because they are the subject: a
-  bundle of pleadings whose pages turn as citations are found, a grade that lands on its row like a
-  stamp, and the staircase -- six steps, F to A -- that a citation is placed on once it is graded.
+  Five things on this page are built in three dimensions, in CSS, because they are the subject: a
+  bundle of pleadings whose pages are set aside as citations are found; a shelf of law reports taken
+  down one at a time while a search runs; a bound submission whose index tabs come out as sentences
+  are bound; a grade that lands on its row like a stamp; and the staircase -- six steps, F to A --
+  that a citation is placed on once it is graded. The mark in the corner is the same staircase.
 -->
 <html lang="en">
 <head>
@@ -30,14 +32,21 @@
 
 <header class="nav">
   <h1 class="brand">
-    <svg class="mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 21v-6h5v-5h5V5h6"/></svg>
+    <!-- The staircase, in the same oblique projection as the one in the verdict panel. -->
+    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+      <rect class="mark-bg" width="32" height="32" rx="8"/>
+      <g class="s s1"><path class="front" d="M5 21h6v6H5z"/><path class="top" d="M5 21h6l4-4H9z"/><path class="side" d="M11 21l4-4v6l-4 4z"/></g>
+      <g class="s s2"><path class="front" d="M11 16h6v11h-6z"/><path class="top" d="M11 16h6l4-4h-6z"/><path class="side" d="M17 16l4-4v11l-4 4z"/></g>
+      <g class="s s3"><path class="front" d="M17 11h6v16h-6z"/><path class="top" d="M17 11h6l4-4h-6z"/><path class="side" d="M23 11l4-4v16l-4 4z"/></g>
+    </svg>
     <span class="wordmark">OrderOrder</span>
   </h1>
 
   <div class="tabs" role="tablist" aria-label="Surface">
-    <button id="tab-check" class="on" role="tab" aria-selected="true" aria-controls="view-check">Check a brief</button>
-    <button id="tab-find" role="tab" aria-selected="false" aria-controls="view-find">Find an authority</button>
-    <button id="tab-draft" role="tab" aria-selected="false" aria-controls="view-draft">Draft a submission</button>
+    <span class="thumb" aria-hidden="true"></span>
+    <button id="tab-check" class="on" role="tab" aria-selected="true" aria-controls="view-check" aria-label="Check a brief">Check</button>
+    <button id="tab-find" role="tab" aria-selected="false" aria-controls="view-find" aria-label="Find an authority">Find</button>
+    <button id="tab-draft" role="tab" aria-selected="false" aria-controls="view-draft" aria-label="Draft a submission">Draft</button>
   </div>
 
   <div id="status" role="status" aria-live="polite">checking…</div>
@@ -54,8 +63,8 @@
           against the paragraph it relies on. Every one comes back supported, not supported, or not checked —
           and the third is never disguised as either of the others.</p>
 
-        <!-- The bundle. Six pages of pleadings; the top ones turn as the citations in them are found. -->
-        <div class="bundle" id="bundle" data-flipped="0" aria-hidden="true">
+        <!-- The bundle. Six pages of pleadings; the top ones are set aside as the citations in them are found. -->
+        <div class="bundle object" id="bundle" data-flipped="0" aria-hidden="true">
           <div class="stack">
             <div class="page p6"></div>
             <div class="page p5"></div>
@@ -106,7 +115,7 @@
 
       <div class="card document">
         <div class="doc-head">
-          <div class="tabs plain">
+          <div class="panel-tabs">
             <button id="t-detail" class="on">Verdict</button>
             <button id="t-judgment">Judgment</button>
             <button id="t-memo">Memo</button>
@@ -138,6 +147,20 @@
         <p class="lede">Every paragraph of every judgment held is searched for the line that backs it. A passage that is
           not the court speaking is dropped before it reaches you — an advocate's submission matches a
           proposition's words better than a holding does, because it is stated without the qualifications.</p>
+
+        <!-- The shelf. Six volumes of reports; while a search runs they are taken down one after another,
+             and when it finds something one stays out. -->
+        <div class="shelf object" id="shelf" data-state="idle" aria-hidden="true">
+          <div class="row">
+            <div class="plank"><i class="lid"></i><i class="face"></i></div>
+            <div class="vol v1"><i class="lid"></i><i class="cover"></i><i class="spine"></i></div>
+            <div class="vol v2"><i class="lid"></i><i class="cover"></i><i class="spine"></i></div>
+            <div class="vol v3"><i class="lid"></i><i class="cover"></i><i class="spine"></i></div>
+            <div class="vol v4"><i class="lid"></i><i class="cover"></i><i class="spine"></i></div>
+            <div class="vol v5"><i class="lid"></i><i class="cover"></i><i class="spine"></i></div>
+            <div class="vol v6"><i class="lid"></i><i class="cover"></i><i class="spine"></i></div>
+          </div>
+        </div>
       </div>
 
       <div class="folder">
@@ -170,6 +193,18 @@
           prayer. Each sentence is bound to an authority the verifier confirmed, or marked as having none. A
           proposition that finds nothing is not dropped — a draft that quietly loses its unsupported sentences
           reads as though every sentence in it is supported.</p>
+
+        <!-- The tome. The submission being bound: as each sentence is bound an index tab comes out of the
+             right edge, cobalt where an authority stands behind it and coral where none does. -->
+        <div class="book object" id="book" data-state="idle" aria-hidden="true">
+          <div class="tome">
+            <i class="shadow"></i>
+            <i class="edge-x"></i><i class="edge-y"></i>
+            <i class="tab t1"></i><i class="tab t2"></i><i class="tab t3"></i><i class="tab t4"></i>
+            <i class="tab t5"></i><i class="tab t6"></i><i class="tab t7"></i><i class="tab t8"></i>
+            <i class="face"></i>
+          </div>
+        </div>
       </div>
 
       <div class="folder">
@@ -202,7 +237,7 @@
       </div>
       <div class="card document">
         <div class="doc-head">
-          <div class="tabs plain">
+          <div class="panel-tabs">
             <button id="t-doc" class="on">Submission</button>
             <button id="t-attack">What they will say</button>
           </div>
