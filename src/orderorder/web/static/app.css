@@ -1,572 +1,615 @@
-/* OrderOrder — the look of a law report, and the manners of one.
+/* OrderOrder — interface.
  *
- * The reference is not a dashboard. It is the printed page an advocate already trusts: a Supreme
- * Court Report, set in a serif, ruled with hairlines, generous in the margin and severe about
- * hierarchy. Everything here follows from that, because the product's whole claim is that it will not
- * overstate, and a page that looks like a growth-metrics dashboard is overstating before it has said
- * anything.
+ * This is the second design. The first was warm bone paper, oxblood and a serif, and it was the exact
+ * thing the taste skill in .claude/skills warns about: its banned "premium-consumer" palette lists the
+ * background family (#f7f4ee), the oxblood accent and the espresso text (#1a1714) that were shipped
+ * here, and it names serif-by-default as the most-tested AI tell there is. Reaching for a law report
+ * because the subject is law is the reflex, not the idea.
  *
- * Three rules the palette obeys:
+ * So: cool neutrals, one saturated accent, and a grotesque. Geist, self-hosted — the policy is
+ * `font-src 'self'` and a typeface is not worth widening it for.
  *
- *   1. Ink on paper, not text on a surface. The light theme is warm bone rather than #fff, because a
- *      law report is printed on stock and because a pure-white field beside a serif reads clinical.
- *   2. Colour means a finding. The greens and reds are reserved for grades and flags; nothing
- *      decorative is allowed to borrow them, or a red would stop meaning "this citation is wrong".
- *   3. Three states, three treatments. Supported, checked-and-not-supported, and not-checked are the
- *      distinction the engine exists to keep, so "not checked" gets its own muted, hatched-looking
- *      badge rather than a paler version of a failure.
+ * The rules that carried over, because they came from the product rather than from a mood:
  *
- * No inline style attributes anywhere, in this file's markup or in what app.js builds. That is what
- * lets the Content-Security-Policy be `style-src 'self'` with no `unsafe-inline`, which is asserted in
- * tests/test_hardening.py.
+ *   1. Colour means a finding. Green, amber and red are reserved for verdicts. The accent is cobalt
+ *      precisely so that it can never be mistaken for one.
+ *   2. Three states, three treatments. Supported, checked-and-not-supported and not-checked are the
+ *      distinction the engine exists to keep, so "not checked" is a dashed neutral, never a paler red.
+ *   3. The court's words are set in a serif and the tool's words are not. That is the one place a
+ *      serif earns its keep: it marks whose voice you are reading, which is the product's subject. It
+ *      is a supporting voice here, not the page.
+ *
+ * Every colour pair is measured in tests/test_hardening.py, both themes. No inline styles anywhere:
+ * that is what buys `style-src 'self'`.
+ *
+ * SHAPE LOCK: panels 10px · controls 6px · badges and chips full pill. Nothing else.
  */
+
+/* ---------- type ---------- */
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("/fonts/geist-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("/fonts/geist-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF,
+    U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/geist-mono-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/geist-mono-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF,
+    U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* ---------- tokens ---------- */
 
 :root {
   color-scheme: light dark;
 
-  --paper: #f7f4ee;
-  --paper-raised: #fffdf8;
-  --ink: #1a1714;
-  --ink-soft: #45403a;
-  --muted: #6b645b;
-  --faint: #746e65;
-  --rule: #ddd6c9;
-  --rule-strong: #c6bdac;
-  /* Control boundaries, as distinct from decorative rules. WCAG wants 3:1 for the edge that tells
-   * you a thing is a control; `--rule-strong` measured 1.83 doing that job on a quiet button. A
-   * divider between table rows carries no such duty and keeps the lighter tone. */
-  --edge: #99896b;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #f9fafb;
+  --ink: #0e1116;
+  --ink-2: #3d444d;
+  --muted: #5b636e;
+  --faint: #69717c;
 
-  /* Oxblood: the colour of a bound reporter's spine. Used for the mark, and for nothing else. */
-  --seal: #7b2233;
-  --seal-soft: #a33c4e;
+  --line: #e6e8ec;          /* dividers; decorative, no contrast duty */
+  --edge: #858fa0;          /* control boundaries; measured 3.02 */
 
-  --good: #2f6b45;
-  --good-bg: #e6efe7;
-  --warn: #8a5a12;
-  --warn-bg: #f6eddb;
-  --bad: #9d2f28;
-  --bad-bg: #f6e5e2;
-  --unchecked: #6b645b;
-  --unchecked-bg: #ebe6dc;
+  --accent: #2b52e0;
+  --accent-press: #1f3fb8;
+  --accent-ink: #ffffff;
+  --accent-wash: #eef2fe;
 
-  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-  --sans: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  --good: #0e7a4f;      --good-bg: #e7f4ee;
+  --warn: #96650a;      --warn-bg: #fbf1de;
+  --bad: #c62f2f;       --bad-bg: #fdecec;
+  --unchecked: #5b636e; --unchecked-bg: #eef0f3;
 
-  --radius: 3px;
-  --shadow: 0 1px 2px rgba(26, 23, 20, .05), 0 8px 24px -12px rgba(26, 23, 20, .12);
+  --sans: "Geist", ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+
+  --r-panel: 10px;
+  --r-control: 6px;
+
+  --shadow-1: 0 1px 2px rgba(14, 17, 22, .04), 0 1px 1px rgba(14, 17, 22, .03);
+  --shadow-2: 0 1px 2px rgba(14, 17, 22, .05), 0 12px 28px -14px rgba(14, 17, 22, .18);
+  --ring: 0 0 0 3px rgba(43, 82, 224, .22);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #14120f;
-    --paper-raised: #1c1a16;
-    --ink: #ece7dd;
-    --ink-soft: #cbc4b8;
-    --muted: #9a9287;
-    --faint: #8b8377;
-    --rule: #2c2822;
-    --rule-strong: #413b32;
-    --edge: #716657;
+    --bg: #0a0b0d;
+    --surface: #131519;
+    --surface-2: #171a1f;
+    --ink: #e9ecf1;
+    --ink-2: #c3c9d2;
+    --muted: #98a0ac;
+    --faint: #828a96;
 
-    --seal: #c9697a;
-    --seal-soft: #d98a98;
+    --line: #23262c;
+    --edge: #5a6370;
 
-    --good: #7fbf95;
-    --good-bg: #1b2a20;
-    --warn: #d3a253;
-    --warn-bg: #2a2216;
-    --bad: #e08b82;
-    --bad-bg: #2c1c1a;
-    --unchecked: #9a9287;
-    --unchecked-bg: #23201b;
+    --accent: #7d9bff;
+    --accent-press: #a3b8ff;
+    --accent-ink: #0a0b0d;
+    --accent-wash: #161b2c;
 
-    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .6);
+    --good: #3ddc97;      --good-bg: #10231b;
+    --warn: #e3b341;      --warn-bg: #241d10;
+    --bad: #ff8f8a;       --bad-bg: #2a1618;
+    --unchecked: #98a0ac; --unchecked-bg: #1c1f25;
+
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, .5);
+    --shadow-2: 0 1px 2px rgba(0, 0, 0, .5), 0 16px 32px -18px rgba(0, 0, 0, .8);
+    --ring: 0 0 0 3px rgba(125, 155, 255, .26);
   }
 }
 
 * { box-sizing: border-box; }
-
-/* `hidden` is how the page shows and conceals its three surfaces, its tabs and its export buttons,
- * and any rule that sets `display` beats it -- `.controls { display: flex }` was quietly showing the
- * download buttons before there was anything to download. The attribute has to win. */
 [hidden] { display: none !important; }
 
 body {
   margin: 0;
-  background: var(--paper);
+  background: var(--bg);
   color: var(--ink);
-  font-family: var(--serif);
-  font-size: 16px;
+  font-family: var(--sans);
+  font-size: 15px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /* ---------- masthead ---------- */
 
 header {
-  border-bottom: 1px solid var(--rule-strong);
-  background: var(--paper-raised);
-  padding: 20px 32px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
+  gap: 20px;
+  height: 60px;
+  padding: 0 28px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: saturate(180%) blur(14px);
+  border-bottom: 1px solid var(--line);
 }
 
 header h1 {
   margin: 0;
-  font-size: 25px;
+  font-size: 16px;
   font-weight: 600;
-  letter-spacing: -.015em;
+  letter-spacing: -.018em;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
 }
 
-/* The rule under the mark is the reporter's device: a short heavy stroke, not a full border. */
-header h1 .mark {
-  position: relative;
-  padding-bottom: 6px;
-  color: var(--seal);
-}
+/* The mark is a word and a dot. The dot is the only ornament on the page and it carries the accent,
+ * which teaches a reader what the accent means before any data has arrived to mean it. */
+header h1 .mark { color: var(--ink); position: relative; padding-right: 6px; }
 header h1 .mark::after {
   content: "";
   position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 34px;
-  height: 2px;
-  background: var(--seal);
+  right: 0;
+  bottom: .34em;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
-header h1 span.strap {
-  font-size: 15px;
-  font-weight: 400;
-  font-style: italic;
-  color: var(--muted);
-  margin-left: 10px;
-}
+header h1 .strap { font-size: 13px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
 
 #status {
-  font-family: var(--sans);
-  font-size: 12px;
-  letter-spacing: .04em;
-  text-transform: uppercase;
+  font-size: 11.5px;
+  font-weight: 500;
   color: var(--muted);
-  border: 1px solid var(--rule);
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 10px;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 5px 12px;
-  background: var(--paper);
+  background: var(--surface);
+  white-space: nowrap;
+}
+#status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--good);
+  flex: none;
 }
 
-main { max-width: 1240px; margin: 0 auto; padding: 26px 32px 72px; }
+main { max-width: 1320px; margin: 0 auto; padding: 30px 28px 96px; }
 
 /* ---------- tabs ---------- */
 
-.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--rule); margin-bottom: 22px; }
+.tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  margin-bottom: 26px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
 
 .tabs button {
   appearance: none;
   border: 0;
   background: none;
-  font-family: var(--sans);
-  font-size: 13.5px;
-  letter-spacing: .01em;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--muted);
-  padding: 9px 16px;
+  padding: 7px 15px;
+  border-radius: 999px;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  transition: color .15s ease, border-color .15s ease;
+  white-space: nowrap;
+  transition: color .15s ease, background .15s ease, box-shadow .15s ease;
 }
-/* `.tabs button` and the generic `button:hover` have the same specificity, and the generic block is
- * declared later, so without saying so here a hovered tab takes the primary button's oxblood fill.
- * A tab is not a button you press, it is a place you are. */
 .tabs button:hover { color: var(--ink); background: none; }
+.tabs button.on { color: var(--ink); font-weight: 600; background: var(--surface); box-shadow: var(--shadow-1); }
+.tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .tabs button:active { transform: none; }
-.tabs button.on { color: var(--ink); border-bottom-color: var(--seal); font-weight: 600; background: none; }
-.tabs button:focus-visible { outline: 2px solid var(--seal); outline-offset: 2px; border-radius: 2px; }
 
-/* ---------- cards ---------- */
+/* Inside a panel the tabs are a quieter variant: an underline, no capsule. */
+.tabs.plain {
+  display: flex;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: 18px;
+  gap: 0;
+}
+.tabs.plain button { border-radius: 0; padding: 0 14px 10px; }
+.tabs.plain button.on { background: none; box-shadow: inset 0 -2px 0 var(--accent); color: var(--ink); }
+
+/* ---------- panels ---------- */
 
 .card {
-  background: var(--paper-raised);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 22px 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-1);
+  padding: 20px 22px;
 }
 
 .card h2 {
   margin: 0 0 14px;
-  font-family: var(--sans);
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: .11em;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .07em;
   text-transform: uppercase;
   color: var(--faint);
 }
 
-.row { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 22px; }
-@media (max-width: 940px) { .row { grid-template-columns: minmax(0, 1fr); } }
+.row { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 1020px) { .row { grid-template-columns: minmax(0, 1fr); } }
+.row-spaced { margin-top: 20px; }
 
-/* ---------- inputs ---------- */
+/* The board stays put while a judgment is read beside it. */
+@media (min-width: 1021px) {
+  .row > .card:first-child { position: sticky; top: 84px; max-height: calc(100vh - 112px); overflow: auto; }
+}
+
+/* ---------- fields ---------- */
 
 textarea {
   width: 100%;
-  min-height: 190px;
+  min-height: 168px;
   resize: vertical;
   font-family: var(--mono);
-  font-size: 13px;
-  line-height: 1.62;
+  font-size: 12.75px;
+  line-height: 1.65;
   color: var(--ink);
-  background: var(--paper);
+  background: var(--surface-2);
   border: 1px solid var(--edge);
-  border-radius: var(--radius);
+  border-radius: var(--r-control);
   padding: 13px 14px;
+  transition: border-color .15s ease, box-shadow .15s ease;
 }
-textarea:focus { outline: none; border-color: var(--seal-soft); box-shadow: 0 0 0 3px rgba(123, 34, 51, .1); }
+textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
 textarea::placeholder { color: var(--faint); }
+#query { min-height: 76px; }
 
-#query { min-height: 82px; }
-
-.controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 13px; }
+.controls { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-top: 13px; }
 
 button {
   appearance: none;
-  font-family: var(--sans);
-  font-size: 13.5px;
-  font-weight: 550;
-  color: var(--paper-raised);
-  background: var(--seal);
-  border: 1px solid var(--seal);
-  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -.004em;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 1px solid transparent;
+  border-radius: var(--r-control);
   padding: 8px 15px;
   cursor: pointer;
-  transition: background .15s ease, transform .06s ease;
+  transition: background .15s ease, box-shadow .15s ease, transform .08s ease;
 }
-button:hover { background: var(--seal-soft); }
+button:hover { background: var(--accent-press); }
 button:active { transform: translateY(1px); }
-button:focus-visible { outline: 2px solid var(--seal); outline-offset: 2px; }
-button[disabled] { opacity: .5; cursor: not-allowed; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button[disabled] { opacity: .55; cursor: progress; }
 
-button.quiet { background: transparent; color: var(--ink-soft); border-color: var(--edge); }
-button.quiet:hover { background: var(--paper); border-color: var(--faint); color: var(--ink); }
+button.quiet { background: var(--surface); color: var(--ink-2); border-color: var(--edge); font-weight: 550; }
+button.quiet:hover { background: var(--surface-2); color: var(--ink); border-color: var(--ink-2); }
 
 label.check {
-  font-family: var(--sans);
-  font-size: 13px;
+  font-size: 12.75px;
   color: var(--muted);
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   cursor: pointer;
+  user-select: none;
 }
-label.check input { accent-color: var(--seal); }
+label.check input { accent-color: var(--accent); width: 15px; height: 15px; }
 
-.hint { font-family: var(--sans); font-size: 12.5px; line-height: 1.6; color: var(--muted); margin: 11px 0 0; }
-.hint em { color: var(--ink-soft); font-style: italic; }
+.hint { font-size: 12.5px; line-height: 1.6; color: var(--muted); margin: 11px 0 0; }
+.hint em { color: var(--ink-2); font-style: normal; font-weight: 600; }
+.none { font-size: 13px; color: var(--faint); margin: 6px 0; }
 
-.none { font-family: var(--sans); font-size: 13px; color: var(--faint); font-style: italic; margin: 6px 0; }
+/* ---------- the board ---------- */
 
-/* ---------- the verdict board ---------- */
-
-/* A list of buttons rather than a table of clickable rows. The board is a set of citations you
- * choose between; that is a button, and a button is reachable, focusable and announced without a
- * line of ARIA. The three-column rhythm survives as a grid inside each one: seal, citation, what
- * was found. The citation column is the flexible one because it holds the party names. */
 .board-list { list-style: none; margin: 0; padding: 0; }
 
 button.pick {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 40%);
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "seal cite" "seal findings";
   align-items: start;
-  gap: 12px;
+  gap: 3px 12px;
   width: 100%;
   text-align: left;
-  font-family: var(--serif);
-  font-size: 14px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 400;
   color: var(--ink);
   background: none;
-  border: 0;
-  border-bottom: 1px solid var(--rule);
-  border-radius: 0;
-  padding: 12px 6px;
-  transition: background .12s ease;
+  border: 1px solid transparent;
+  border-radius: var(--r-control);
+  padding: 11px 12px;
+  margin-bottom: 2px;
+  transition: background .13s ease, border-color .13s ease;
 }
-button.pick:hover { background: var(--paper); }
+button.pick:hover { background: var(--surface-2); }
 button.pick:active { transform: none; }
-button.pick.on { background: var(--paper); box-shadow: inset 3px 0 0 var(--seal); }
-button.pick:focus-visible { outline: 2px solid var(--seal); outline-offset: -2px; }
-.board-list li:last-child button.pick { border-bottom: 0; }
+button.pick.on { background: var(--accent-wash); border-color: color-mix(in srgb, var(--accent) 32%, transparent); }
+button.pick:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 
-/* Party names are long, unbroken and often in capitals, which is the worst case for a narrow
- * column. Let them break rather than push the grid wide. */
-.pick-cite { min-width: 0; overflow-wrap: anywhere; }
-.pick-cite b { display: block; }
-.pick-findings { min-width: 0; }
+button.pick .g { grid-area: seal; }
+.pick-cite { grid-area: cite; min-width: 0; overflow-wrap: anywhere; }
+.pick-cite b { display: block; font-weight: 600; letter-spacing: -.008em; font-variant-numeric: tabular-nums; }
+.pick-findings { grid-area: findings; min-width: 0; margin-top: 4px; }
 
-/* A proposition and what was bound to it: the board's rhythm, without the button. */
-li.bind {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-  padding: 12px 6px;
-  font-size: 14px;
-  border-bottom: 1px solid var(--rule);
-}
-li.bind:last-child { border-bottom: 0; }
-.bind-text { min-width: 0; overflow-wrap: anywhere; }
-
-/* A grade is the one thing read at a glance, so it is a seal rather than a word in a cell. */
+/* The grade. One glyph, read at a glance, so it is a mark rather than a word in a column. */
 .g {
   display: inline-grid;
   place-items: center;
-  min-width: 26px;
-  height: 26px;
-  padding: 0 6px;
-  border-radius: 2px;
-  font-family: var(--sans);
-  font-size: 13px;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-control);
+  font-size: 12px;
   font-weight: 700;
   border: 1px solid transparent;
+  flex: none;
 }
-.g.A, .g.B { color: var(--good); background: var(--good-bg); border-color: color-mix(in srgb, var(--good) 26%, transparent); }
-.g.C      { color: var(--warn); background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 26%, transparent); }
-.g.D, .g.E, .g.F { color: var(--bad); background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
+.g.A, .g.B { color: var(--good); background: var(--good-bg); border-color: color-mix(in srgb, var(--good) 24%, transparent); }
+.g.C       { color: var(--warn); background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 24%, transparent); }
+.g.D, .g.E, .g.F { color: var(--bad); background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 26%, transparent); }
 
-/* "Not checked" is not a weaker failure, so it does not get a paler red. It gets its own mark: a
- * dashed edge, which reads as provisional rather than as bad. */
-.g.part {
-  border-style: dashed;
-  border-color: var(--faint);
-  color: var(--unchecked);
-  background: var(--unchecked-bg);
-}
+/* Not checked is not a milder failure. Dashed, neutral, and never red. */
+.g.part { border-style: dashed; border-color: var(--edge); color: var(--unchecked); background: var(--unchecked-bg); }
 
 .mode, .review {
   display: inline-block;
-  font-family: var(--sans);
   font-size: 11.5px;
-  line-height: 1.5;
-  padding: 2px 8px;
-  margin: 0 5px 4px 0;
+  font-weight: 450;
+  line-height: 1.45;
+  padding: 2px 9px;
+  margin: 0 4px 3px 0;
   border-radius: 999px;
   border: 1px solid transparent;
 }
-.mode { color: var(--bad); background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 24%, transparent); }
-.review { color: var(--unchecked); background: var(--unchecked-bg); border-color: var(--rule-strong); border-style: dashed; }
+.mode { color: var(--bad); background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 20%, transparent); }
+.review { color: var(--unchecked); background: var(--unchecked-bg); border-color: var(--edge); border-style: dashed; }
 
 .sub { color: var(--faint); font-size: 12.5px; }
 .title { font-size: 13.5px; }
 .case { font-size: 13.5px; color: var(--muted); }
 .attrib { color: var(--muted); font-size: 12px; }
-.instead, .instead-inline { font-size: 13.5px; }
+.instead { font-size: 13.5px; }
 .instead-inline { color: var(--muted); font-size: 12.5px; }
+.nums { font-variant-numeric: tabular-nums; }
 
 /* ---------- the verdict panel ---------- */
 
 .claim {
-  font-size: 15.5px;
-  line-height: 1.6;
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.62;
   color: var(--ink);
-  border-left: 2px solid var(--rule-strong);
-  padding: 2px 0 2px 15px;
-  margin: 13px 0;
+  border-left: 2px solid var(--line);
+  padding: 2px 0 2px 16px;
+  margin: 14px 0;
 }
 
 blockquote {
-  margin: 14px 0;
-  padding: 13px 16px;
+  font-family: var(--serif);
+  margin: 15px 0;
+  padding: 14px 17px;
   background: var(--good-bg);
   border-left: 2px solid var(--good);
-  border-radius: 0 var(--radius) var(--radius) 0;
-  font-size: 14.5px;
-  line-height: 1.6;
+  border-radius: 0 var(--r-control) var(--r-control) 0;
+  font-size: 15.5px;
+  line-height: 1.62;
 }
 
 .finding {
-  border: 1px solid var(--rule);
+  border: 1px solid var(--line);
   border-left: 2px solid var(--bad);
-  border-radius: 0 var(--radius) var(--radius) 0;
+  border-radius: 0 var(--r-control) var(--r-control) 0;
   padding: 11px 14px;
   margin: 9px 0;
-  background: var(--paper);
+  background: var(--surface-2);
 }
-.finding b { display: block; font-family: var(--sans); font-size: 12.5px; margin-bottom: 3px; color: var(--bad); }
-.finding span { font-size: 13.5px; color: var(--ink-soft); }
+.finding b { display: block; font-size: 12.25px; font-weight: 600; margin-bottom: 3px; color: var(--bad); }
+.finding span { font-size: 13.25px; color: var(--ink-2); }
 
 pre {
   font-family: var(--mono);
-  font-size: 12.5px;
-  line-height: 1.62;
+  font-size: 12.25px;
+  line-height: 1.65;
   white-space: pre-wrap;
   word-wrap: break-word;
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
   padding: 15px 16px;
   margin: 0;
   max-height: 620px;
   overflow: auto;
 }
 
-/* ---------- the judgment viewer ---------- */
+/* ---------- the judgment ---------- */
 
-#para { max-height: 560px; overflow: auto; margin-top: 12px; padding-right: 6px; }
+#para { max-height: 60vh; overflow: auto; margin-top: 12px; padding-right: 8px; }
 
 .p {
-  font-size: 14.5px;
-  line-height: 1.68;
-  padding: 9px 0 9px 14px;
+  font-family: var(--serif);
+  font-size: 15.5px;
+  line-height: 1.7;
+  padding: 10px 0 10px 15px;
   border-left: 2px solid transparent;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 96px;
 }
-.p b { font-family: var(--sans); font-size: 11.5px; color: var(--faint); margin-right: 9px; }
+.p b {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--faint);
+  margin-right: 10px;
+  font-variant-numeric: tabular-nums;
+}
 
-/* The paragraph the engine actually read. The point of the whole viewer. */
-.p.here {
-  border-left-color: var(--seal);
-  background: color-mix(in srgb, var(--seal) 6%, transparent);
-}
+/* The paragraph the engine read. The point of the viewer, so it gets the accent. */
+.p.here { border-left-color: var(--accent); background: var(--accent-wash); }
 
 .op {
   font-family: var(--sans);
-  font-size: 11px;
-  letter-spacing: .05em;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .04em;
   text-transform: uppercase;
   color: var(--warn);
   background: var(--warn-bg);
-  border-radius: 2px;
-  padding: 1px 6px;
+  border-radius: 999px;
+  padding: 1px 8px;
   margin-right: 8px;
 }
 
-mark { background: color-mix(in srgb, var(--seal) 22%, transparent); color: inherit; padding: 1px 0; }
+mark {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: inherit;
+  padding: 1px 2px;
+  border-radius: 2px;
+}
 
-/* ---------- search results and bindings ---------- */
+/* ---------- bindings, search, attacks ---------- */
 
 .st {
   display: inline-block;
-  font-family: var(--sans);
-  font-size: 11px;
-  letter-spacing: .05em;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .04em;
   text-transform: uppercase;
-  padding: 2px 8px;
+  padding: 3px 9px;
   border-radius: 999px;
-  border: 1px solid var(--rule-strong);
+  border: 1px solid var(--line);
   color: var(--muted);
-  background: var(--paper);
-  margin-right: 8px;
+  background: var(--surface-2);
+  white-space: nowrap;
 }
-.st.bound { color: var(--good); background: var(--good-bg); border-color: color-mix(in srgb, var(--good) 26%, transparent); }
-.st.refused { color: var(--bad); background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 26%, transparent); }
+.st.bound { color: var(--good); background: var(--good-bg); border-color: color-mix(in srgb, var(--good) 24%, transparent); }
+.st.refused { color: var(--bad); background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 24%, transparent); }
 
-.pick { padding: 13px 0; border-bottom: 1px solid var(--rule); }
-.pick:last-child { border-bottom: 0; }
-
-/* What the other side will say. Warned rather than failed: everything in the draft already passed
- * the gate, so these are the attacks the gate cannot make, and the colour has to say "read this"
- * rather than "this is wrong". */
-.attack {
-  margin: 11px 0;
-  padding: 10px 0 10px 14px;
-  border-left: 2px solid var(--warn);
-  background: color-mix(in srgb, var(--warn) 5%, transparent);
-  border-radius: 0 var(--radius) var(--radius) 0;
+li.bind {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 11px;
+  align-items: start;
+  padding: 13px 2px;
+  font-size: 13.5px;
+  border-bottom: 1px solid var(--line);
 }
-.attack b { display: block; font-family: var(--sans); font-size: 13px; margin-bottom: 3px; }
+li.bind:last-child { border-bottom: 0; }
+.bind-text { min-width: 0; overflow-wrap: anywhere; }
+
+/* A search result. Same rhythm as the board, without the selection. */
+.pick:not(button) { padding: 15px 2px; border-bottom: 1px solid var(--line); }
+.pick:not(button):last-child { border-bottom: 0; }
+
+.attack { margin: 11px 0; padding: 11px 0 11px 15px; border-left: 2px solid var(--warn); }
+.attack b { display: block; font-size: 13px; font-weight: 600; margin-bottom: 3px; }
 .attack span { color: var(--muted); font-size: 12.5px; }
 
-a { color: var(--seal); text-underline-offset: 2px; }
-a:hover { color: var(--seal-soft); }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:hover { color: var(--accent-press); }
 
 footer {
-  max-width: 1240px;
+  max-width: 1320px;
   margin: 0 auto;
-  padding: 0 32px 44px;
-  font-family: var(--sans);
-  font-size: 12px;
+  padding: 22px 28px 48px;
+  font-size: 12.25px;
   line-height: 1.7;
   color: var(--faint);
-  border-top: 1px solid var(--rule);
-  padding-top: 20px;
+  border-top: 1px solid var(--line);
 }
 footer strong { color: var(--muted); font-weight: 600; }
+footer em { font-style: normal; color: var(--ink-2); font-weight: 600; }
 
-::selection { background: color-mix(in srgb, var(--seal) 24%, transparent); }
-
-@media (max-width: 620px) {
-  header, main, footer { padding-left: 18px; padding-right: 18px; }
-  header h1 { font-size: 21px; }
-  header h1 span.strap { display: block; margin-left: 0; }
-
-  /* Let the tab row scroll rather than wrap. "Check a / brief" over two lines reads as a broken
-   * label; one line that runs off the edge reads as a row you can push. */
-  .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-  .tabs::-webkit-scrollbar { display: none; }
-  .tabs button { white-space: nowrap; padding-left: 12px; padding-right: 12px; }
-
-  /* The findings badge column has nowhere to go at this width; stack it under the citation. */
-  button.pick { grid-template-columns: auto minmax(0, 1fr); }
-  .pick-findings { grid-column: 2; }
-}
-
-/* Spacing between the input card and the results below it. A class rather than a style attribute,
- * because a style attribute would need `unsafe-inline` in the policy and that is the whole point. */
-.row-spaced { margin-top: 24px; }
-
+::selection { background: color-mix(in srgb, var(--accent) 24%, transparent); }
 
 /* ---------- keyboard, motion, touch, print ---------- */
 
-/* The first thing in the tab order, and invisible until it has focus. */
 .skip {
   position: absolute;
   left: -9999px;
   top: 0;
   z-index: 10;
-  background: var(--paper-raised);
+  background: var(--surface);
   color: var(--ink);
   border: 1px solid var(--edge);
-  border-radius: var(--radius);
+  border-radius: var(--r-control);
   padding: 10px 16px;
-  font-family: var(--sans);
-  font-size: 13.5px;
+  font-size: 13px;
+  box-shadow: var(--shadow-2);
 }
-.skip:focus { left: 12px; top: 12px; }
+.skip:focus { left: 14px; top: 12px; }
 
-/* Numbers that sit under one another should line up. */
-.nums { font-variant-numeric: tabular-nums; }
-
-/* Headings should not leave one word alone on the last line. */
 h1, h2 { text-wrap: balance; }
 .hint, .claim, blockquote { text-wrap: pretty; }
-
-/* A judgment can run to hundreds of paragraphs; the ones off screen need not be laid out. */
-.p { content-visibility: auto; contain-intrinsic-size: auto 90px; }
-
-/* Long unbroken strings -- a party name in capitals, a citation, a URL in a judgment -- must wrap
- * rather than widen their container and push the page sideways. */
 .title, .sub, .claim, blockquote, .finding span, .mode { overflow-wrap: anywhere; }
 
 button, label.check, .tabs button, button.pick {
-  touch-action: manipulation;           /* no 300ms double-tap delay */
+  touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Loading, as a shape rather than a spinner: the board draws the rows it is about to fill. */
+/* Loading with the shape of the thing being loaded, rather than a spinner that could be anything. */
 .skeleton { list-style: none; margin: 0; padding: 0; }
 .skeleton li {
-  height: 14px;
-  margin: 18px 6px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, var(--rule) 0%, var(--paper) 50%, var(--rule) 100%);
+  height: 13px;
+  margin: 19px 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--line) 0%, var(--surface-2) 50%, var(--line) 100%);
   background-size: 200% 100%;
-  animation: sweep 1.4s ease-in-out infinite;
+  animation: sweep 1.5s ease-in-out infinite;
 }
-.skeleton li:nth-child(2n) { width: 78%; }
-.skeleton li:nth-child(3n) { width: 62%; }
+.skeleton li:nth-child(2n) { width: 74%; }
+.skeleton li:nth-child(3n) { width: 58%; }
 @keyframes sweep { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* A verdict arriving should be noticed without being a performance. */
+@keyframes settle { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+button.pick { animation: settle .22s ease both; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -575,18 +618,27 @@ button, label.check, .tabs button, button.pick {
     transition-duration: .001ms !important;
     scroll-behavior: auto !important;
   }
-  /* The sweep carried the "still working" signal, so something else has to. */
-  .skeleton li { background: var(--rule); }
+  .skeleton li { background: var(--line); }
 }
 
-/* The output of this tool is a document that gets filed, so it has to print. */
 @media print {
-  :root { --paper: #fff; --paper-raised: #fff; --ink: #000; }
+  :root { --bg: #fff; --surface: #fff; --surface-2: #fff; --ink: #000; }
   header, .tabs, .controls, .skip, footer, #input-card, textarea { display: none !important; }
   .card { border: 0; box-shadow: none; padding: 0; }
   .row { display: block; }
+  .row > .card:first-child { position: static; max-height: none; }
   main { max-width: none; padding: 0; }
   #para, pre { max-height: none; overflow: visible; }
-  button.pick { break-inside: avoid; }
+  button.pick { break-inside: avoid; animation: none; }
   blockquote, .finding { border-left-width: 3px; }
+}
+
+@media (max-width: 620px) {
+  header { padding: 0 16px; height: 56px; }
+  header h1 .strap { display: none; }
+  main, footer { padding-left: 16px; padding-right: 16px; }
+  .tabs { display: flex; width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .card { padding: 16px 15px; }
+  button.pick { grid-template-columns: auto minmax(0, 1fr); }
 }

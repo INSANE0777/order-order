@@ -133,6 +133,16 @@ ACCEPTED_UPLOADS = (".pdf", ".docx", ".txt", ".md")
 # they need is "save it as .docx", not a status code.
 EXPLAINED_UPLOADS = (".doc",)
 
+# The faces the page asks for, as a set the font route matches against rather than a path it joins.
+FONT_FILES = frozenset(
+    {
+        "geist-latin.woff2",
+        "geist-latin-ext.woff2",
+        "geist-mono-latin.woff2",
+        "geist-mono-latin-ext.woff2",
+    }
+)
+
 
 async def _read_at_most(file: UploadFile, limit: int) -> bytes | None:
     """The whole file, or `None` if it is larger than `limit`.
@@ -531,6 +541,22 @@ def create_app(
     @app.get("/app.js")
     def script() -> FileResponse:
         return FileResponse(STATIC / "app.js", media_type="text/javascript")
+
+    @app.get("/fonts/{name}")
+    def font(name: str) -> FileResponse:
+        """The four self-hosted Geist faces, served by name from a fixed list.
+
+        Named rather than mounted, and matched against a set rather than joined onto a path: `name`
+        arrives from the URL, and `STATIC / name` with a `..` in it is the oldest file-serving bug
+        there is. A membership test cannot traverse anywhere.
+
+        Self-hosted because the Content-Security-Policy is `font-src 'self'`. Loading these from
+        Google would mean widening the policy to a third-party origin, and a typeface is not worth
+        that; 82 KB in the repository is the cheaper trade.
+        """
+        if name not in FONT_FILES:
+            raise HTTPException(404, "no such font")
+        return FileResponse(STATIC / "fonts" / name, media_type="font/woff2")
 
     return app
 

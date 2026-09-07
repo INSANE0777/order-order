@@ -90,7 +90,7 @@ $("go").onclick = async () => {
   working("go", "Checking…");
   verdicts = []; chosen = null;
   $("board").innerHTML = skeleton(5);
-  $("detail").innerHTML = '<p class="none">Choose a citation on the left.</p>';
+  $("detail").innerHTML = '<p class="none">Choose a citation to see what was found.</p>';
   $("exports").hidden = true;
 
   try {

@@ -5,75 +5,85 @@ format, so that any agent asked to build or change this interface reads one docu
 guessing from the code.
 
 **This describes the system already implemented**, not an aspiration. Every token below is live in
-`src/orderorder/web/static/app.css`; if the two ever disagree, the stylesheet is the fact and this
-file is the bug. The reasoning behind each rule is in that file's header comment.
+`src/orderorder/web/static/app.css`; if the two disagree, the stylesheet is the fact and this file is
+the bug. Every colour pair is asserted in `tests/test_hardening.py`, both themes.
+
+> **This is the second design.** The first was warm bone paper, an oxblood accent and a serif, chosen
+> because "law report" felt right for case law. It was, almost exactly, the palette the taste skill in
+> `.claude/skills` bans by name: its list of banned premium-consumer backgrounds contains that cream
+> family, its banned accents contain oxblood, and its banned text colours contain `#1a1714`, which was
+> the literal hex in use. It also names serif-by-default as the single most-tested AI tell. Reaching
+> for a law report because the subject is law was the reflex, not the idea. Recorded here because what
+> was wrong is more useful than a clean document.
 
 ---
 
 ## 1. Visual Theme & Atmosphere
 
-**A law report, not a dashboard.** The reference is the printed page an advocate already trusts: a
-Supreme Court Report — set in a serif, ruled with hairlines, generous in the margin, severe about
-hierarchy. Restrained, quiet, and dense with text rather than with chrome.
+**Precise, cool, and quiet enough that colour means something.** The reference is a serious modern
+instrument — a well-made piece of professional software — not a printed page and not a dashboard. Cool
+neutrals, one saturated accent, a grotesque, generous negative space.
 
-This is not decoration. The product's entire claim is that it will not overstate: it separates
-*supported*, *checked and not supported*, and *not checked*, and refuses to collapse them. An
-interface of gradient cards, progress rings and confident green ticks would be overstating before it
-had said anything. The design has to look like something that abstains.
+The restraint is not decoration. The product's claim is that it will not overstate: it separates
+*supported*, *checked and not supported*, and *not checked*, and refuses to collapse them. So colour is
+rationed. Green, amber and red appear **only** on verdicts. The interface accent is cobalt precisely so
+it can never be read as a finding.
 
-**Density:** comfortable-to-dense. Long legal text is the content; it needs line length and leading,
-not padding.
-**Mood words:** considered, printed, sober, exact. **Never:** playful, energetic, futuristic, sleek.
+**Density:** medium. Legal text is the content and needs line length and leading; the chrome around it
+should be thin.
+**Mood words:** exact, calm, engineered, confident. **Never:** warm-craft, heritage,
+editorial-pastiche, playful, glassy.
+
+**Dials** (taste-skill convention): `DESIGN_VARIANCE 7 · MOTION_INTENSITY 5 · VISUAL_DENSITY 5`.
 
 ---
 
 ## 2. Colors
 
-Three rules govern the palette, in priority order.
+Three rules, in priority order.
 
-1. **Ink on paper, not text on a surface.** The light theme is warm bone, never `#fff` — a report is
-   printed on stock, and a pure-white field beside a serif reads clinical.
-2. **Colour means a finding.** Green, amber and red are reserved for grades and flags. Nothing
+1. **Colour means a finding.** Green, amber and red are reserved for verdicts and flags. Nothing
    decorative may borrow them, or red stops meaning *this citation is wrong*.
-3. **Three states, three treatments.** *Not checked* is not a weaker failure and never gets a paler
-   red. It gets a dashed, muted badge of its own — provisional, not bad.
+2. **One accent, locked.** Cobalt, everywhere, for interface only — the mark's dot, the primary button,
+   focus, selection, the read-paragraph marker, links. There is no second accent anywhere.
+3. **Three states, three treatments.** *Not checked* is not a milder failure and never gets a paler
+   red. It is a dashed neutral — provisional rather than bad.
 
 ### Surface & ink
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--paper` | `#f7f4ee` | `#14120f` | Page ground, inset fields |
-| `--paper-raised` | `#fffdf8` | `#1c1a16` | Cards, masthead |
-| `--ink` | `#1a1714` | `#ece7dd` | Body text |
-| `--ink-soft` | `#45403a` | `#cbc4b8` | Secondary prose |
-| `--muted` | `#6b645b` | `#9a9287` | Captions, hints |
-| `--faint` | `#746e65` | `#8b8377` | Labels, empty states |
-| `--rule` | `#ddd6c9` | `#2c2822` | Decorative hairlines and dividers |
-| `--rule-strong` | `#c6bdac` | `#413b32` | Heavier dividers |
-| `--edge` | `#99896b` | `#716657` | **Control boundaries**: field and quiet-button borders |
+| `--bg` | `#f5f6f8` | `#0a0b0d` | Page ground |
+| `--surface` | `#ffffff` | `#131519` | Panels, the masthead chip |
+| `--surface-2` | `#f9fafb` | `#171a1f` | Inset fields, hover, quiet fills |
+| `--ink` | `#0e1116` | `#e9ecf1` | Primary text |
+| `--ink-2` | `#3d444d` | `#c3c9d2` | Secondary prose, quiet button labels |
+| `--muted` | `#5b636e` | `#98a0ac` | Hints, captions, status |
+| `--faint` | `#69717c` | `#828a96` | Panel labels, empty states |
+| `--line` | `#e6e8ec` | `#23262c` | Dividers — decorative, no contrast duty |
+| `--edge` | `#858fa0` | `#5a6370` | **Control boundaries** — fields, quiet buttons |
 
-`--rule` and `--edge` look similar and are not interchangeable. A divider carries no information and
-may be as light as it likes; the edge that tells you a thing is a control must clear 3:1, which
-`--rule-strong` did not (1.83). Use `--edge` on anything you can type in or press.
+`--line` and `--edge` look similar and are not interchangeable. A divider carries no information; the
+edge that tells you a thing is a control must clear 3:1. Use `--edge` on anything you can type in or
+press.
 
-### Brand
+### Accent
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--seal` | `#7b2233` | `#c9697a` | Oxblood — the colour of a bound reporter's spine |
-| `--seal-soft` | `#a33c4e` | `#d98a98` | Hover only |
+| `--accent` | `#2b52e0` | `#7d9bff` | The one accent |
+| `--accent-press` | `#1f3fb8` | `#a3b8ff` | Hover and press |
+| `--accent-ink` | `#ffffff` | `#0a0b0d` | Text **on** the accent |
+| `--accent-wash` | `#eef2fe` | `#161b2c` | Selected row, read paragraph |
 
-Oxblood appears on: the wordmark and its short rule, the active tab underline, the primary button,
-the read-paragraph marker, selection. **Nowhere else.**
-
-### Semantic — findings only
+### Semantic — verdicts only
 
 | Token | Light fg / bg | Dark fg / bg | Meaning |
 |---|---|---|---|
-| `--good` | `#2f6b45` / `#e6efe7` | `#7fbf95` / `#1b2a20` | Grades A–B; a verified quotation |
-| `--warn` | `#8a5a12` / `#f6eddb` | `#d3a253` / `#2a2216` | Grade C; a quoted-voice marker; a self-attack |
-| `--bad` | `#9d2f28` / `#f6e5e2` | `#e08b82` / `#2c1c1a` | Grades D–F; a failure-mode badge |
-| `--unchecked` | `#6b645b` / `#ebe6dc` | `#9a9287` / `#23201b` | **Not checked.** Always dashed-bordered |
+| `--good` | `#0e7a4f` / `#e7f4ee` | `#3ddc97` / `#10231b` | Grades A–B; a verified quotation |
+| `--warn` | `#96650a` / `#fbf1de` | `#e3b341` / `#241d10` | Grade C; quoted voice; a self-attack |
+| `--bad` | `#c62f2f` / `#fdecec` | `#ff8f8a` / `#2a1618` | Grades D–F; a failure-mode chip |
+| `--unchecked` | `#5b636e` / `#eef0f3` | `#98a0ac` / `#1c1f25` | **Not checked.** Always dashed |
 
 ---
 
@@ -81,133 +91,133 @@ the read-paragraph marker, selection. **Nowhere else.**
 
 ### Families
 
-| Token | Stack | Used for |
+| Token | Face | Used for |
 |---|---|---|
-| `--serif` | Iowan Old Style, Palatino Linotype, Palatino, Book Antiqua, Georgia, serif | All reading text: judgments, claims, findings, body |
-| `--sans` | system UI stack | Apparatus only: labels, buttons, badges, hints, status |
-| `--mono` | system mono stack | Verbatim input and output: the brief, the plan, reports |
+| `--sans` | **Geist** 300–700, self-hosted | Everything the tool says |
+| `--mono` | **Geist Mono** 400–600, self-hosted | Verbatim input and output: the brief, the plan, reports |
+| `--serif` | Iowan Old Style / Palatino / Georgia | **The court's words, and only those** |
 
-**No web fonts.** Nothing is loaded from a third-party origin — the Content-Security-Policy is
-`font-src 'self'`, and a font that would need `fonts.googleapis.com` cannot be added without weakening
-it. Substitutes are chosen so the serif stack degrades to Georgia, which is on everything.
+**Self-hosted, not a CDN.** The policy is `font-src 'self'`; loading Geist from Google would mean
+widening it to a third-party origin, and a typeface is not worth that. Four latin/latin-ext `woff2`
+subsets, 82 KB total, in `static/fonts/`, under the SIL Open Font License (`fonts/OFL.txt`). They are
+served by an allowlisted route, not a directory mount.
 
-The serif/sans split carries meaning: **serif is what the court and the advocate wrote; sans is what
-the tool says about it.** Never set a judgment's words in the sans stack.
+**The serif is a voice marker, not a style.** It appears on a judgment's paragraphs, on the claim being
+checked, and inside a verified quotation — the places where you are reading what somebody else wrote.
+Everywhere else is Geist. This is the one justification for a serif here and it is semantic: never set
+the tool's own words in it.
 
 ### Scale
 
-| Role | Size / leading | Family | Notes |
-|---|---|---|---|
-| Body | 16px / 1.55 | serif | |
-| Masthead `h1` | 25px / 600 | serif | Wordmark in `--seal` with a 34×2px rule beneath |
-| Strapline | 15px italic | serif | `--muted` |
-| Card title `h2` | 11.5px / 700 | sans | Uppercase, `.11em` tracking, `--faint` |
-| Judgment paragraph | 14.5px / 1.68 | serif | The longest read on the page |
-| Claim / blockquote | 15.5–14.5px / 1.6 | serif | |
-| Board row | 14px | serif | Seal / citation / findings grid |
-| Hint, caption | 12.5px / 1.6 | sans | `--muted` |
-| Badges | 11–11.5px | sans | |
-| Code, textarea | 13px / 1.62, `pre` 12.5px | mono | |
+| Role | Size / weight | Family |
+|---|---|---|
+| Wordmark | 16px / 600, `-.018em` | sans |
+| Strapline, status | 13px / 400, 11.5px / 500 | sans |
+| Panel label `h2` | 11px / 600, uppercase `.07em` | sans |
+| Body | 15px / 1.55 | sans |
+| Board row | 13.5px, citation 600 tabular | sans |
+| Judgment paragraph | 15.5px / 1.7 | **serif** |
+| Claim, verified quote | 16px / 15.5px | **serif** |
+| Chips, tags | 11.5px / 10.5px | sans |
+| Fields, `pre` | 12.75px / 12.25px | mono |
+
+Numbers that sit under one another get `font-variant-numeric: tabular-nums` — citations, paragraph
+labels, the corpus count.
 
 ---
 
 ## 4. Layout
 
-**Spacing** is a 4px-derived but hand-tuned scale; the values in use are 2, 4, 6, 8, 10, 13, 14, 16,
-22, 24, 26, 32, 44, 72.
-
 | Region | Value |
 |---|---|
-| Page container | `max-width: 1240px`, padding `26px 32px 72px` |
-| Masthead | padding `20px 32px 16px`, bottom `1px solid --rule-strong` |
-| Card | padding `22px 24px`, `1px solid --rule`, radius 3px |
-| Two-column row | `grid`, `5fr / 7fr`, gap 22px |
-| Control cluster | `flex`, gap 10px, `margin-top: 13px` |
+| Masthead | sticky, 60px, translucent + `backdrop-filter`, 1px bottom rule |
+| Page container | `max-width: 1320px`, padding `30px 28px 96px` |
+| Panel | padding `20px 22px`, 1px `--line`, radius 10px, `--shadow-1` |
+| Workspace row | `grid`, `minmax(0,420px) / minmax(0,1fr)`, gap 20px |
+| Control cluster | `flex`, gap 9px, `margin-top: 13px` |
 
-**Whitespace philosophy:** space goes into leading and margins, not into padding. A card is a sheet
-with a hairline edge, not a floating panel — hence the near-flat shadow.
+**The board rail is sticky above 1020px** and scrolls within `calc(100vh - 112px)`, so the list of
+citations stays put while a judgment is read beside it. It goes static below that, and in print.
 
 ---
 
 ## 5. Elevation & Depth
 
-Almost none, deliberately. One shadow token, used only on `.card`:
+Two shadow tokens and nothing else. `--shadow-1` on panels; `--shadow-2` only on the skip link, which
+genuinely floats. Both tinted to the ink, never pure black.
 
-```
-light  0 1px 2px rgba(26,23,20,.05), 0 8px 24px -12px rgba(26,23,20,.12)
-dark   0 1px 2px rgba(0,0,0,.4),     0 8px 24px -12px rgba(0,0,0,.6)
-```
-
-Depth is carried by **hairline rules and left-borders**, not by layering. A 2px left border in a
-semantic colour is the primary device for marking a passage: `--good` on a verified quotation,
-`--bad` on a finding, `--warn` on a self-attack, `--seal` on the paragraph the engine read.
+Depth is otherwise carried by **surface steps** (`--bg` → `--surface` → `--surface-2`) and by 2px
+left-borders in a semantic colour: `--good` on a verified quotation, `--bad` on a finding, `--warn` on
+a self-attack, `--accent` on the paragraph the engine read.
 
 ---
 
 ## 6. Shapes
 
-`--radius: 3px` everywhere — cards, buttons, fields, badges' square variants. Pills (`999px`) are used
-only for the status chip and for finding badges. Nothing is more rounded than 3px unless it is a pill.
+**SHAPE LOCK — panels `10px` · controls `6px` · badges, chips, tabs and the status pill full `999px`.**
+Nothing else. Mixed radii without a rule is the fastest way to make a considered layout look assembled.
 
-The **grade seal** is the one bespoke shape: a 26px square-ish `inline-grid` with a 1px border, solid
-for a decided grade and **dashed** when checks could not run.
+The **grade mark** is the one bespoke object: a 24px square at control radius, solid-bordered for a
+decided grade and **dashed** when checks could not run.
 
 ---
 
 ## 7. Components
 
 ### Buttons
-Primary is oxblood fill, `--paper-raised` text, 8×15px, sans 13.5px/550. `.quiet` is transparent with
-an `--edge` border, which is the accessible one. Active nudges 1px down. Focus is a 2px `--seal` outline at 2px offset —
-**never remove it.**
+Primary is accent fill with `--accent-ink`, 13px/600. `.quiet` is `--surface` with an `--edge` border.
+Press nudges 1px. Focus is a 2px accent outline at 2px offset — **never remove it.** A button that is
+working is disabled, says so in its own label (`Checking…`), and takes `cursor: progress`.
 
 ### Tabs
-A row over a 1px rule; the active one is marked by a 2px `--seal` underline and 600 weight, never by a
-fill. *A tab is a place you are, not a button you press* — and because `.tabs button` ties the generic
-`button:hover` on specificity, the tab rules must restate `background: none`.
+Two variants, and the distinction is meaningful. **Surface tabs** (check / find / draft) are a
+segmented pill: a capsule track with the active tab raised on `--surface`. **Panel tabs**
+(`.tabs.plain`) are a quiet underline inside a card. Never mix them. The active surface is written to
+`location.hash`, so a reload keeps you where you were.
 
 ### Verdict board
 **A list of `<button>`s, not a table of clickable rows.** The board is a set of citations you choose
 between, which is what a button is; a `<tr onclick>` is unreachable by keyboard and needs a pile of
-ARIA to pretend otherwise. Each button is a grid: seal, citation, findings. Hover tints to `--paper`,
-selected adds `inset 3px 0 0 --seal` and `aria-pressed`, focus draws a 2px `--seal` ring inset.
+ARIA to pretend otherwise. Each button is a two-row grid: the grade mark spans both, the citation sits
+top-right, the finding chips below it. Selected takes `--accent-wash` and an accent border.
 
-Redrawing the board replaces the focused element, so the handler restores focus to the row it just
-selected. The first verdict opens itself as it arrives — an empty panel beside a filling board is a
-panel the reader has to be told about.
+Redrawing replaces the focused element, so the handler restores focus to the row it just selected. The
+first verdict opens itself as it arrives. Rows animate in with a 3px rise over 220ms — enough to notice
+an arrival, not enough to be a performance.
 
-**Badges carry the finding's words, never its number.** "no such case", "pinpoint does not exist" —
-the mode number belongs in a `title`, because `5` tells a reader nothing.
+**Chips carry the finding's words, never its number** — "no such case", "pinpoint does not exist". The
+mode number goes in a `title`.
 
 ### Judgment viewer
-Scrolling column of paragraphs, each with a sans label. The paragraph the engine actually read gets a
-`--seal` left border and a 6% tint; the verified sentence inside it is `<mark>`ed. This is the point of
-the whole viewer — nothing else on the page may compete with that marker.
+Serif paragraphs in a scrolling column with sans tabular labels. The paragraph the engine read takes
+the accent border and wash; the verified sentence inside it is `<mark>`ed in accent at 20%.
 
-### Empty states
-Italic sans in `--faint`, one plain sentence. Never an illustration.
+### Empty and loading states
+Empty: one plain sentence in `--faint`. Loading: a **skeleton shaped like the rows it is about to
+become**, never a spinner.
 
 ---
 
 ## 8. Do's and Don'ts
 
 ### Do
-- Set anything a court or an advocate wrote in the serif.
-- Reserve semantic colour for findings.
-- Give *not checked* a dashed edge and a neutral tone.
+- Set the court's words — and only those — in the serif.
+- Ration semantic colour to verdicts.
+- Give *not checked* a dashed neutral.
 - Keep the focus ring.
-- Add a class to `app.css` instead of a `style=` attribute.
+- Add a class to `app.css` rather than a `style=` attribute.
 - Say what a finding is, in words.
 
 ### Don't
 - **Never add inline `<script>`, `<style>`, `style=` or `on*=`.** The CSP is `script-src 'self'` with
   no `unsafe-inline`, and `tests/test_hardening.py` fails the build if any appears. This is a security
   boundary wearing a style rule's clothes.
-- Never load a font, script or stylesheet from another origin.
-- Never use green to mean "done" or red to mean "important".
+- Never load a font, script or stylesheet from another origin — Google Fonts included.
+- Never introduce a second accent, or use the accent for a verdict.
+- Never use green for "done" or red for "important".
 - Never render *not checked* as a lighter failure.
-- No gradients, no glassmorphism, no drop shadows beyond the one token, no icon set, no emoji in the
-  interface, no animated progress.
+- No gradients beyond the loading sweep, no glassmorphism beyond the masthead's blur, no icon set, no
+  emoji in the interface.
 - Never interpolate server text into markup without `escape()`.
 
 ---
@@ -216,54 +226,36 @@ Italic sans in `--faint`, one plain sentence. Never an illustration.
 
 | Breakpoint | Behaviour |
 |---|---|
-| ≥ 941px | Two-column rows, 5fr / 7fr |
-| ≤ 940px | Rows collapse to one column |
-| ≤ 620px | Container padding drops to 18px; masthead 21px; strapline wraps to its own line |
+| ≥ 1021px | Two-column workspace, board rail sticky |
+| ≤ 1020px | One column, rail static |
+| ≤ 620px | Masthead 56px and drops the strapline; the tab row scrolls rather than wraps; panels tighten |
 
-The page must never scroll horizontally — asserted in the render check. Long content (tables, `pre`,
-the paragraph column) scrolls inside its own container.
-
-Touch targets: buttons are 34px tall at 13.5px text; keep ≥ 32px.
+The page must never scroll horizontally — asserted in the render check at 1440px and 390px. Long
+content scrolls inside its own container.
 
 ---
 
 ## 10. Iteration Guide
 
-1. Read `src/orderorder/web/static/app.css` — the header comment carries the reasoning.
+1. Read `app.css` — the header comment carries the reasoning, including what the last design got wrong.
 2. Change tokens, not literals. There should be no raw hex outside `:root` and its dark override.
 3. Add both themes at once. A token defined only in light is a bug.
-4. Run the suite: `uv run pytest tests/test_hardening.py`. It checks for inline script and style, for
-   `on*=` handlers, that every class used is styled, and that every id the script reaches for exists.
-5. Look at it. Two of the three bugs found in the last redesign — export buttons visible when they
-   should have been hidden, and a tab filling on hover — were invisible in the source and obvious on
-   screen.
+4. Run `uv run pytest tests/test_hardening.py`: contrast in both themes, no inline script or style, no
+   `on*=`, every class styled, every id the script reaches for present.
+5. **Look at it.** Every visual bug in this project's history — export buttons visible when hidden, a
+   tab filling on hover, a wordmark dot reading as a full stop — was invisible in the source and
+   obvious on screen.
 
 ---
 
 ## 11. Known Gaps
 
-Five gaps were listed here when this file was written. All five are closed, and the entries are kept
-because what was wrong is more useful than a clean list:
-
-- ~~No keyboard access to the board~~ — it is a list of buttons now, verified focusable and operable
-  in a real browser rather than assumed.
-- ~~No reduced-motion query~~ — present, and it also stills the loading skeleton, which was the only
-  thing left carrying a "still working" signal by motion alone.
-- ~~Contrast unmeasured~~ — measured, and it failed. `--faint` was 3.36 against a card while carrying
-  every card label and empty state; the quiet button's border was 1.83 while being the only thing that
-  said it was a button. Both fixed, both now asserted in `tests/test_hardening.py` for both themes.
-- ~~No print stylesheet~~ — present, and it drops the masthead, tabs, controls and the input card,
-  which are furniture rather than document.
-- ~~No skip link~~ — present, and verified to be the first thing the Tab key reaches.
-
-What is still open:
-
-- **No focus trap or `Escape` handling**, because there is no modal yet. The first one added will need
-  both.
-- **The judgment viewer scrolls inside a fixed height** rather than the page, so a very long judgment
-  is a scroll within a scroll. Acceptable beside a board that must stay visible; worth revisiting.
-- **Colour is doing real work in the grade seals**, and although the letter is always present as text,
-  the mode badges are distinguished from *needs review* by colour and border style alone. A shape or
-  glyph difference would be safer.
-- **No automated axe/Lighthouse pass.** The checks in `test_hardening.py` are hand-written and cover
-  what was actually wrong, which is not the same as coverage.
+- **No focus trap or `Escape` handling**, because there is no modal yet. The first one will need both.
+- **Colour and border style alone** separate a failure chip from *needs review*. The grade mark always
+  carries its letter as text; the chips do not. A glyph difference would be safer.
+- **The judgment scrolls inside a fixed height**, so a long judgment is a scroll within a scroll.
+  Acceptable beside a rail that must stay visible; worth revisiting.
+- **No automated axe or Lighthouse pass.** The checks in `test_hardening.py` are hand-written and cover
+  what was actually found wrong, which is not the same as coverage.
+- **`backdrop-filter` has no fallback.** Where unsupported the masthead is simply 82% opaque, which is
+  fine, but it has not been looked at on an old browser.
