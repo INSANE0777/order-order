@@ -88,7 +88,9 @@ $("go").onclick = async () => {
   const text = $("brief").value.trim();
   if (!text) return;
   working("go", "Checking…");
+  ring(0);
   verdicts = []; chosen = null;
+  $("summary").textContent = "";
   $("board").innerHTML = skeleton(5);
   $("detail").innerHTML = '<p class="none">Choose a citation to see what was found.</p>';
   $("exports").hidden = true;
@@ -108,6 +110,7 @@ function listen(id) {
   stream.addEventListener("progress", (e) => {
     const d = JSON.parse(e.data);
     $("prog").textContent = d.total ? `${d.done} of ${d.total} checked` : "finding citations…";
+    if (d.total) ring(d.done / d.total);
   });
   stream.addEventListener("verdict", (e) => {
     const d = JSON.parse(e.data);
@@ -123,6 +126,7 @@ function listen(id) {
     const d = JSON.parse(e.data);
     stream.close();
     idle("go");
+    ring(1);
     $("prog").textContent = d.error ? d.error : `${d.checked} citation${d.checked === 1 ? "" : "s"} checked`;
     if (verdicts.length) $("exports").hidden = false;
     else $("board").innerHTML = '<p class="none">No case-law citations found in that text.</p>';
@@ -157,6 +161,7 @@ function drawBoard() {
     </li>`;
   }).join("");
   $("board").innerHTML = `<ul class="board-list">${rows}</ul>`;
+  drawSummary();
   for (const button of $("board").querySelectorAll("button.pick")) {
     button.addEventListener("click", () => {
       chosen = +button.dataset.i;
@@ -167,6 +172,22 @@ function drawBoard() {
       if (again) again.focus();
     });
   }
+}
+
+// Supported, checked and not supported, not checked: never collapsed into one number, because
+// collapsing them is how a tool overclaims. A citation with a finding is flagged; one with none and
+// nothing left unchecked is clean; one that needed a check that could not run is neither.
+function drawSummary() {
+  const done = verdicts.filter(Boolean);
+  if (!done.length) { $("summary").textContent = ""; return; }
+  const flagged = done.filter(v => v.findings.length).length;
+  const unchecked = done.filter(v => !v.findings.length && v.needs_review).length;
+  const clean = done.length - flagged - unchecked;
+  $("summary").innerHTML =
+    `<span class="n-total">${done.length}</span>` +
+    `<span class="n-bad">${flagged} flagged</span>` +
+    `<span class="n-good">${clean} clean</span>` +
+    (unchecked ? `<span class="n-part">${unchecked} not checked</span>` : "");
 }
 
 function drawDetail() {
@@ -293,15 +314,29 @@ function skeleton(rows) {
 // control they just pressed -- rather than only in a status line beside it.
 function working(id, label) {
   const button = $(id);
-  if (!button.dataset.idle) button.dataset.idle = button.textContent;
+  // The seal carries an SVG ring beside its words; write into the label so the ring survives.
+  const text = button.querySelector(".label") || button;
+  if (!button.dataset.idle) button.dataset.idle = text.textContent;
   button.disabled = true;
-  button.textContent = label;
+  text.textContent = label;
 }
 
 function idle(id) {
   const button = $(id);
+  const text = button.querySelector(".label") || button;
   button.disabled = false;
-  if (button.dataset.idle) button.textContent = button.dataset.idle;
+  if (button.dataset.idle) text.textContent = button.dataset.idle;
+}
+
+// The ring around the seal, as a fraction of the way round. The circumference is fixed in the markup
+// (2πr for r=54), and the offset is set as an SVG attribute rather than a style, which is what keeps
+// `style-src 'self'` honest: presentation attributes are not inline styles.
+const RING = 339.29;
+function ring(fraction) {
+  const arc = $("ring");
+  if (!arc) return;
+  const clamped = Math.max(0, Math.min(1, fraction));
+  arc.setAttribute("stroke-dashoffset", (RING * (1 - clamped)).toFixed(2));
 }
 
 function escape(s) {

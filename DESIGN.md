@@ -8,33 +8,37 @@ guessing from the code.
 `src/orderorder/web/static/app.css`; if the two disagree, the stylesheet is the fact and this file is
 the bug. Every colour pair is asserted in `tests/test_hardening.py`, both themes.
 
-> **This is the second design.** The first was warm bone paper, an oxblood accent and a serif, chosen
-> because "law report" felt right for case law. It was, almost exactly, the palette the taste skill in
-> `.claude/skills` bans by name: its list of banned premium-consumer backgrounds contains that cream
-> family, its banned accents contain oxblood, and its banned text colours contain `#1a1714`, which was
-> the literal hex in use. It also names serif-by-default as the single most-tested AI tell. Reaching
-> for a law report because the subject is law was the reflex, not the idea. Recorded here because what
-> was wrong is more useful than a clean document.
+> **This is the third design, and it was built to a reference.** The first was warm paper, oxblood and
+> a serif — the palette the taste skill bans by hex, and serif-by-default, the AI tell it names. The
+> second was cool greys, one cobalt and Geist — competent, and indistinguishable from every tool built
+> that year. The reference that fixed it was an animation studio's site: a stone architectural stage,
+> a recessed frame holding a circular object lit in one cool colour, tiny wide-set navigation, and an
+> editorial index strip in hairline rows. That language maps onto this product almost without
+> translation, because **a court seal is a circle in a square**. The lesson kept: a good UI has one
+> idea. The first two had a mood.
 
 ---
 
 ## 1. Visual Theme & Atmosphere
 
-**Precise, cool, and quiet enough that colour means something.** The reference is a serious modern
-instrument — a well-made piece of professional software — not a printed page and not a dashboard. Cool
-neutrals, one saturated accent, a grotesque, generous negative space.
+**A stone stage, a frame, a seal, an index.** The interface is architectural: concrete slabs with
+bevelled seams and a grain, one slab recessed to hold a sheet of paper, a circular seal stamped on the
+recess's lower edge, and beneath it a strip of hairline rows like a studio's client index. The one
+lit object on the page is the seal.
 
-The restraint is not decoration. The product's claim is that it will not overstate: it separates
-*supported*, *checked and not supported*, and *not checked*, and refuses to collapse them. So colour is
-rationed. Green, amber and red appear **only** on verdicts. The interface accent is cobalt precisely so
-it can never be read as a finding.
+Each element is the product, not decoration:
 
-**Density:** medium. Legal text is the content and needs line length and leading; the chrome around it
-should be thin.
-**Mood words:** exact, calm, engineered, confident. **Never:** warm-craft, heritage,
-editorial-pastiche, playful, glassy.
+| element | what it is | why it looks like that |
+|---|---|---|
+| **the frame** | the recessed slab | it *holds a document* — the brief, in a paper slot |
+| **the seal** | the aqua circle | the one action that matters; its ring fills as citations resolve |
+| **the index** | hairline rows below | the verdicts: three columns, tiny labels, nothing decorative |
+| **the document** | the paper pane | the judgment, in a serif, because it is the court's voice |
 
-**Dials** (taste-skill convention): `DESIGN_VARIANCE 7 · MOTION_INTENSITY 5 · VISUAL_DENSITY 5`.
+**Density:** medium; the stage is airy, the index and document are dense.
+**Mood words:** architectural, material, exact, lit. **Never:** flat SaaS, warm-craft, glassy, playful.
+
+**Dials** (taste-skill convention): `DESIGN_VARIANCE 8 · MOTION_INTENSITY 6 · VISUAL_DENSITY 5`.
 
 ---
 
@@ -44,52 +48,52 @@ Three rules, in priority order.
 
 1. **Colour means a finding.** Green, amber and red are reserved for verdicts and flags. Nothing
    decorative may borrow them, or red stops meaning *this citation is wrong*.
-2. **One accent, locked.** Cobalt, everywhere, for interface only — the mark's dot, the primary button,
-   focus, selection, the read-paragraph marker, links. There is no second accent anywhere.
+2. **The aqua is a lit object, never text.** It measures **1.19:1** against the stone. It appears on the
+   seal, the brand mark, the selected-row bar, and the wash behind a read paragraph — always as a fill
+   with dark ink on it, or as a glow. Where the accent must carry text or a focus ring, it is the deep
+   teal `--accent`, which does pass.
 3. **Three states, three treatments.** *Not checked* is not a milder failure and never gets a paler
    red. It is a dashed neutral — provisional rather than bad.
 
-### Surface & ink
+### Stone & paper
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--bg` | `#f5f6f8` | `#0a0b0d` | Page ground |
-| `--surface` | `#ffffff` | `#131519` | Panels, the masthead chip |
-| `--surface-2` | `#f9fafb` | `#171a1f` | Inset fields, hover, quiet fills |
-| `--ink` | `#0e1116` | `#e9ecf1` | Primary text |
-| `--ink-2` | `#3d444d` | `#c3c9d2` | Secondary prose, quiet button labels |
-| `--muted` | `#5b636e` | `#98a0ac` | Hints, captions, status |
-| `--faint` | `#69717c` | `#828a96` | Panel labels, empty states |
-| `--line` | `#e6e8ec` | `#23262c` | Dividers — decorative, no contrast duty |
-| `--edge` | `#858fa0` | `#5a6370` | **Control boundaries** — fields, quiet buttons |
+| `--bg` | `#cbc5bb` | `#1c1d1f` | The stone: page ground, index |
+| `--surface` | `#f4f3f0` | `#26282b` | Paper: the slot, the document pane, the status pill |
+| `--surface-2` | `#bdb6ab` | `#151617` | The recessed frame's interior |
+| `--ink` | `#17181a` | `#ecebe7` | Primary text |
+| `--ink-2` | `#3a3a37` | `#c8c6c0` | Navigation, secondary prose |
+| `--muted` | `#494944` | `#a09e97` | Hints, captions |
+| `--faint` | `#494843` | `#908e87` | Slot and paragraph labels |
+| `--line` | `rgba(23,24,26,.14)` | `rgba(236,235,231,.10)` | Hairlines — decorative, no contrast duty |
+| `--edge` | `#66625c` | `#6e7178` | **Control boundaries** — measured 3.01 on the stone |
+| `--hi` / `--lo` | `rgba(255,255,255,.42)` / `rgba(0,0,0,.16)` | `.07` / `.55` | The bevel: one light seam, one dark |
 
-`--line` and `--edge` look similar and are not interchangeable. A divider carries no information; the
-edge that tells you a thing is a control must clear 3:1. Use `--edge` on anything you can type in or
-press.
-
-### Accent
+### The seal, and the accent
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--accent` | `#2b52e0` | `#7d9bff` | The one accent |
-| `--accent-press` | `#1f3fb8` | `#a3b8ff` | Hover and press |
-| `--accent-ink` | `#ffffff` | `#0a0b0d` | Text **on** the accent |
-| `--accent-wash` | `#eef2fe` | `#161b2c` | Selected row, read paragraph |
+| `--seal` | `#3ec6d6` | `#5fd4e2` | The lit object. **Never text, never an edge.** |
+| `--seal-deep` | `#1691a1` | `#1e8f9c` | Its shadow side, the selected-row bar, the `<mark>` underline |
+| `--accent` | `#094f56` | `#5fd4e2` | Focus rings, links — the accent when it must be read |
+| `--accent-ink` | `#0b2a2e` | `#0a2226` | The words on the seal — 7.40 |
+| `--accent-wash` | `rgba(62,198,214,.16)` | `rgba(95,212,226,.12)` | Selected row, read paragraph, selection |
 
 ### Semantic — verdicts only
 
-| Token | Light fg / bg | Dark fg / bg | Meaning |
+| Token | Light | Dark | Meaning |
 |---|---|---|---|
-| `--good` | `#0e7a4f` / `#e7f4ee` | `#3ddc97` / `#10231b` | Grades A–B; a verified quotation |
-| `--warn` | `#96650a` / `#fbf1de` | `#e3b341` / `#241d10` | Grade C; quoted voice; a self-attack |
-| `--bad` | `#c62f2f` / `#fdecec` | `#ff8f8a` / `#2a1618` | Grades D–F; a failure-mode chip |
-| `--unchecked` | `#5b636e` / `#eef0f3` | `#98a0ac` / `#1c1f25` | **Not checked.** Always dashed |
+| `--good` | `#165134` | `#4fd39a` | Grades A–B; a verified quotation |
+| `--warn` | `#624108` | `#e0b04a` | Grade C; quoted voice; a self-attack |
+| `--bad` | `#872522` | `#ff8a84` | Grades D–F; a failure-mode chip |
+| `--unchecked` | `#494944` | `#a09e97` | **Not checked.** Always dashed |
+
+Each has a `-bg` at ~12% alpha of itself, so the tints sit correctly on stone *and* on paper.
 
 ---
 
 ## 3. Typography
-
-### Families
 
 | Token | Face | Used for |
 |---|---|---|
@@ -97,32 +101,30 @@ press.
 | `--mono` | **Geist Mono** 400–600, self-hosted | Verbatim input and output: the brief, the plan, reports |
 | `--serif` | Iowan Old Style / Palatino / Georgia | **The court's words, and only those** |
 
-**Self-hosted, not a CDN.** The policy is `font-src 'self'`; loading Geist from Google would mean
-widening it to a third-party origin, and a typeface is not worth that. Four latin/latin-ext `woff2`
-subsets, 82 KB total, in `static/fonts/`, under the SIL Open Font License (`fonts/OFL.txt`). They are
-served by an allowlisted route, not a directory mount.
+**Self-hosted, not a CDN.** The policy is `font-src 'self'`. Four latin/latin-ext `woff2` subsets,
+82 KB, SIL OFL (`fonts/OFL.txt`), served by an allowlisted route rather than a directory mount.
 
-**The serif is a voice marker, not a style.** It appears on a judgment's paragraphs, on the claim being
-checked, and inside a verified quotation — the places where you are reading what somebody else wrote.
-Everywhere else is Geist. This is the one justification for a serif here and it is semantic: never set
-the tool's own words in it.
+**The serif is a voice marker, not a style.** A judgment's paragraphs, the claim under check, and the
+inside of a verified quotation — where you are reading what somebody else wrote. Everywhere else is
+Geist. Never set the tool's own words in it.
 
 ### Scale
 
+Small and wide-set, like the reference. The page has almost no large type; hierarchy comes from
+position, material and spacing.
+
 | Role | Size / weight | Family |
 |---|---|---|
-| Wordmark | 16px / 600, `-.018em` | sans |
-| Strapline, status | 13px / 400, 11.5px / 500 | sans |
-| Panel label `h2` | 11px / 600, uppercase `.07em` | sans |
-| Body | 15px / 1.55 | sans |
-| Board row | 13.5px, citation 600 tabular | sans |
+| Wordmark | 14px / 600 | sans |
+| Navigation | 12.5px / 500, active 600, `.01em` | sans |
+| Eyebrow (one per stage) | 11px / 500, uppercase `.12em` | sans |
+| Slot label, index heading | 10.5px / 600, uppercase `.10–.12em` | sans |
+| Body | 14.5px / 1.55 | sans |
+| Index row | 13px, citation 600 tabular | sans |
+| Seal label | 11.5px / 650, balanced | sans |
 | Judgment paragraph | 15.5px / 1.7 | **serif** |
 | Claim, verified quote | 16px / 15.5px | **serif** |
-| Chips, tags | 11.5px / 10.5px | sans |
 | Fields, `pre` | 12.75px / 12.25px | mono |
-
-Numbers that sit under one another get `font-variant-numeric: tabular-nums` — citations, paragraph
-labels, the corpus count.
 
 ---
 
@@ -130,71 +132,70 @@ labels, the corpus count.
 
 | Region | Value |
 |---|---|
-| Masthead | sticky, 60px, translucent + `backdrop-filter`, 1px bottom rule |
-| Page container | `max-width: 1320px`, padding `30px 28px 96px` |
-| Panel | padding `20px 22px`, 1px `--line`, radius 10px, `--shadow-1` |
-| Workspace row | `grid`, `minmax(0,420px) / minmax(0,1fr)`, gap 20px |
-| Control cluster | `flex`, gap 9px, `margin-top: 13px` |
-
-**The board rail is sticky above 1020px** and scrolls within `calc(100vh - 112px)`, so the list of
-citations stays put while a judgment is read beside it. It goes static below that, and in print.
+| Slabs | 320px tiles, drawn with four 1px gradient seams (light then dark, offset 1px) and a grain overlay |
+| Navigation | 64px, three-column grid: brand · centred tabs at 44px gap · status |
+| Stage | eyebrow, then the frame at `max-width: 900px`, centred |
+| Frame | padding `22px 22px 84px` — the bottom clears the seal that hangs over its edge |
+| Seal | 132px, `bottom: calc(-66px + 22px)` of the frame, centred |
+| Stage hint | `margin-top: 96px`, so it clears the seal rather than running behind it |
+| Work | `grid`, `minmax(0,500px) / minmax(0,1fr)`, gap 30px; the index is sticky at `top: 24px` |
 
 ---
 
 ## 5. Elevation & Depth
 
-Two shadow tokens and nothing else. `--shadow-1` on panels; `--shadow-2` only on the skip link, which
-genuinely floats. Both tinted to the ink, never pure black.
+Depth is *material*, not layering. The frame is recessed with six inset shadows (two bevel pairs, a
+hairline, an inner cast shadow) and one outer. The paper slot lifts 1px off the recess. The seal casts
+a coloured shadow — `rgba(22,145,161,.55)` — because a lit object lights what is under it. Stone
+buttons have a one-pixel bevel and lift 1px on hover.
 
-Depth is otherwise carried by **surface steps** (`--bg` → `--surface` → `--surface-2`) and by 2px
-left-borders in a semantic colour: `--good` on a verified quotation, `--bad` on a finding, `--warn` on
-a self-attack, `--accent` on the paragraph the engine read.
+Nothing else has a shadow. There is no glassmorphism; the only blur on the page is none.
 
 ---
 
 ## 6. Shapes
 
-**SHAPE LOCK — panels `10px` · controls `6px` · badges, chips, tabs and the status pill full `999px`.**
-Nothing else. Mixed radii without a rule is the fastest way to make a considered layout look assembled.
-
-The **grade mark** is the one bespoke object: a 24px square at control radius, solid-bordered for a
-decided grade and **dashed** when checks could not run.
+**SHAPE LOCK — the stage is architectural, so it is square.** Frame `4px`, slot `3px`, controls
+`4px`, grade mark `4px`. **Circles are the seal, the ring, the brand mark, the status pill, and the
+chips — and they are exact circles.** Nothing is 8–16px rounded anywhere.
 
 ---
 
 ## 7. Components
 
-### Buttons
-Primary is accent fill with `--accent-ink`, 13px/600. `.quiet` is `--surface` with an `--edge` border.
-Press nudges 1px. Focus is a 2px accent outline at 2px offset — **never remove it.** A button that is
-working is disabled, says so in its own label (`Checking…`), and takes `cursor: progress`.
+### The seal
+The primary action of each surface: `#go`, `#search`, `#build`. Aqua radial fill with a highlight, a
+7px stone collar, a coloured cast shadow, and a slowly turning soft-light band (`turn`, 9s). Hover
+lifts 3px and brightens the glow; press scales to .985. While working it is disabled, its label says
+`Checking…`, and — on the check surface — the SVG ring around it fills from `progress` events. The
+ring is driven by the `stroke-dashoffset` **attribute**, not a style, which is what keeps
+`style-src 'self'` honest. Focus is a 3px teal outline at 12px offset, clear of the collar.
 
-### Tabs
-Two variants, and the distinction is meaningful. **Surface tabs** (check / find / draft) are a
-segmented pill: a capsule track with the active tab raised on `--surface`. **Panel tabs**
-(`.tabs.plain`) are a quiet underline inside a card. Never mix them. The active surface is written to
-`location.hash`, so a reload keeps you where you were.
+### Stone buttons (`.quiet`)
+A small bevelled slab: gradient fill, `--edge` border, inset highlight, 1px drop. Lift on hover, press
+in on active.
 
-### Verdict board
-**A list of `<button>`s, not a table of clickable rows.** The board is a set of citations you choose
-between, which is what a button is; a `<tr onclick>` is unreachable by keyboard and needs a pile of
-ARIA to pretend otherwise. Each button is a two-row grid: the grade mark spans both, the citation sits
-top-right, the finding chips below it. Selected takes `--accent-wash` and an accent border.
+### Navigation tabs
+Text, wide-set. The active tab has a 1px underline that grows from the left (`scaleX`, 320ms). The
+active surface is written to `location.hash`. Panel tabs (`.tabs.plain`) are the same device at 12px.
 
-Redrawing replaces the focused element, so the handler restores focus to the row it just selected. The
-first verdict opens itself as it arrives. Rows animate in with a 3px rise over 220ms — enough to notice
-an arrival, not enough to be a performance.
+### The index
+An editorial strip. A heading rule in `--ink` with the summary on the right — `6 · 5 flagged · 0 clean
+· 1 not checked`, each state with its dot, *not checked* with a dashed one — never collapsed into a
+single count. Rows are `<button>`s in a three-column grid: mark · citation and parties · finding
+chips. A hairline between rows; hover lifts to a faint white; selected shows a 2px `--seal-deep` bar
+growing from the left and indents 6px. Rows rise 6px on arrival, staggered 45ms by `nth-child`.
 
-**Chips carry the finding's words, never its number** — "no such case", "pinpoint does not exist". The
-mode number goes in a `title`.
+**Chips carry the finding's words, never its number.**
 
-### Judgment viewer
-Serif paragraphs in a scrolling column with sans tabular labels. The paragraph the engine read takes
-the accent border and wash; the verified sentence inside it is `<mark>`ed in accent at 20%.
+### The document
+Paper. Serif for the court's text, sans for the apparatus. The read paragraph takes the aqua wash and a
+`--seal-deep` border; the verified sentence is `<mark>`ed with a wash and a 1px underline. Every panel
+redraw rises in, because a redraw makes new nodes and the animation re-fires — no JS.
 
-### Empty and loading states
-Empty: one plain sentence in `--faint`. Loading: a **skeleton shaped like the rows it is about to
-become**, never a spinner.
+### Empty and loading
+Empty: one plain sentence. Loading: a skeleton shaped like the rows about to arrive, and the seal
+saying so.
 
 ---
 
@@ -203,7 +204,7 @@ become**, never a spinner.
 ### Do
 - Set the court's words — and only those — in the serif.
 - Ration semantic colour to verdicts.
-- Give *not checked* a dashed neutral.
+- Keep the aqua a lit object: fills and glows with dark ink on them.
 - Keep the focus ring.
 - Add a class to `app.css` rather than a `style=` attribute.
 - Say what a finding is, in words.
@@ -211,13 +212,13 @@ become**, never a spinner.
 ### Don't
 - **Never add inline `<script>`, `<style>`, `style=` or `on*=`.** The CSP is `script-src 'self'` with
   no `unsafe-inline`, and `tests/test_hardening.py` fails the build if any appears. This is a security
-  boundary wearing a style rule's clothes.
+  boundary wearing a style rule's clothes. SVG presentation attributes are fine; `style` is not.
+- Never set text in `--seal`, or use it as a border.
 - Never load a font, script or stylesheet from another origin — Google Fonts included.
-- Never introduce a second accent, or use the accent for a verdict.
+- Never round anything that is not a circle past 4px.
 - Never use green for "done" or red for "important".
-- Never render *not checked* as a lighter failure.
-- No gradients beyond the loading sweep, no glassmorphism beyond the masthead's blur, no icon set, no
-  emoji in the interface.
+- Never render *not checked* as a lighter failure, or fold it into a total.
+- No second accent. No gradients beyond the seal and the loading sweep. No icon set, no emoji.
 - Never interpolate server text into markup without `escape()`.
 
 ---
@@ -226,36 +227,36 @@ become**, never a spinner.
 
 | Breakpoint | Behaviour |
 |---|---|
-| ≥ 1021px | Two-column workspace, board rail sticky |
-| ≤ 1020px | One column, rail static |
-| ≤ 620px | Masthead 56px and drops the strapline; the tab row scrolls rather than wraps; panels tighten |
+| ≥ 1061px | Index beside document; index sticky |
+| ≤ 1060px | Index above document, static |
+| ≤ 720px | Nav becomes brand + tabs, status hidden; frame tightens; seal 116px; index rows stack findings under the citation |
 
-The page must never scroll horizontally — asserted in the render check at 1440px and 390px. Long
-content scrolls inside its own container.
+Verified in headless Chromium at 1440px and 390px, both themes: no console errors, no CSP violations,
+no horizontal overflow, the skip link first in the tab order, the board focusable and operable.
 
 ---
 
 ## 10. Iteration Guide
 
-1. Read `app.css` — the header comment carries the reasoning, including what the last design got wrong.
-2. Change tokens, not literals. There should be no raw hex outside `:root` and its dark override.
-3. Add both themes at once. A token defined only in light is a bug.
-4. Run `uv run pytest tests/test_hardening.py`: contrast in both themes, no inline script or style, no
-   `on*=`, every class styled, every id the script reaches for present.
-5. **Look at it.** Every visual bug in this project's history — export buttons visible when hidden, a
-   tab filling on hover, a wordmark dot reading as a full stop — was invisible in the source and
-   obvious on screen.
+1. Read `app.css` — the header comment carries the reasoning and the map from reference to product.
+2. Change tokens, not literals. Solve contrast *before* writing CSS; the solver approach is in the
+   commit history.
+3. Add both themes at once.
+4. Run `uv run pytest tests/test_hardening.py`.
+5. **Look at it**, at 1440 and 390, light and dark. Every visual bug so far was invisible in the
+   source: hidden buttons showing, a tab filling on hover, a hint running behind the seal.
 
 ---
 
 ## 11. Known Gaps
 
-- **No focus trap or `Escape` handling**, because there is no modal yet. The first one will need both.
-- **Colour and border style alone** separate a failure chip from *needs review*. The grade mark always
-  carries its letter as text; the chips do not. A glyph difference would be safer.
-- **The judgment scrolls inside a fixed height**, so a long judgment is a scroll within a scroll.
-  Acceptable beside a rail that must stay visible; worth revisiting.
-- **No automated axe or Lighthouse pass.** The checks in `test_hardening.py` are hand-written and cover
-  what was actually found wrong, which is not the same as coverage.
-- **`backdrop-filter` has no fallback.** Where unsupported the masthead is simply 82% opaque, which is
-  fine, but it has not been looked at on an old browser.
+- **The reference is animated; this is mostly still.** The seal turns, rows rise, tabs underline —
+  MOTION 6 — but there is no scroll-driven motion and no page transition between surfaces. Both are
+  the next step, and both need `prefers-reduced-motion` to be honoured as they are today.
+- **No custom cursor.** The reference has one. Deliberately skipped: it is an accessibility trade
+  nobody asked for yet.
+- **Colour and border style alone** separate a failure chip from *needs review*. A glyph would be safer.
+- **`backdrop-filter` is gone**, so this gap closed — but the stone grain is an SVG filter and has not
+  been profiled on a low-end device.
+- **No automated axe or Lighthouse pass.** The hand-written checks cover what was found wrong, which is
+  not coverage.
