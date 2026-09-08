@@ -53,11 +53,11 @@ from rich.console import Console
 from rich.table import Table
 from sqlalchemy import func, select
 
-from orderorder import __version__
+from orderorder import __version__, logs
 from orderorder.citations.grammar import extract_citations
 from orderorder.config import get_settings
 from orderorder.db.models import CitationAlias, Judgment, JudgmentTextVersion, Paragraph
-from orderorder.db.session import get_session, init_db
+from orderorder.db.session import current_revision, get_session, init_db, stamp_head, upgrade_db
 from orderorder.drafting.assemble import assemble
 from orderorder.drafting.attack import attack_draft
 from orderorder.drafting.plan import PlanError, read_plan
@@ -223,10 +223,54 @@ def _probe_structured_output() -> None:
 
 @app.command("init-db")
 def init_db_command() -> None:
-    """Create tables in the configured database."""
+    """Create tables in the configured database, and record which schema they are.
+
+    The stamp is the half that matters later. A database created without one looks, to `migrate`,
+    like a database that has never had anything applied to it, so the next release would try to
+    create tables that are already there and stop. Stamping at creation means the first real
+    migration, whenever it comes, applies to this database cleanly.
+    """
     settings = get_settings()
     init_db()
+    stamp_head()
     console.print(f"[green]tables created[/green] in {settings.db_url}")
+    console.print(f"schema stamped at [bold]{current_revision() or 'none'}[/bold]")
+
+
+@app.command("migrate")
+def migrate_command(
+    stamp: bool = typer.Option(
+        False,
+        "--stamp",
+        help="Record the latest revision without applying anything. For a database whose tables "
+        "already exist -- an ingested corpus, or one built before migrations.",
+    ),
+) -> None:
+    """Bring the configured database up to the current schema.
+
+    `init_db` creates missing tables and never alters an existing one, so it cannot be how a deployed
+    database changes shape: the first column this application wants to widen would otherwise be a
+    manual job on a 1.2 GB file with the corpus in it. This is the other half.
+
+    On an **empty** database, run it plain: the baseline builds every table.
+    On a database that **already holds the corpus**, run it once with `--stamp`. The tables are there;
+    stamping records that the baseline is applied, so that the next migration is the only thing that
+    runs against it.
+    """
+    settings = get_settings()
+    before = current_revision()
+    if stamp:
+        stamp_head()
+        console.print(f"[green]stamped[/green] {settings.db_url} at [bold]{current_revision()}[/bold]")
+        console.print("nothing was applied; the schema was taken as already current")
+        return
+
+    upgrade_db()
+    after = current_revision()
+    if before == after:
+        console.print(f"[green]already current[/green] at [bold]{after}[/bold]")
+    else:
+        console.print(f"[green]migrated[/green] {before or 'nothing'} → [bold]{after}[/bold]")
 
 
 @corpus_app.command("years")
@@ -907,6 +951,9 @@ def serve_command(
         raise typer.Exit(2) from refused
 
     init_db()
+    # A model that has started refusing every call produces a page full of honest "not assessed" and
+    # no other sign. `ORDERORDER_LOG_LEVEL` turns the volume up or down; this is where it starts.
+    logs.configure()
     console.print(f"[green]OrderOrder[/green] on [bold]http://{host}:{port}[/bold]  (ctrl-c to stop)")
     uvicorn.run("orderorder.web.api:app", host=host, port=port, reload=reload, log_level="warning")
 

@@ -64,6 +64,7 @@ class RateLimiter:
     window: float = DEFAULT_WINDOW
     _windows: dict[tuple[str, str], _Window] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock)
+    _last_prune: float = field(default_factory=time.monotonic)
 
     def allow(self, client: str, bucket: str = "read", *, limit: int | None = None) -> float | None:
         """`None` if the request may proceed, else how many seconds until it may."""
@@ -98,6 +99,27 @@ class RateLimiter:
             for key in dead:
                 del self._windows[key]
             return len(dead)
+
+    def maybe_prune(self, *, now: float | None = None) -> int:
+        """Prune if a window has passed since the last one. Returns how many went.
+
+        This is the schedule `prune` asks for, and it is here rather than in a background task
+        because a task is a thing to start, stop and get wrong at shutdown, and the only event this
+        needs to be driven by is a request arriving -- which is also the only thing that grows the
+        dictionary. The common path is one subtraction and one comparison under a lock already being
+        taken microseconds later, so the per-request cost the docstring above worries about does not
+        arrive.
+
+        Call it on every request, refusals included: a flood of wrong tokens is exactly the case that
+        grows the dictionary, and it never reaches a route.
+        """
+        moment = time.monotonic() if now is None else now
+        with self._lock:
+            if moment - self._last_prune < self.window:
+                return 0
+            # Claimed inside the lock, so two threads arriving together do not both sweep.
+            self._last_prune = moment
+        return self.prune(now=moment)
 
     def __len__(self) -> int:
         with self._lock:

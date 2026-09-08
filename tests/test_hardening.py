@@ -187,6 +187,39 @@ def test_expired_windows_are_pruned() -> None:
     assert len(limiter) == 0
 
 
+def test_maybe_prune_sweeps_once_a_window_and_not_once_a_request() -> None:
+    """`prune` is the sweep; `maybe_prune` is the schedule the sweep was written to be called on."""
+    limiter = limits.RateLimiter(requests=5, window=0.2)
+    for n in range(50):
+        limiter.allow(f"10.0.0.{n}")
+    assert limiter.maybe_prune() == 0, "nothing has expired yet, and it is not yet time to look"
+    time.sleep(0.35)
+    assert limiter.maybe_prune() == 50
+    assert len(limiter) == 0
+
+    # A second call in the same window does not sweep again, which is the whole point of the
+    # schedule: the per-request cost stays a comparison rather than a walk of the dictionary.
+    for n in range(10):
+        limiter.allow(f"10.0.1.{n}")
+    assert limiter.maybe_prune() == 0
+    assert len(limiter) == 10
+
+
+def test_the_limiter_does_not_grow_without_bound_across_requests(client) -> None:
+    """The leak this closes: one dictionary entry per client address, and nothing ever removing it.
+
+    Refused requests count too. A flood of wrong tokens never reaches a route, so if the sweep were
+    hung off a route rather than the middleware it would not run on the traffic that grows it most.
+    """
+    app_limiter = limits.RateLimiter(requests=500, window=0.2)
+    for n in range(100):
+        app_limiter.allow(f"10.0.0.{n}", "auth")
+    assert len(app_limiter) == 100
+    time.sleep(0.35)
+    app_limiter.maybe_prune()
+    assert len(app_limiter) == 0, "the windows expired and nothing is holding their keys"
+
+
 def test_a_forwarded_for_header_cannot_split_one_client_into_many(client) -> None:
     """Trusting that header is how a limiter stops being one. It is not read, so it changes nothing."""
     codes = []

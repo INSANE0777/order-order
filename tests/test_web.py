@@ -14,11 +14,20 @@ same answer the command line gives. Two properties carry the weight:
 from __future__ import annotations
 
 import io
+import time
 
+import pytest
 from fastapi.testclient import TestClient
 
+from orderorder.engine.verdict import CitationVerdict
 from orderorder.web.api import create_app
 from orderorder.web.jobs import Job, JobStore, watch
+
+
+def _a_verdict() -> CitationVerdict:
+    """The smallest thing the board will accept, for tests about the job rather than the engine."""
+    return CitationVerdict(citation_raw="(2019) 9 SCC 1", proposition="a proposition", existence="found")
+
 
 JUDGMENT = """1. Leave granted in the special leave petition filed by the appellant in this matter.
 
@@ -176,6 +185,44 @@ def test_the_store_drops_the_oldest_rather_than_growing_for_ever() -> None:
     store.create("c", "test")
     assert len(store) == 2
     assert store.get(first.id) is None
+
+
+def test_a_running_job_is_not_evicted_while_a_finished_one_could_go() -> None:
+    """Insertion order alone would drop the job somebody is watching, mid-run, for a newer one."""
+    store = JobStore(limit=2)
+    running = store.create("still going", "test")
+    done = store.create("over", "test")
+    done.finish()
+    store.create("new arrival", "test")
+
+    assert len(store) == 2
+    assert store.get(running.id) is running, "the one being watched must survive"
+    assert store.get(done.id) is None, "the finished one is the one that can go"
+
+
+def test_a_job_that_runs_too_long_gives_up_rather_than_reading_in_progress_for_ever() -> None:
+    """A hung provider must not leave a job that a reader cannot tell from a slow one."""
+    from orderorder.web.jobs import JobExpired
+
+    job = Job(id="j", text="", source="test", total=3)
+    assert not job.expired
+    job.check_deadline()  # well inside its deadline, so this is a no-op
+
+    job.deadline = time.monotonic() - 1.0
+    assert job.expired
+    with pytest.raises(JobExpired):
+        job.check_deadline()
+
+
+def test_the_verdicts_already_paid_for_survive_the_deadline() -> None:
+    """The deadline stops the next citation starting; it does not throw away the finished ones."""
+    job = Job(id="j", text="", source="test", total=2)
+    job.deadline = time.monotonic() - 1.0
+
+    verdict = _a_verdict()
+    with pytest.raises(Exception, match="gave up after"):
+        job.add(verdict)
+    assert job.verdicts == [verdict], "the verdict was appended before the deadline was checked"
 
 
 # --- reading a brief out of a file ------------------------------------------------------------------

@@ -26,6 +26,10 @@ the numbers support.
 
 ## 2. The six things that will stop you
 
+Two of them have since been dealt with and are kept here because the reasoning is still what you need
+when you meet them: §2.5 is now wired rather than absent, and the operability half of §2.3 — a job
+that hung with nothing said about it anywhere — is closed by a deadline and a log.
+
 ### 2.1 A model that answers — the only real blocker
 
 Everything else on this list is an afternoon's work. This one is a decision.
@@ -70,6 +74,30 @@ A single process is fine for a pilot — a job is worthless once the tab closes,
 built this way. It is not fine for horizontal scaling, and the jobs table in ARCHITECTURE §4.13 is the
 fix when that day comes.
 
+**A job now has a deadline**, `MAX_JOB_SECONDS` in `web/jobs.py`, fifteen minutes. A Python thread
+cannot be killed from outside, so the check happens between citations rather than during one: the
+verdicts already paid for are kept and the next citation does not start. One wedged call is bounded
+separately and at the right layer, by `REQUEST_TIMEOUT_SECONDS` in `engine/providers.py`. Without
+both, a stalled provider left a job reading *in progress* for as long as the process lived, which a
+reader cannot tell from slow. Eviction also prefers finished jobs now, so a long verification is not
+dropped from under the person watching it because twenty newer jobs arrived.
+
+### 2.3a It says something when it fails
+
+There was no logging at all, which is a strange thing to find in something otherwise this careful,
+and the reason it lasted is that every degraded check already reports itself *to the advocate*: the
+verdict says the model could not be reached and grades the citation *not checked*. That is correct
+and it is not operations. A provider that has started refusing every call produces a page full of
+honest abstentions and, until now, no other trace.
+
+So: one logger on stderr, where `docker logs` already looks. `ORDERORDER_LOG_LEVEL` sets the volume.
+A failed model call is logged once, naming the whole fallback chain that failed and the reason; a
+failed job is logged with its id. **Prompts are never logged** — a prompt carries the brief, an
+uploaded brief is privileged, and the guarantee this deployment makes is that it is not stored, which
+a log line would quietly undo. `tests/test_logs.py` is what holds that.
+
+This is not an audit log. Nothing records who asked what, and §3a still says so.
+
 ### 2.4 SQLite is one writer
 
 The corpus is a 1.2 GB SQLite file. Reads are fine and concurrent; writes are not. Ingestion, the
@@ -77,11 +105,29 @@ full-text index rebuild and `orderorder embed` all write, so do not run them aga
 is serving. `infra/docker-compose.yml` has Postgres with pgvector ready for when that matters —
 `DATABASE_URL` switches it, and the corpus must be re-ingested rather than copied.
 
-### 2.5 No migrations
+### 2.5 Migrations: wired, and there is one thing to get right on an existing database
 
-`init_db()` calls `create_all()`, which creates missing tables and never alters an existing one. The
-first schema change after you deploy is therefore manual. Alembic is in `pyproject.toml` and unused;
-wiring it, with the current schema stamped as the baseline, is the prerequisite for a second release.
+`init_db()` calls `create_all()`, which creates missing tables and never alters an existing one, so
+it cannot be how a deployed schema changes. Alembic now is: the environment lives in the package at
+`src/orderorder/migrations`, so it ships in the wheel and is present in the container, and the
+current schema is the baseline revision.
+
+```bash
+orderorder migrate            # empty database: build it
+orderorder migrate --stamp    # a database that ALREADY holds the corpus: claim it, apply nothing
+```
+
+**Which of those to run is the whole decision.** A database ingested before migrations existed has
+every table and no `alembic_version` row, so it looks to Alembic like a database nothing has been
+applied to; running the baseline at it would try to create tables that are there and stop. `--stamp`
+records that the baseline is already true, and the next real migration then applies cleanly. Run it
+once, on the corpus you copied onto the box. `orderorder init-db` stamps what it creates, so a
+database made from here on needs nothing.
+
+The schema and the models are kept from drifting apart by the suite rather than by discipline:
+`tests/test_migrations.py` asks Alembic the same question `--autogenerate` asks and fails if a model
+has gained a column that no revision creates. Generate one with
+`uv run alembic revision --autogenerate -m "what changed"`, from the repository root.
 
 ### 2.6 The resume list is held in memory, so a bigger corpus is a bigger box
 
@@ -143,6 +189,7 @@ module docstring says what would have to change; PRD phase 3 is where it is plan
 export ORDERORDER_API_TOKEN=$(openssl rand -hex 32)
 export LLM_PRIMARY=... OPENAI_API_KEY=...          # or GOOGLE_API_KEY, GROQ_API_KEY
 
+orderorder migrate --stamp                          # once, for a corpus built before migrations
 docker compose -f infra/docker-compose.yml --profile serve up -d --build
 curl -s localhost:8000/api/health                   # no token needed
 curl -s -H "Authorization: Bearer $ORDERORDER_API_TOKEN" \

@@ -56,6 +56,20 @@ def test_the_page_is_inside_the_packaged_directory() -> None:
     assert (ROOT / "src" / "orderorder" / "web" / "static" / "index.html").is_file()
 
 
+def test_the_migrations_are_inside_the_packaged_directory() -> None:
+    """A migration that is not in the image cannot be run on the box the image is deployed to.
+
+    `alembic.ini` sits at the repository root, which the container does not have, so the environment
+    and its revisions live in the package and `db.session` builds the configuration in code. The
+    template is a `.mako`, which is data: nothing imports it, so nothing notices if it stops shipping
+    until somebody tries to generate a revision.
+    """
+    migrations = ROOT / "src" / "orderorder" / "migrations"
+    assert (migrations / "env.py").is_file()
+    assert (migrations / "script.py.mako").is_file()
+    assert list((migrations / "versions").glob("*.py")), "the baseline revision has to ship too"
+
+
 def test_the_image_never_receives_a_key() -> None:
     """A key in a layer is published to whoever can pull the image, and `docker history` keeps it."""
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")

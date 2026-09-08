@@ -17,6 +17,7 @@ table here would be a schema migration in exchange for nothing.
 from __future__ import annotations
 
 import threading
+import time
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -27,6 +28,15 @@ from orderorder.engine.verdict import CitationVerdict
 # How many finished jobs to keep. Enough that a reader can go back to the previous brief; not so many
 # that a long session holds every judgment it has read in memory.
 MAX_JOBS = 20
+
+# How long a job may run before it is abandoned. A memorial of thirty citations against a model
+# answering in six seconds is three minutes, and the PRD's own ceiling is thirty seconds a citation,
+# so fifteen minutes is well past any run that is still working and well short of for ever.
+MAX_JOB_SECONDS = 900.0
+
+
+class JobExpired(RuntimeError):
+    """Raised inside a worker when its job has outlived its deadline."""
 
 
 @dataclass
@@ -39,7 +49,24 @@ class Watched:
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     finished: bool = False
     model_configured: bool = False
+    deadline: float = field(default_factory=lambda: time.monotonic() + MAX_JOB_SECONDS)
     _event: threading.Event = field(default_factory=threading.Event, repr=False)
+
+    @property
+    def expired(self) -> bool:
+        return time.monotonic() >= self.deadline
+
+    def check_deadline(self) -> None:
+        """Stop a job that has run too long. Called between units of work, never during one.
+
+        A Python thread cannot be killed from outside, so this is the only honest bound available: the
+        worker stops before the next citation rather than in the middle of the current one. A single
+        wedged provider call is bounded separately and at the right layer, by the request timeout in
+        `engine/providers.py`. Without both, a stalled model leaves a job reading "in progress" for as
+        long as the process lives, and the reader has no way to tell that from slow.
+        """
+        if self.expired:
+            raise JobExpired(f"gave up after {MAX_JOB_SECONDS:.0f} seconds")
 
     def finish(self, error: str | None = None) -> None:
         self.error = error
@@ -70,6 +97,9 @@ class Job(Watched):
     def add(self, verdict: CitationVerdict) -> None:
         self.verdicts.append(verdict)
         self._wake()
+        # After appending, not before: a verdict already paid for is worth keeping, and what the
+        # deadline stops is the *next* citation starting.
+        self.check_deadline()
 
 
 @dataclass
@@ -97,6 +127,7 @@ class DraftJob(Watched):
         self.bindings[proposition] = binding
         self.order.append(proposition)
         self._wake()
+        self.check_deadline()
 
 
 class JobStore:
@@ -117,8 +148,21 @@ class JobStore:
         with self._lock:
             self._jobs[job.id] = job
             while len(self._jobs) > self._limit:
-                self._jobs.pop(next(iter(self._jobs)))
+                self._jobs.pop(self._evictable())
         return job
+
+    def _evictable(self) -> str:
+        """The oldest finished job, or the oldest of any kind if none has finished.
+
+        Insertion order alone drops whatever was created first, running or not, so a long
+        verification could be evicted while newer jobs churn -- and the reader watching it would see
+        their own verdicts turn into a 404 halfway through. A finished job has already been read or
+        abandoned; it is the one that can go.
+        """
+        for job_id, job in self._jobs.items():
+            if job.finished:
+                return job_id
+        return next(iter(self._jobs))
 
     def get(self, job_id: str) -> Watched | None:
         return self._jobs.get(job_id)

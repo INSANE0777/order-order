@@ -36,9 +36,17 @@ class Settings(BaseSettings):
     database_url: str = ""
 
     # Language models as LangChain provider strings ("provider:model").
-    llm_primary: str = "google_genai:gemini-2.5-flash"
+    #
+    # `gemini-2.5-flash` was the default here until it was retired: Google now answers 404 for it on
+    # new keys, saying to use `gemini-3.6-flash` instead. That is worth knowing about because of how
+    # it failed rather than that it failed. Every model call in this engine is wrapped in a caller
+    # that turns an error into "not assessed", which is the correct behaviour and meant a retired
+    # model looked exactly like a corpus with nothing to say: an evaluation run against it scored
+    # 100% abstention and mode 4 at 0/14, and read as a result. Pin a model, and check `doctor
+    # --probe` when a report comes back emptier than the last one.
+    llm_primary: str = "google_genai:gemini-3.6-flash"
     llm_fallbacks: str = "groq:openai/gpt-oss-120b,cerebras:gpt-oss-120b,ollama:qwen3.5:4b"
-    llm_long_context: str = "google_genai:gemini-2.5-flash"
+    llm_long_context: str = "google_genai:gemini-3.6-flash"
     llm_sensitive: str = "groq:openai/gpt-oss-120b"
     # An OpenAI-compatible endpoint to send `openai:` provider strings to, instead of OpenAI itself.
     # This is one setting for three cases the project actually has: a router or gateway, a self-hosted

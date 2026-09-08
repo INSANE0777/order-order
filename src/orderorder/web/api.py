@@ -35,7 +35,7 @@ from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from orderorder import __version__
+from orderorder import __version__, logs
 from orderorder.db.models import Judgment, JudgmentTextVersion
 from orderorder.db.session import get_session
 from orderorder.drafting.assemble import assemble
@@ -69,6 +69,8 @@ from orderorder.web.jobs import (
     watch,
     watch_draft,
 )
+
+log = logs.get_logger(__name__)
 
 STATIC = Path(__file__).parent / "static"
 
@@ -185,6 +187,9 @@ class VerifyRequest(BaseModel):
 def create_app(
     *, store: JobStore | None = None, session_factory=get_session, token: str | None = None
 ) -> FastAPI:
+    # Here as well as in `serve`, because uvicorn can be pointed at the module-level app directly and
+    # a deployment that did that would otherwise run silent. Calling it twice changes nothing.
+    logs.configure()
     app = FastAPI(title="OrderOrder", version=__version__, docs_url="/api/docs")
 
     limiter = limits.RateLimiter()
@@ -200,6 +205,11 @@ def create_app(
             return JSONResponse({"detail": detail}, status_code=status, headers=_secured(headers))
 
         who = limits.client_of(request)
+
+        # Expired windows go here, before anything can refuse this request. The limiter's dictionary
+        # is keyed by client address, so without a sweep it is a leak an attacker grows on purpose --
+        # and a flood of wrong tokens, which is the cheapest way to grow it, never reaches a route.
+        limiter.maybe_prune()
 
         # A body large enough to hurt is refused before it is read. `Content-Length` is a claim rather
         # than a fact, so this is the cheap half; `_read_at_most` is what actually bounds an upload.
@@ -604,6 +614,9 @@ def _draft(job: DraftJob, open_session) -> None:
             job.document = to_markdown(draft, job.attacks)
         job.finish()
     except Exception as exc:  # noqa: BLE001 - the page needs to be told, whatever went wrong
+        # The page is told, and so is the operator. The job id is the only identifier here: the plan
+        # is the advocate's case and does not belong in a log.
+        log.warning("draft job %s failed: %s", job.id, logs.reason(exc))
         job.finish(error=f"{type(exc).__name__}: {exc}")
 
 
@@ -638,6 +651,7 @@ def _run(job: Job, request: VerifyRequest, open_session) -> None:
             )
         job.finish()
     except Exception as exc:  # noqa: BLE001 - the page needs to be told, whatever went wrong
+        log.warning("verification job %s failed: %s", job.id, logs.reason(exc))
         job.finish(error=f"{type(exc).__name__}: {exc}")
 
 

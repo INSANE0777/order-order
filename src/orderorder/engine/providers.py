@@ -23,7 +23,10 @@ from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
+from orderorder import logs
 from orderorder.config import get_settings
+
+log = logs.get_logger(__name__)
 
 OLLAMA_DEFAULT_HOST = "http://localhost:11434"
 OLLAMA_PROBE_TIMEOUT = 1.0
@@ -171,6 +174,34 @@ def _build_one(spec: ProviderSpec, schema: type[BaseModel], **kwargs: Any):
     return model.with_structured_output(schema, method=spec.structured_method)
 
 
+@dataclass
+class _Reported:
+    """A structured model that says something on the way out when a call fails.
+
+    The engine's contract is that a failed model call becomes *not assessed* rather than a wrong
+    answer, and all nine call sites already implement it: they catch, record the exception's type on
+    the verdict, and carry on. What none of them can do is tell whoever is running the box, because a
+    verdict is read by an advocate and a log is read by an operator. A provider refusing every call
+    and a corpus with nothing to say produce the same page.
+
+    So the report goes here rather than into nine `except` blocks: one wrapper, at the only place a
+    model is built. It **re-raises**, so every caller's handling is exactly as it was and the engine's
+    behaviour does not change — this only writes down the sentence nobody was writing down.
+
+    The prompt is not logged. It carries the brief.
+    """
+
+    inner: Any
+    label: str
+
+    def invoke(self, *args: Any, **kwargs: Any):
+        try:
+            return self.inner.invoke(*args, **kwargs)
+        except Exception as exc:
+            log.warning("model call failed [%s] %s", self.label, logs.reason(exc))
+            raise
+
+
 def build_structured(schema: type[BaseModel], *, specs: list[ProviderSpec] | None = None, **kwargs: Any):
     """A runnable that returns `schema`, with the configured fallback chain behind it.
 
@@ -182,7 +213,10 @@ def build_structured(schema: type[BaseModel], *, specs: list[ProviderSpec] | Non
         return None
     primary = _build_one(specs[0], schema, **kwargs)
     rest = [_build_one(s, schema, **kwargs) for s in specs[1:]]
-    return primary.with_fallbacks(rest) if rest else primary
+    chain = primary.with_fallbacks(rest) if rest else primary
+    # Named for the whole chain, because by the time this raises every fallback has been tried too,
+    # and "all of them failed" is the fact the operator needs.
+    return _Reported(chain, " → ".join(s.as_string for s in specs))
 
 
 def describe_providers() -> list[tuple[str, str, bool]]:
