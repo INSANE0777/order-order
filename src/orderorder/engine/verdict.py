@@ -175,6 +175,13 @@ def build_verdict(
         )
         verdict.grade = _drop(verdict.grade, 2)
 
+    # And the softer cousin: the strings matched, but the match proves nothing. An anonymised title
+    # agrees with every other anonymised title, so the citation alone picks the case. Not a finding
+    # -- nothing here is wrong yet -- but a person should confirm it, and silence would read as a
+    # check that was done.
+    if getattr(resolution, "review", None):
+        verdict.ask_review(resolution.review)
+
     if resolution.method == "party_name":
         verdict.findings.append(
             Finding(

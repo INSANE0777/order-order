@@ -50,6 +50,37 @@ def test_this_court_is_not_read_as_a_claim() -> None:
     assert read_attribution("as this Court held in Kasturi").court is None
 
 
+def test_a_fronted_procedural_participle_makes_the_court_a_recital() -> None:
+    """"Rejecting the plea, the High Court opined that ..." is the brief recounting the case below.
+
+    The words belong to the citation's own narration of its history -- the September 2026 holdout
+    lifted exactly such a sentence from a Supreme Court judgment and the attribution check read the
+    recited High Court view as the brief's claim about the cited case, which flagged a clean
+    citation as failure mode 3. A narrated view is not an attribution; the real one follows.
+    """
+    proposition = (
+        "Rejecting the plea, the High Court opined that since the appellant did not produce the "
+        "clarificatory notification along with the writ petition, no occasion arose to consider it"
+    )
+    assert read_attribution(proposition).court is None
+
+
+@pytest.mark.parametrize(
+    ("expected", "text"),
+    [
+        # No participle at all: the plainest real attribution.
+        (HIGH_COURT, "the High Court has held that the suit was maintainable"),
+        # A comma lead-in that is not a procedural participle does not make it a recital.
+        (HIGH_COURT, "In the circumstances, the High Court has held that the suit was maintainable"),
+        # The same shape as the false positive, with a different fronted action: still a recital.
+        (None, "Setting aside the decree, the High Court opined that the plaintiff was not ready "
+               "and willing to perform his part of the contract"),
+    ],
+)
+def test_the_recital_rule_and_its_limits(expected: str | None, text: str) -> None:
+    assert read_attribution(text).court == expected
+
+
 @pytest.mark.parametrize(
     ("expected", "text"),
     [

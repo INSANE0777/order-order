@@ -13,6 +13,7 @@ citation is `mis_cite`, and the correct citation is offered as the fix.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -37,6 +38,18 @@ NAME_MISMATCH_FLOOR = 55.0
 # Shorter than this carries too little to disagree with ("State of U.P.").
 MIN_PARTY_CHARS_TO_CHECK = 12
 
+# The tail of a cause title that names no one: the respondent is "Anr."/"Others"/"State" and the
+# distinctive part of the title, if any, sits before the "versus". Two titles that both end this way
+# can agree at 100 on token matching while being different cases entirely.
+ANONYMISED_TAIL = re.compile(
+    r"""(?ix)
+    (?: \b v\.? | \b versus | \b vs\.? | \b and )
+    \s+ (?: anr\.? | ors\.? | another | others
+        | state (?: \s+ of \s+ \w+ )? | union \s+ of \s+ india | uoi )
+    \s*$
+    """
+)
+
 
 @dataclass
 class Candidate:
@@ -59,6 +72,10 @@ class Resolution:
     score: float = 0.0
     candidates: list[Candidate] = field(default_factory=list)
     note: str | None = None
+    # A reason the match should be confirmed by a person, distinct from a finding: the strings
+    # matched, but the match carries no information. Not a defect in the citation -- a question the
+    # strings cannot answer, which is the engine's third state everywhere else.
+    review: str | None = None
 
     @property
     def found(self) -> bool:
@@ -165,6 +182,19 @@ def check_party_names(resolution: Resolution, party_names: str | None) -> Resolu
 
     score = fuzz.token_set_ratio(parties, resolution.matched_title, processor=utils.default_process)
     if score >= NAME_MISMATCH_FLOOR:
+        # A passing score on an anonymised brief title -- "State of U.P. v. Anr." -- is not evidence
+        # of the right case: the state-name shape is shared by hundreds of judgments across decades,
+        # and token matching inflates it against any title containing those words (measured: 57
+        # against a State-of-Orissa case, 61 against a Bishambhar v. State-of-U.P. case). The
+        # September 2026 holdout planted exactly this and the engine graded two wrong citations A.
+        # It cannot detect the wrongness without reading the judgment, so it asks instead of
+        # passing silently.
+        if ANONYMISED_TAIL.search(parties):
+            resolution.review = (
+                f"the party names ({parties[:60]!r}) are anonymised and do not by themselves identify "
+                f"one case; the citation resolves to {resolution.matched_title[:60]!r} -- confirm that "
+                f"is the case you mean"
+            )
         return resolution
 
     resolution.name_mismatch = True
