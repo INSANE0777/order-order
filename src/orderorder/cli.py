@@ -92,6 +92,7 @@ from orderorder.ingest import aliases as alias_learning
 from orderorder.ingest import bulk, repair
 from orderorder.ingest import corpus as corpus_mod
 from orderorder.ingest import pdf as pdf_mod
+from orderorder.ingest import roles as roles_mod
 from orderorder.ingest.metadata import import_parquet
 from orderorder.ingest.store import load_paragraphs, store_extracted
 from orderorder.resolver import resolve as resolve_citation
@@ -378,6 +379,29 @@ def ingest_mark_opinions(
         result = repair.mark_separate_opinions(session, dry_run=dry_run)
     prefix = "[yellow]would mark[/yellow]" if dry_run else "[green]marked[/green]"
     console.print(f"{prefix}: {result}")
+
+
+@ingest_app.command("mark-roles")
+def ingest_mark_roles(
+    relabel: bool = typer.Option(False, help="Re-classify paragraphs that already carry a role."),
+    dry_run: bool = typer.Option(False, help="Report what would be labelled without writing it."),
+) -> None:
+    """Give every stored paragraph its rhetorical role (OpenNyAI label set, cue classifier).
+
+    The weight and voice checks only mean something if the paragraph being tested is the court's own
+    reasoning; `ratio`, `precedent_relied` and `precedent_not_relied` make that knowledge searchable.
+    Without a role label, retrieval cannot tell the facts paragraph from the holding paragraph, and
+    the answer to a legal question gets quotes from case history. Paragraphs already carrying a role
+    are left alone unless --relabel: the printed label is the better evidence, and re-running this
+    must stay idempotent.
+    """
+    init_db()
+    with get_session() as session:
+        result = roles_mod.mark_roles(session, dry_run=dry_run, relabel=relabel)
+    prefix = "[yellow]would label[/yellow]" if dry_run else "[green]labelled[/green]"
+    console.print(f"{prefix}: {result}")
+    if result.skipped_already:
+        console.print(f"[dim]skipped, already labelled: {result.skipped_already:,}[/dim]")
 
 
 @ingest_app.command("aliases")
