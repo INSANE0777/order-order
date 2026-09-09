@@ -101,6 +101,11 @@ seventy-six years imports in about fifteen minutes. The text pass runs at about 
 minute with the default eight workers, which puts a full-corpus text build near ten hours -- and
 the run is resumable, so the estimate survives the machine it is measured on.
 
+The text build has since been carried through: **38,005 of 38,032** judgments hold text
+(707,647 paragraphs), and the 27 that do not are PDFs missing from the source itself, confirmed by
+re-running `ingest bulk-text --retry` against them. Index, alias inference and the citator were
+rebuilt over the full corpus afterwards.
+
 Up to the whole Supreme Court this does not matter. Past it, ingest in batches: `--limit` now bounds
 the *query* rather than slicing the list afterwards, so `--limit 20000` reads twenty thousand rows and
 not the corpus, and the run is resumable, so repeating it walks the corpus a batch at a time. `--year`
