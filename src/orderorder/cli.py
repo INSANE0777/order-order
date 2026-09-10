@@ -1019,6 +1019,13 @@ def embed_command(
         "_API_KEY / _MODEL): BAAI/bge-m3 on Bitdeer, a self-hosted Qwen3-Embedding, any "
         "/v1/embeddings server. Resumable; ~$3 for this corpus at bge-m3 prices.",
     ),
+    role: list[str] = typer.Option(
+        None,
+        "--role",
+        help="Embed only paragraphs of these rhetorical roles (repeatable). The 76k "
+        "ratio/analysis/precedent paragraphs are what 'find the law' searches -- a night's "
+        "work instead of a week's.",
+    ),
 ) -> None:
     """Give every paragraph a vector, so search can match meaning and not only words.
 
@@ -1042,6 +1049,7 @@ def embed_command(
                 session,
                 store=store,
                 limit=limit,
+                roles=list(role) or None,
                 on_progress=lambda done, total: (
                     console.print(f"  [dim]{done:,}/{total:,}[/dim]")
                     if done % 20_000 < 64 or done == total

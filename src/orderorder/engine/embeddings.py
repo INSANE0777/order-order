@@ -243,6 +243,10 @@ API_BATCH = 64
 # slots just queue at the server while holding their own buffers.
 API_CONCURRENCY = 4
 API_TIMEOUT = 120.0
+# Above this many characters a paragraph cannot fit the endpoint's context anyway (100k chars ≈
+# 25k tokens against a 32k server context), and asking for it hangs the server for minutes. The
+# corpus's longest such block is 197,166 characters; there are ~37 over the line.
+MAX_EMBED_CHARS = 100_000
 
 
 def api_configured() -> bool:
@@ -338,6 +342,7 @@ def build_api(
     on_progress=None,
     resume: bool = True,
     limit: int | None = None,
+    roles: list[str] | None = None,
 ) -> int:
     """Embed the corpus through the configured endpoint, writing into the store as it goes.
 
@@ -346,7 +351,9 @@ def build_api(
     instead of paying for those rows again. The model name is written into the index, so a query
     is encoded by whatever encoded the corpus, whichever endpoint that was. `limit` truncates the
     run to the first N paragraphs -- a trial, which belongs in its own store directory, not over
-    the one a full run produced.
+    the one a full run produced. `roles` embeds only paragraphs carrying one of the given
+    rhetorical roles: the holding-bearing 11% of the corpus is what 'find the law' searches, and
+    on a slow encoder it is the difference between a month and an evening.
     """
     store = store or default_store()
     settings = get_settings()
@@ -360,8 +367,30 @@ def build_api(
     api_key = settings.embeddings_api_key
 
     rows = paragraphs_to_embed(session)
+    if roles:
+        # Role-filtered rows must keep their paragraph ids aligned with the matrix, so the filter
+        # happens here and not in SQL after the fact.
+        from sqlalchemy import text as sql_text
+
+        role_by_id = dict(
+            session.execute(
+                sql_text("SELECT id, role FROM paragraph"),
+            ).all()
+        )
+        wanted = set(roles)
+        rows = [(pid, body) for pid, body in rows if role_by_id.get(pid) in wanted]
     if limit:
         rows = rows[:limit]
+
+    # A paragraph longer than the endpoint's context cannot ever be embedded -- asking for it does
+    # not fail fast, it grinds the server for minutes and times the client out, and the retry sends
+    # the same monster back. 100,000 characters is ~25k tokens, comfortably inside a 32k context;
+    # the few longer ones (merged garbage blocks, the longest being 197k characters) are recorded
+    # as skips and stay zero, exactly like the context-overflow refusals below.
+    over_limit = [(pid, len(body)) for pid, body in rows if len(body) > MAX_EMBED_CHARS]
+    if over_limit:
+        over_ids = {pid for pid, _len in over_limit}
+        rows = [(pid, body) for pid, body in rows if pid not in over_ids]
     ids = [pid for pid, _body in rows]
     progress_path = store.directory / "embed.progress.json"
     done_at = 0
@@ -379,7 +408,7 @@ def build_api(
         return len(ids)
 
     store.directory.mkdir(parents=True, exist_ok=True)
-    skipped: list[str] = []
+    skipped: list[str] = [pid for pid, _len in over_limit]
 
     # The dimension is only knowable from the endpoint's first answer; probe with one text, then
     # preallocate. open_memmap zero-fills, which is exactly what a skipped row should be: a zero
