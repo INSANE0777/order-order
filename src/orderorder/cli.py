@@ -93,6 +93,7 @@ from orderorder.evaluation.run import format_disagreements, format_report, run_g
 from orderorder.ingest import aliases as alias_learning
 from orderorder.ingest import bulk, repair
 from orderorder.ingest import corpus as corpus_mod
+from orderorder.ingest import digest as digest_mod
 from orderorder.ingest import pdf as pdf_mod
 from orderorder.ingest import roles as roles_mod
 from orderorder.ingest.metadata import import_parquet
@@ -448,6 +449,25 @@ def ingest_mark_roles(
     console.print(f"{prefix}: {result}")
     if result.skipped_already:
         console.print(f"[dim]skipped, already labelled: {result.skipped_already:,}[/dim]")
+
+
+@ingest_app.command("digest")
+def ingest_digest(
+    dry_run: bool = typer.Option(False, help="Count what would be written without writing it."),
+    refresh: bool = typer.Option(False, help="Rebuild digests that already exist."),
+) -> None:
+    """Build the per-judgment digest the weight check was designed to read.
+
+    Aggregation, not generation: the headnote the publisher wrote, the paragraphs the role
+    labeller called holdings, the disposition -- everything the corpus already stores, selected
+    and truncated by rule. The weight check asks whether a passage was necessary to the outcome;
+    the headnote is the editor's century-old answer to that same question.
+    """
+    init_db()
+    with get_session() as session:
+        result = digest_mod.build_digests(session, dry_run=dry_run, refresh=refresh)
+    prefix = "[yellow]would digest[/yellow]" if dry_run else "[green]digested[/green]"
+    console.print(f"{prefix}: {result}")
 
 
 @ingest_app.command("aliases")
@@ -1049,7 +1069,7 @@ def embed_command(
                 session,
                 store=store,
                 limit=limit,
-                roles=list(role) or None,
+                roles=(list(role) if role else None),
                 on_progress=lambda done, total: (
                     console.print(f"  [dim]{done:,}/{total:,}[/dim]")
                     if done % 20_000 < 64 or done == total
@@ -1503,7 +1523,7 @@ def find_command(
 
         authorities = search.find_authorities(
             session, proposition, top=top, candidates=candidates, court_voice_only=not any_voice,
-            dense=dense, roles=list(role) or None, role_boost=role_boost,
+            dense=dense, roles=(list(role) if role else None), role_boost=role_boost,
         )
         if not authorities:
             console.print(
