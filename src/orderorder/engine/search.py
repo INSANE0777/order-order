@@ -58,13 +58,21 @@ MAX_NEAR_QUERIES = 6
 NEAR_LIMIT = 40
 # How many votes the dense ranking carries in the fusion. The lexical rankings agree with each
 # other by construction, so counting them one apiece against a single dense vote is not neutrality.
-DENSE_VOTES = 4
-# Measured on the paraphrase query set, fusing the dense ranking at one vote and at several:
-#   lexical only            case@1 33%   para@5 36%
-#   + dense, one vote       case@1 34%   para@5 30%
-#   + dense, three votes    case@1 33%   para@5 27%
-#   + dense, eight votes    case@1 33%   para@5 25%
-# Which is why `dense` defaults to off. See the note in `search_paragraphs`.
+DENSE_VOTES = 1
+# Measured on the full corpus (668,272 paragraphs, potion-base-8M, September 2026): one vote
+# dominates four at every depth and damages the literal modes less.
+#
+#                lexical    +dense, 4 votes    +dense, 1 vote
+#   verbatim @1     98%          86%               96%
+#   fragment @1     85%          43%               76%
+#   paraphrase @1   25%          33%               30%
+#   paraphrase @5   42%          40%               47%
+#   paraphrase @10  48%          40%               56%
+#
+# A static 8M model buys five points at the top of the paraphrase ranking and charges nine on the
+# fragment one, which is why `dense` still defaults to off. A stronger encoder on a GPU is the
+# experiment that can change this; a bigger CPU model is not, per the discrimination test.
+# See the note in `search_paragraphs`.
 # Reciprocal rank fusion scores are around 0.016 at the top and fall slowly. Multiplied up, the
 # spread across the first twenty results is a few points, which is where the standing bonus below
 # was already pitched against BM25: enough to move an authority a place or two, never enough to
