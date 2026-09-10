@@ -1,7 +1,7 @@
 """Rhetorical role labels for stored paragraphs.
 
 Every paragraph carries one of the OpenNyAI labels the architecture commits to (docs/ARCHITECTURE.md
-§3.2): preamble, facts, lower_court, issues, argument_petitioner, argument_respondent, statute,
+§3.6): preamble, facts, lower_court, issues, argument_petitioner, argument_respondent, statute,
 precedent_relied, precedent_not_relied, analysis, ratio, disposition, none. The labels exist because
 `ratio`, `precedent_relied` and `precedent_not_relied` map directly onto the weight and voice checks.
 
@@ -152,7 +152,7 @@ FACTS_CUES = re.compile(
 
 RATIO_CUES = re.compile(
     r"""(?ix)
-    (?: we\s+are\s+of\s+the\s+(?:clear\s+|considered\s+|firm\s+|considered\s+)?view
+    (?: we\s+are\s+of\s+the\s+(?:clear\s+|considered\s+|firm\s+)?view
       | (?:in|as\s+per)\s+our\s+(?:considered\s+)?(?:opinion|view)
       | it\s+is\s+(?:well\s+)?settled\s+(?:law|position|that)
       | (?:it\s+is|we\s+)?held\s+that
@@ -215,19 +215,29 @@ PRECEDENT_RELIED_CUES = re.compile(
     """
 )
 
-# (role, regex) tried in this order -- ROLE_ORDER, table construction kept beside the regexes.
+# The cue set for each role that has one. `preamble` is absent deliberately: it is positional rather
+# than lexical -- only the first paragraph can be one -- and `classify_role` tries it separately.
+ROLE_PATTERNS: dict[str, re.Pattern[str]] = {
+    "disposition": DISPOSITION_CUES,
+    "issues": ISSUES_CUES,
+    "argument_petitioner": ARGUMENT_PETITIONER_CUES,
+    "argument_respondent": ARGUMENT_RESPONDENT_CUES,
+    "lower_court": LOWER_COURT_CUES,
+    "statute": STATUTE_CUES,
+    "facts": FACTS_CUES,
+    "ratio": RATIO_CUES,
+    "analysis": ANALYSIS_CUES,
+    "precedent_not_relied": PRECEDENT_NOT_RELIED_CUES,
+    "precedent_relied": PRECEDENT_RELIED_CUES,
+}
+
+# (role, regex) in the order the classifier tries them, built from ROLE_ORDER rather than written out
+# again beside it. Two hand-maintained orderings that have to agree are one edit away from disagreeing
+# silently, and the order *is* the classifier's behaviour: it decides that a paragraph mentioning both
+# counsel and a precedent is counsel arguing. Deriving it means a role added to ROLE_ORDER without a
+# cue set raises at import rather than being skipped without a word.
 ROLE_CUES: list[tuple[str, re.Pattern[str]]] = [
-    ("disposition", DISPOSITION_CUES),
-    ("issues", ISSUES_CUES),
-    ("argument_petitioner", ARGUMENT_PETITIONER_CUES),
-    ("argument_respondent", ARGUMENT_RESPONDENT_CUES),
-    ("lower_court", LOWER_COURT_CUES),
-    ("statute", STATUTE_CUES),
-    ("facts", FACTS_CUES),
-    ("ratio", RATIO_CUES),
-    ("analysis", ANALYSIS_CUES),
-    ("precedent_not_relied", PRECEDENT_NOT_RELIED_CUES),
-    ("precedent_relied", PRECEDENT_RELIED_CUES),
+    (role, ROLE_PATTERNS[role]) for role in ROLE_ORDER if role != "preamble"
 ]
 
 NONE = "none"
@@ -295,6 +305,5 @@ def mark_roles(
                 .values(role=bindparam("role_label")),
                 [{"bid": pid, "role_label": label} for pid, label in updates],
             )
-            session.commit()
             session.commit()
     return result

@@ -16,7 +16,14 @@ from sqlalchemy import select
 
 from orderorder.db.models import Judgment, Paragraph
 from orderorder.ingest.pdf import ExtractedJudgment
-from orderorder.ingest.roles import classify_role, mark_roles
+from orderorder.ingest.roles import (
+    NONE,
+    ROLE_CUES,
+    ROLE_ORDER,
+    ROLE_PATTERNS,
+    classify_role,
+    mark_roles,
+)
 from orderorder.ingest.store import store_extracted
 
 
@@ -98,6 +105,21 @@ def test_a_paragraph_only_labelled_preamble_if_it_is_first() -> None:
     text = "Leave granted."
     assert classify_role(text, is_first=True) == "preamble"
     assert classify_role(text, is_first=False) == "none"
+
+
+def test_the_order_tried_is_the_order_declared() -> None:
+    """ROLE_CUES is derived from ROLE_ORDER, so the two cannot drift apart.
+
+    The order is not decoration -- it is what decides that a paragraph naming both counsel and a
+    precedent is counsel arguing. It used to be written out twice, once as a list nothing read and
+    once as the table that actually ran, which is one edit away from disagreeing in silence.
+    """
+    assert [role for role, _ in ROLE_CUES] == [r for r in ROLE_ORDER if r != "preamble"]
+    # `preamble` is positional, tried separately, and so has no cue set of its own.
+    assert "preamble" not in ROLE_PATTERNS
+    assert set(ROLE_PATTERNS) == set(ROLE_ORDER) - {"preamble"}
+    # Every label the classifier can return is one the architecture declares.
+    assert set(ROLE_ORDER) | {NONE} >= {role for role, _ in ROLE_CUES} | {"preamble", NONE}
 
 
 def test_argument_outranks_precedent_when_counsel_does_the_citing() -> None:

@@ -165,7 +165,7 @@ def build_verdict(
         return verdict
 
     # The citation exists, but not for the case the brief names.
-    if getattr(resolution, "name_mismatch", False):
+    if resolution.name_mismatch:
         verdict.findings.append(
             Finding(
                 MODE_MISCITE,
@@ -179,7 +179,7 @@ def build_verdict(
     # agrees with every other anonymised title, so the citation alone picks the case. Not a finding
     # -- nothing here is wrong yet -- but a person should confirm it, and silence would read as a
     # check that was done.
-    if getattr(resolution, "review", None):
+    if resolution.review:
         verdict.ask_review(resolution.review)
 
     if resolution.method == "party_name":
