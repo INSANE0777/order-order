@@ -7,7 +7,13 @@ import pytest
 
 from orderorder.citations.grammar import parse_citation
 from orderorder.ingest.metadata import import_parquet
-from orderorder.resolver import resolve, resolve_by_parties, resolve_exact
+from orderorder.resolver import (
+    Resolution,
+    check_party_names,
+    resolve,
+    resolve_by_parties,
+    resolve_exact,
+)
 
 
 @pytest.fixture
@@ -59,6 +65,53 @@ def test_party_names_rescue_a_wrong_citation(loaded) -> None:
     assert result.method == "party_name"
     assert result.canonical_key == "INSC:2019:770"
     assert "not in the corpus" in result.note
+
+
+def test_anonymised_brief_titles_are_a_review_not_a_pass() -> None:
+    """"State of U.P. v. Anr." against "STATE OF ORISSA versus BALRAM SAHU" scores 57 and passes.
+
+    The September 2026 holdout planted a mis-cite of exactly this shape twice (measured scores 57
+    and 61, just above the 55 floor -- token matching inflates "state of" against any title
+    containing those words) and the engine graded both A. The strings cannot detect the wrongness,
+    so the honest answer is a review request rather than a silent pass.
+    """
+    resolution = Resolution(
+        status="found",
+        method="exact",
+        judgment_id="j1",
+        canonical_key="INSC:2009:77",
+        matched_title="STATE OF ORISSA AND ORS. versus BALRAM SAHU",
+    )
+    checked = check_party_names(resolution, "The State Of Karnataka v. Anr.")
+    assert not checked.name_mismatch
+    assert checked.review is not None and "anonymised" in checked.review
+
+
+def test_anonymised_titles_agreeing_are_also_a_review() -> None:
+    resolution = Resolution(
+        status="found",
+        method="exact",
+        judgment_id="j1",
+        canonical_key="INSC:1981:189",
+        matched_title="THE STATE OF KARNATAKA versus ANR.",
+    )
+    checked = check_party_names(resolution, "State Of Karnataka v. Anr.")
+    assert not checked.name_mismatch
+    assert checked.review is not None
+
+
+def test_distinct_titles_still_disagree() -> None:
+    """The anonymised-title review must not soften the plain mismatch into a review."""
+    resolution = Resolution(
+        status="found",
+        method="exact",
+        judgment_id="j1",
+        canonical_key="INSC:2019:770",
+        matched_title="GURMIT SINGH BHATIA versus KIRAN KANT ROBINSON AND OTHERS",
+    )
+    checked = check_party_names(resolution, "State Of U.p. v. Anr.")
+    assert checked.name_mismatch
+    assert checked.review is None
 
 
 def test_party_match_below_threshold_is_not_found(loaded) -> None:

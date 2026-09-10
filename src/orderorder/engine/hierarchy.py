@@ -63,6 +63,28 @@ COURT_CLAIMS: list[tuple[str, re.Pattern[str]]] = [
     ),
 ]
 
+# What turns a "the High Court held …" shape into a recital of the case's history rather than the
+# brief's claim about the authority it cites: a fronted procedural participle just before the court
+# phrase -- "Rejecting the plea, the High Court opined that …". The brief is recounting what happened
+# below; the words are the citation's own narration of it, and the proposition attributed inside the
+# that-clause belongs to the case below, not to what the brief says the cited judgment decided. A
+# genuine attribution -- "the High Court has held that X" -- carries no such participle. Without this
+# rule, every clean brief sentence lifted from a judgment that recounts the case below reads as
+# failure mode 3, which is the false positive the September 2026 holdout caught.
+RECITAL_MARKER = re.compile(
+    r"""(?ix)
+    \b(?: reject | allow | dismiss | set(?:ting)?\s+aside | quash | remand
+          | accept | accede | concur | differ | modify | uphold
+    )\w*
+    \b[^,]{0,60},\s*$
+    """
+)
+
+def _is_recital(proposition: str, match_start: int) -> bool:
+    """Is the court phrase preceded by a fronted procedural participle?"""
+    before = proposition[max(0, match_start - 80) : match_start]
+    return RECITAL_MARKER.search(before) is not None
+
 # How much weight the brief claims. A Constitution Bench is five judges by Article 145(3); a Division
 # Bench is two and a Full Bench three, though those are High Court usages and only claim a minimum.
 BENCH_WORDS = {
@@ -125,10 +147,13 @@ def read_attribution(proposition: str) -> Attribution:
     """What the brief's own sentence says about the deciding court and its strength."""
     attribution = Attribution()
     for court, pattern in COURT_CLAIMS:
-        match = pattern.search(proposition)
-        if match and attribution.court is None:
-            attribution.court = court
-            attribution.court_cue = " ".join(match.group(0).split())
+        for match in pattern.finditer(proposition):
+            if _is_recital(proposition, match.start()):
+                continue  # a narrated view from the case below, not the brief's attribution
+            if attribution.court is None:
+                attribution.court = court
+                attribution.court_cue = " ".join(match.group(0).split())
+            break
 
     if match := CONSTITUTION_BENCH.search(proposition):
         attribution.bench = CONSTITUTION_BENCH_SIZE

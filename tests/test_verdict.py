@@ -272,3 +272,22 @@ def test_a_dissent_is_reported_even_when_support_was_never_assessed() -> None:
     assert verdict.support == "not_assessed"
     assert any(f.mode == MODE_MINORITY for f in verdict.findings)
     assert verdict.grade == "D"
+
+
+def test_a_resolution_review_becomes_a_review_request_not_a_finding() -> None:
+    """The anonymised-title case: strings matched, nothing is wrong yet, silence would be a lie."""
+    resolution = Resolution(
+        status="found",
+        method="exact",
+        judgment_id="j1",
+        canonical_key="INSC:1981:189",
+        matched_title="STATE OF U.P. versus ANR.",
+        review=(
+            "the party names ('State Of U.p. v. Anr.') are anonymised, and the citation resolves to "
+            "a judgment of the same shape; confirm the year is the case you mean"
+        ),
+    )
+    verdict = build_verdict(CITATION, CLAIM, resolution)
+    assert not verdict.findings
+    assert verdict.needs_review
+    assert "anonymised" in (verdict.review_reason or "")
