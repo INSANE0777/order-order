@@ -1427,6 +1427,18 @@ def find_command(
     dense: bool = typer.Option(
         False, "--dense", help="Fuse the vector ranking in too, if a store has been built."
     ),
+    role: list[str] = typer.Option(
+        None,
+        "--role",
+        help="Restrict to paragraphs labelled with this rhetorical role (ingest mark-roles). "
+        "Repeatable: --role ratio --role analysis.",
+    ),
+    role_boost: bool = typer.Option(
+        False,
+        "--role-boost",
+        help="Lift labelled holdings above narration at near-ties. Measured: +6 fragment recall, "
+        "-6 paraphrase -- on when you are stating the law, off when finding a passage.",
+    ),
 ) -> None:
     """Search every judgment for an authority backing a proposition, and name the line.
 
@@ -1440,7 +1452,7 @@ def find_command(
 
         authorities = search.find_authorities(
             session, proposition, top=top, candidates=candidates, court_voice_only=not any_voice,
-            dense=dense,
+            dense=dense, roles=list(role) or None, role_boost=role_boost,
         )
         if not authorities:
             console.print(
