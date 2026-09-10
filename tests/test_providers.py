@@ -85,6 +85,89 @@ def test_a_model_name_may_carry_slashes_and_colons() -> None:
     assert parse_spec("nonsense") is None
 
 
+def test_a_spec_may_name_the_variable_holding_its_key() -> None:
+    """A free tier is per account, so a second key is how a daily ceiling moves."""
+    spec = parse_spec("google_genai:gemini-3.6-flash#GOOGLE_API_KEY_2")
+    assert spec == ProviderSpec("google_genai", "gemini-3.6-flash", "GOOGLE_API_KEY_2")
+    assert spec.env_var == "GOOGLE_API_KEY_2"
+    # The variable is part of the identity, so two accounts are two rungs and not one deduped away.
+    assert spec.as_string == "google_genai:gemini-3.6-flash#GOOGLE_API_KEY_2"
+    assert spec.as_string != parse_spec("google_genai:gemini-3.6-flash").as_string
+
+
+def test_naming_the_default_variable_is_the_same_as_not_naming_it() -> None:
+    """Otherwise the two spellings are two rungs of the chain pointing at one key."""
+    explicit = parse_spec("groq:openai/gpt-oss-120b#GROQ_API_KEY")
+    implied = parse_spec("groq:openai/gpt-oss-120b")
+    assert explicit.key_env is None
+    assert explicit == implied
+    assert explicit.as_string == implied.as_string
+
+
+def test_the_key_suffix_survives_a_model_name_full_of_punctuation() -> None:
+    """`ollama:qwen3:4b` and `groq:openai/gpt-oss-120b` are why the suffix is `#` and taken last."""
+    spec = parse_spec("ollama:qwen3:4b#SOMETHING")
+    assert spec.provider == "ollama"
+    assert spec.model == "qwen3:4b"
+    assert spec.key_env == "SOMETHING"
+    assert parse_spec("groq:openai/gpt-oss-120b#K").model == "openai/gpt-oss-120b"
+
+
+def test_a_second_account_is_only_usable_when_its_variable_is_set(monkeypatch) -> None:
+    spec = parse_spec("google_genai:gemini-3.6-flash#GOOGLE_API_KEY_2")
+    monkeypatch.delenv("GOOGLE_API_KEY_2", raising=False)
+    # A key in the *default* variable does not make the second account available.
+    monkeypatch.setenv("GOOGLE_API_KEY", "the-first-account")
+    assert spec.is_available is False
+    monkeypatch.setenv("GOOGLE_API_KEY_2", "the-second-account")
+    assert spec.is_available is True
+
+
+def test_the_named_key_is_handed_to_the_provider(captured, monkeypatch) -> None:
+    """The SDKs each read one fixed variable, which is the assumption a second account breaks."""
+    monkeypatch.setenv("GOOGLE_API_KEY_2", "second-account-key")
+    providers._build_one(
+        parse_spec("google_genai:gemini-3.6-flash#GOOGLE_API_KEY_2"), ScopeAssessment
+    )
+    assert captured["api_key"] == "second-account-key"
+
+
+def test_the_default_variable_is_left_to_the_sdk(captured, monkeypatch) -> None:
+    """Passing it explicitly would buy nothing and give the value one more place to be."""
+    monkeypatch.setenv("GOOGLE_API_KEY", "the-only-account")
+    providers._build_one(parse_spec("google_genai:gemini-3.6-flash"), ScopeAssessment)
+    assert "api_key" not in captured
+
+
+def test_an_empty_named_variable_passes_no_key_at_all(captured, monkeypatch) -> None:
+    """Better an unusable provider than a confusing authentication error mid-run."""
+    monkeypatch.setenv("GOOGLE_API_KEY_2", "")
+    providers._build_one(
+        parse_spec("google_genai:gemini-3.6-flash#GOOGLE_API_KEY_2"), ScopeAssessment
+    )
+    assert "api_key" not in captured
+
+
+def test_one_provider_twice_on_two_accounts_is_two_rungs(monkeypatch) -> None:
+    """The whole point: `available_specs` must not dedupe the second account away."""
+    monkeypatch.setattr(
+        providers,
+        "get_settings",
+        lambda: SimpleNamespace(
+            llm_primary="google_genai:gemini-3.6-flash",
+            fallback_models=[
+                "google_genai:gemini-3.6-flash#GOOGLE_API_KEY_2",
+                "google_genai:gemini-3.6-flash",  # a duplicate of the primary, still dropped
+            ],
+            llm_base_url="",
+        ),
+    )
+    monkeypatch.setenv("GOOGLE_API_KEY", "first")
+    monkeypatch.setenv("GOOGLE_API_KEY_2", "second")
+    specs = providers.available_specs()
+    assert [s.env_var for s in specs] == ["GOOGLE_API_KEY", "GOOGLE_API_KEY_2"]
+
+
 def test_no_configured_provider_yields_no_model() -> None:
     """The engine degrades to its model-free checks and says so, rather than failing at the call."""
     with patch.object(providers, "available_specs", return_value=[]):

@@ -3,12 +3,25 @@
 The engine never imports a provider. It asks for something that turns a prompt into a validated
 Pydantic object, and this module supplies one, built from configuration:
 
-    LLM_PRIMARY=google_genai:gemini-2.5-flash
-    LLM_FALLBACKS=groq:openai/gpt-oss-120b,cerebras:gpt-oss-120b,ollama:qwen3.5:4b
+    LLM_PRIMARY=google_genai:gemini-3.6-flash
+    LLM_FALLBACKS=groq:openai/gpt-oss-120b,cerebras:gpt-oss-120b,ollama:qwen3:4b
 
 Two reasons the indirection earns its place. Free tiers rate-limit, so a call must be able to fail over
 to the next provider mid-run, which `with_fallbacks` does. And the engine has to be testable without a
 network or an API key, which a stub satisfying `StructuredModel` does.
+
+**One provider, several accounts.** A free tier is per account, so the way to raise a daily ceiling is
+usually a second key rather than a fifth provider. Each SDK reads one fixed variable from the
+environment, which is the assumption that breaks, so an entry may name its own:
+
+    LLM_FALLBACKS=google_genai:gemini-3.6-flash#GOOGLE_API_KEY_2,groq:openai/gpt-oss-120b
+
+Worth knowing what this does and does not buy. `with_fallbacks` moves to the next rung when a call
+raises, so an exhausted key costs one failed request *per call* for the rest of the run rather than
+being remembered and skipped. There is no cooldown and no circuit breaker. And every failure the
+chain cannot cover degrades to *not assessed* by design, so a chain exhausted end to end produces a
+page of honest abstentions that reads exactly like a corpus with nothing to say. Longer chains make
+that more likely, not less: watch the abstention rate, and probe before a run.
 
 Structured output method differs by provider: Gemini and Ollama support native JSON-schema decoding,
 while the open-weight endpoints are more reliable coerced through tool calling.
@@ -73,6 +86,11 @@ STRUCTURED_METHOD = {
     "cerebras": "function_calling",
     "mistralai": "function_calling",
 }
+# Separates a provider string from the environment variable holding its key, so that one provider
+# can appear on the chain more than once against different accounts. `#` because no model identifier
+# uses it, while `:` and `/` both appear in them (`ollama:qwen3:4b`, `groq:openai/gpt-oss-120b`).
+KEY_SEPARATOR = "#"
+
 # Providers that need a key in the environment before they can be built.
 PROVIDER_ENV = {
     "google_genai": "GOOGLE_API_KEY",
@@ -95,14 +113,22 @@ class StructuredModel(Protocol):
 class ProviderSpec:
     provider: str
     model: str
+    # Which environment variable holds this entry's key, when it is not the provider's default one.
+    # `None` means the default, which is the ordinary case.
+    key_env: str | None = None
 
     @property
     def as_string(self) -> str:
+        # The key variable is part of the identity: two entries for the same model on different
+        # accounts are two different rungs of the chain, and `available_specs` dedupes on this
+        # string. The *name* appears in logs and in `doctor`; the value never does.
+        if self.key_env:
+            return f"{self.provider}:{self.model}{KEY_SEPARATOR}{self.key_env}"
         return f"{self.provider}:{self.model}"
 
     @property
     def env_var(self) -> str | None:
-        return PROVIDER_ENV.get(self.provider)
+        return self.key_env or PROVIDER_ENV.get(self.provider)
 
     @property
     def is_available(self) -> bool:
@@ -120,13 +146,34 @@ class ProviderSpec:
 
 
 def parse_spec(text: str) -> ProviderSpec | None:
-    """Parse "provider:model". The model half may itself contain colons or slashes."""
+    """Parse "provider:model" or "provider:model#KEY_ENV_VAR".
+
+    The model half may itself contain colons or slashes (`ollama:qwen3:4b`,
+    `groq:openai/gpt-oss-120b`), so the provider is taken from the first colon. The optional key
+    suffix is taken from the last `#`, which no model identifier uses.
+
+    The suffix is what lets one provider appear more than once on different accounts:
+
+        LLM_FALLBACKS=google_genai:gemini-3.6-flash#GOOGLE_API_KEY_2,groq:openai/gpt-oss-120b
+
+    Naming the provider's own default variable is the same as omitting it, so the two spellings do
+    not become two rungs of the chain pointing at one key.
+    """
     text = (text or "").strip()
+    key_env: str | None = None
+    if KEY_SEPARATOR in text:
+        text, _, key_env = text.rpartition(KEY_SEPARATOR)
+        key_env = key_env.strip() or None
+    text = text.strip()
     if ":" not in text:
         return None
     provider, _, model = text.partition(":")
     provider, model = provider.strip(), model.strip()
-    return ProviderSpec(provider, model) if provider and model else None
+    if not (provider and model):
+        return None
+    if key_env and key_env == PROVIDER_ENV.get(provider):
+        key_env = None
+    return ProviderSpec(provider, model, key_env)
 
 
 def available_specs() -> list[ProviderSpec]:
@@ -169,6 +216,17 @@ def _build_one(spec: ProviderSpec, schema: type[BaseModel], **kwargs: Any):
     # report honestly.
     kwargs.setdefault("timeout", REQUEST_TIMEOUT_SECONDS)
     kwargs.setdefault("max_retries", MAX_RETRIES)
+
+    # A spec naming its own key variable has to be handed the value: the provider SDKs each read one
+    # fixed variable from the environment, which is exactly the assumption a second account breaks.
+    # `api_key` is the alias every one of these classes accepts, so there is no per-provider mapping
+    # to keep in step. Nothing is passed for the default variable -- the SDK finds that itself -- and
+    # nothing is passed for a variable that is empty, so a misconfigured entry fails as an unusable
+    # provider rather than as a confusing authentication error.
+    if spec.key_env and PROVIDER_ENV.get(spec.provider) is not None and "api_key" not in kwargs:
+        secret = os.environ.get(spec.key_env)
+        if secret:
+            kwargs["api_key"] = secret
 
     model = init_chat_model(spec.model, model_provider=spec.provider, temperature=0, **kwargs)
     return model.with_structured_output(schema, method=spec.structured_method)
