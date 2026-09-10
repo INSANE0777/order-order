@@ -204,8 +204,15 @@ a corpus of 700k paragraphs rather than loading them all.
 
 What this does *not* change is voice (§4.6) and weight (§4.7). Those were built before roles existed
 and still decide from structure and attributing cues directly, because they need to name the cue they
-relied on. The roles serve retrieval: without them a search cannot tell the facts paragraph from the
-holding paragraph, and an answer to a legal question comes back quoting the case history.
+relied on.
+
+**Nothing reads the column yet.** `mark-roles` writes `paragraph.role`, the locator carries it onto
+each candidate, and no check, filter or ranking consumes it — not search, not the drafting gate. The
+motivating argument is sound and unimplemented: a search that cannot tell the facts paragraph from the
+holding paragraph answers a legal question with the case history, and `court_voice_only` currently
+does that job with voice attribution instead. So the labels are a built input awaiting a consumer.
+That is worth stating plainly rather than describing the intent as though it were the behaviour —
+running `mark-roles` changes no output today, and skipping it costs nothing.
 
 Each paragraph receives one of: `preamble`, `facts`, `lower_court`, `issues`, `argument_petitioner`, `argument_respondent`, `analysis`, `statute`, `precedent_relied`, `precedent_not_relied`, `ratio`, `disposition`, `none`. This is the OpenNyAI label set, chosen because `ratio`, `precedent_relied` and `precedent_not_relied` map directly onto the weight and voice checks.
 
