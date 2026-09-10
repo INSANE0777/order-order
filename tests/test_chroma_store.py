@@ -75,3 +75,52 @@ def test_chroma_answers_what_brute_force_answers(chroma_home, monkeypatch, tiny_
 def test_max_batch_respects_chromas_record_cap(chroma_home, tiny_store) -> None:
     """65000 / 4 dimensions = 16250; the cap scales with the vector size."""
     assert chroma_store.max_batch() == 16250
+    # And it reads the dimension off the store being imported, not off whatever is default.
+    assert chroma_store.max_batch(tiny_store) == 16250
+
+
+class _RecordingCollection:
+    """A collection that remembers how many ids each `add` was given."""
+
+    def __init__(self, inner, sizes: list[int]) -> None:
+        self._inner = inner
+        self._sizes = sizes
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+    def add(self, *, ids, **rest):
+        self._sizes.append(len(ids))
+        return self._inner.add(ids=ids, **rest)
+
+
+def test_the_import_never_hands_chroma_more_than_it_accepts(
+    chroma_home, tiny_store, monkeypatch
+) -> None:
+    """The default batch is the cap, not a constant that happens to sit under it here.
+
+    This is the one the fixture cannot catch on its own: six vectors are fewer than any plausible
+    constant, so an import defaulting to a fixed 8192 passes this file and is refused by Chroma on
+    every real run, where the cap is 65000 // 256 = 253. Forcing the cap down to two makes the
+    batching visible at fixture scale.
+    """
+    sizes: list[int] = []
+    inner = chroma_store.collection
+
+    monkeypatch.setattr(chroma_store, "max_batch", lambda store=None: 2)
+    monkeypatch.setattr(
+        chroma_store, "collection", lambda *a, **k: _RecordingCollection(inner(*a, **k), sizes)
+    )
+
+    assert chroma_store.import_from_store(tiny_store) == 6
+    assert sizes == [2, 2, 2], "each add must stay within the cap"
+    assert max(sizes) <= chroma_store.max_batch()
+
+
+def test_progress_reports_the_running_total(chroma_home, tiny_store, monkeypatch) -> None:
+    """A caller that wants to print does not have to reimplement the loop to do it."""
+    monkeypatch.setattr(chroma_store, "max_batch", lambda store=None: 2)
+    seen: list[int] = []
+
+    assert chroma_store.import_from_store(tiny_store, progress=seen.append) == 6
+    assert seen == [2, 4, 6]

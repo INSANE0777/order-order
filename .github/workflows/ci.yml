@@ -111,6 +111,32 @@ jobs:
           curl -sI http://127.0.0.1:8000/ | grep -qi "x-content-type-options: nosniff"
           docker rm -f oo
 
+  chroma:
+    name: the optional chroma backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python and the chroma extra
+        # Its own job, and that is the point. `tests/test_chroma_store.py` opens with an
+        # `importorskip`, so in the `check` job -- which syncs without extras -- it reports one
+        # skipped file and the backend ships with no coverage at all. Installing the extra there
+        # instead would put a package carrying five unfixed advisories into the environment the
+        # whole suite runs in, and would put it in front of `audit`, whose value depends on it
+        # auditing a dependency set that does not contain chromadb. So: a separate environment,
+        # thrown away with the runner.
+        run: |
+          uv python install 3.12
+          uv sync --frozen --extra chroma
+
+      - name: The chroma tests, which skip everywhere else
+        run: uv run pytest tests/test_chroma_store.py -v
+
   audit:
     name: dependency advisories
     runs-on: ubuntu-latest

@@ -13,6 +13,9 @@ the two backends always agree with each other and with the paragraph table. Quer
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from pathlib import Path
+
 import numpy as np
 
 from orderorder.config import get_settings
@@ -21,18 +24,23 @@ from orderorder.engine.embeddings import VectorStore, default_store, encode
 COLLECTION = "paragraphs"
 
 
-def max_batch() -> int:
-    """Chroma caps each add by (max_batch_size = max(1, 65000 / record dim)); stay under it."""
-    return max(1, 65000 // _dimension())
+def max_batch(store: VectorStore | None = None) -> int:
+    """Chroma caps each add by (max_batch_size = max(1, 65000 / record dim)); stay under it.
+
+    Takes the store whose vectors are about to be added, because the cap is a function of *their*
+    dimension. Reading it off the default store while importing another one would compute a cap for
+    the wrong matrix.
+    """
+    return max(1, 65000 // _dimension(store))
 
 
-def _dimension() -> int:
-    store = default_store()
+def _dimension(store: VectorStore | None = None) -> int:
+    store = store or default_store()
     index = store.read_index()
     return int(index["dimension"])
 
 
-def chroma_dir() -> object:
+def chroma_dir() -> Path:
     return get_settings().data_dir / "chroma"
 
 
@@ -57,14 +65,30 @@ def count() -> int:
     return collection().count()
 
 
-def import_from_store(store: VectorStore | None = None, batch: int = 8192) -> int:
-    """Copy the built vector matrix into Chroma. Re-runnable; only missing rows are added."""
+def import_from_store(
+    store: VectorStore | None = None,
+    batch: int | None = None,
+    *,
+    progress: Callable[[int], None] | None = None,
+) -> int:
+    """Copy the built vector matrix into Chroma. Re-runnable; only missing rows are added.
+
+    `batch` defaults to `max_batch()` rather than to a constant. A fixed default is the wrong shape
+    here: the cap is `65000 // dimension`, which is 253 at the 256-dimension encoder this corpus
+    uses, so any constant large enough to look efficient is refused by Chroma on every real import
+    while passing against a small fixture. `progress` is called with the running total after each
+    batch, so a caller that wants to print does not have to reimplement the loop to do it.
+    """
     store = store or default_store()
     if not store.exists:
         raise RuntimeError("no vector store to import; run `orderorder embed` first")
-    matrix, paragraph_ids, index = store.open()
-    existing = set(collection().get(include=[])["ids"])
+    matrix, paragraph_ids, _index = store.open()
+    batch = batch or max_batch(store)
+    # One client, not one per call: `collection()` builds a PersistentClient each time, and opening
+    # two against the same directory to read the ids and then write them is asking the embedded
+    # database to arbitrate between two handles for no reason.
     coll = collection()
+    existing = set(coll.get(include=[])["ids"])
     added = 0
     for start in range(0, len(paragraph_ids), batch):
         ids = paragraph_ids[start : start + batch]
@@ -79,6 +103,8 @@ def import_from_store(store: VectorStore | None = None, batch: int = 8192) -> in
             embeddings=vectors,
         )
         added += len(todo)
+        if progress is not None:
+            progress(added)
     return added
 
 

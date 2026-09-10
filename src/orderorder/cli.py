@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import os
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import typer
@@ -1064,7 +1065,7 @@ def chroma_import_command() -> None:
     the process. Re-runnable -- rows already in Chroma are skipped.
     """
     init_db()
-    added = _chroma_import_progress()
+    added = chroma_store.import_from_store(progress=_chroma_progress_printer())
     if added == 0:
         console.print(f"[green]already imported[/green]: {chroma_store.count():,} vectors in {chroma_store.chroma_dir()}")
     else:
@@ -1074,27 +1075,27 @@ def chroma_import_command() -> None:
         )
 
 
-def _chroma_import_progress() -> int:
-    """Copy the memmap matrix into Chroma in batches, skipping rows already imported."""
-    import numpy as np
+# One progress line per this many vectors. The import's batch is Chroma's own cap -- a few hundred
+# rows at the encoder this corpus uses -- so without a milestone the run prints thousands of lines.
+_CHROMA_PROGRESS_EVERY = 40_960
 
-    store = embeddings.default_store()
-    matrix, paragraph_ids, _index = store.open()
-    coll = chroma_store.collection()
-    existing = set(coll.get(include=[])["ids"])
-    added = 0
-    batch = chroma_store.max_batch()
-    for start in range(0, len(paragraph_ids), batch):
-        ids = paragraph_ids[start : start + batch]
-        todo = [(i, pid) for i, pid in enumerate(ids, start=start) if pid not in existing]
-        if not todo:
-            continue
-        vectors = np.asarray(matrix[[i for i, _ in todo]], dtype=np.float32)
-        coll.add(ids=[pid for _, pid in todo], embeddings=vectors)
-        added += len(todo)
-        if added % 40_960 < batch:
+
+def _chroma_progress_printer() -> Callable[[int], None]:
+    """A progress callback that reports each time the import passes another milestone.
+
+    It carries the next milestone rather than testing the running total against a modulus: the total
+    climbs by whatever the batch happens to be, so a modulus fires once per batch near the boundary
+    and prints a small flurry each time instead of one line.
+    """
+    milestone = _CHROMA_PROGRESS_EVERY
+
+    def report(added: int) -> None:
+        nonlocal milestone
+        if added >= milestone:
             console.print(f"  [dim]{added:,} imported[/dim]")
-    return added
+            milestone = added + _CHROMA_PROGRESS_EVERY
+
+    return report
 
 
 @app.command("chroma-search")
