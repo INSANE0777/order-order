@@ -30,7 +30,7 @@ import threading
 from collections.abc import Iterator
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -509,14 +509,27 @@ def create_app(
         }
 
     @app.get("/api/search")
-    def find(q: str, top: int = 5) -> dict:
-        """The other direction: a proposition in, judgments and the line out."""
+    def find(
+        q: str,
+        top: int = 5,
+        role: list[str] = Query(None),
+        role_boost: bool = False,
+        dense: bool = False,
+    ) -> dict:
+        """The other direction: a proposition in, judgments and the line out.
+
+        `role` restricts to labelled rhetorical roles (repeatable); `role_boost` lifts holdings at
+        near-ties -- measured +6 fragment recall, -6 paraphrase, so it is opt-in; `dense` fuses the
+        vector ranking when a store has been built.
+        """
         if not q.strip():
             raise HTTPException(400, "there is nothing to search for")
         with open_session() as session:
             if not search.index_exists(session):
                 raise HTTPException(409, "the full-text index has not been built; run `orderorder index`")
-            found = search.find_authorities(session, q, top=top)
+            found = search.find_authorities(
+                session, q, top=top, roles=role, role_boost=role_boost, dense=dense
+            )
             return {
                 "query": q,
                 "authorities": [
