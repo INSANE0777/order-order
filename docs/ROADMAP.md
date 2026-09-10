@@ -2,11 +2,71 @@
 
 | | |
 |---|---|
-| **Version** | 0.1, draft |
-| **Date** | 4 September 2026 |
-| **Companion documents** | [PRD.md](PRD.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [TECH_STACK.md](TECH_STACK.md) |
+| **Version** | 0.2 |
+| **Date** | 9 September 2026 (0.1 written 4 September) |
+| **Companion documents** | [PRD.md](PRD.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [TECH_STACK.md](TECH_STACK.md) · [DEPLOYMENT.md](DEPLOYMENT.md) |
 
-Phase 0 is the hackathon sprint. Phases 1-3 take the same engine to a startup. Dates below assume the sprint starts Monday 7 September 2026; shift everything if the real start differs. Owners: **D** = developer, **L** = law-student co-founder.
+Phase 0 is the hackathon sprint. Phases 1-3 take the same engine to a startup. Owners: **D** =
+developer, **L** = law-student co-founder.
+
+---
+
+## 0. Where this actually is, 10 September 2026
+
+The day-by-day plan below was written on 4 September for a sprint starting Monday the 7th. Five days
+in, the engine's half of it is done and the plan is kept mainly as a record of what was expected —
+because what was built is both **more** than it and **differently shaped**, and the differences are
+the useful part of this document.
+
+**Ahead of the plan.** The corpus is not the 2014-2025 subset but the **whole Supreme Court, 1950 to
+2025**: **38,032 judgments, 707,647 paragraphs**, 38,005 with full text (the 27 that are not are PDFs
+missing from the source). All **twelve** failure modes are implemented, not the eight scoped for the
+MVP, and eight of the twelve are decided with **no model at all**. Everything is measured on
+**held-out judgments the detectors were not developed against**, which the plan did not ask for and
+which is the difference between a demo and a claim.
+
+The corpus quadrupled on 9-10 September, and it is worth being precise that this was a **correction,
+not an achievement**. A comment in `ingest/corpus.py` asserted the open-data bucket's Supreme Court
+metadata began in 2013. It does not; it begins in 1950, and 2013 was simply the range this repository
+had been built on. Nobody checked the assertion against the bucket until somebody did. That is the
+same failure the engine exists to catch, one level up: a confident statement, plausible, load-bearing,
+and never verified against the source. The fix was a flag.
+
+**A caveat that matters for every number below.** The detector evaluations — recall by mode, false
+positives, the drafting and contrary runs — were measured on the 2013-2025 corpus and have **not**
+been re-run against 1950-2025. The reports in `evals/` are unchanged. Re-running them is the first
+outstanding evaluation task, and until it happens the tables state which corpus they came from.
+
+**Not in the plan at all.** A third direction: `orderorder contrary`, which reads the same retrieval for
+the opposite sign and finds the judgment that says the other thing — no model involved, because what
+separates a contradiction from a restatement is clause polarity rather than ranking. A self-attack on
+the assembled draft built from the citation graph and bench strengths. And an **undermined** treatment
+status, following the Constitution Bench's own words about decisions that followed an overruled case.
+
+**Behind the plan, and in one case deliberately.**
+
+| Planned | State |
+|---|---|
+| Day 2 embeddings on a Kaggle GPU | Built and **off by default**, and the reading has since been corrected. At the original four votes dense retrieval is destructive; at **one** vote it lifts paraphrase recall 42%→47% at five and 48%→56% at ten, and costs nine points on fragments. A trade, not a verdict: [ARCHITECTURE.md](ARCHITECTURE.md) §11.4 |
+| Rhetorical role labels (day 2 in the plan, by LLM) | Built as a **cue classifier**, not a model, abstaining to `none`. `ingest/roles.py`, `orderorder ingest mark-roles` |
+| A vector database (never in the plan) | Chroma as an optional second home for the same vectors, behind the `chroma` extra. Ranking still reads the memmap |
+| Day 7 OCR of a scanned annexure | Not built. A brief with no text layer is reported as such rather than guessed at |
+| Day 2 Docling parsing | Replaced by pypdfium2 and a publisher-specific cleaner ([TECH_STACK.md](TECH_STACK.md) §7) |
+| Day 8 Next.js web UI | Replaced by one static page served by the API. All four surfaces are there |
+| Days 4-6, L's 50-item gold set from real memorials | **The open item, and the important one.** The gold set is 70 items and the held-out set 313, all *planted by machine* in real judgments. That measures the detectors against ground truth the corpus supplies rather than labels anyone wrote — which is a real property, and is not the same as knowing the distribution of errors real advocates produce. Nothing here has yet been scored against a memorial a person wrote |
+| Day 9 free-tier full run | Partly done, and it found the trap: the configured primary model had been **retired**, every call 404ed, every failure was correctly recorded as *not assessed*, and the report read like a result. See [ARCHITECTURE.md](ARCHITECTURE.md) §12 |
+| Day 10 rehearsals, video, submission | Not started |
+
+**Added because a box someone else uses needs it**, none of which was on the plan: a bearer token that
+the binding makes mandatory, rate limits, security headers, bounded uploads, a non-root container image
+with the corpus and keys outside it, CI that builds the image and checks it refuses to start open,
+Alembic migrations inside the package, one stderr logger that never sees a prompt, and a job deadline.
+[DEPLOYMENT.md](DEPLOYMENT.md) is that work.
+
+**What the next few days are for**, in order: a memorial a person wrote, scored; the demo script and
+rehearsals; the contrary search run over an assembled draft, which is ten lines and belongs beside the
+rest of the self-attack; and BGE-M3 on a borrowed GPU, which is the one experiment the numbers point
+at.
 
 ---
 
@@ -18,7 +78,15 @@ Phase 0 is the hackathon sprint. Phases 1-3 take the same engine to a startup. D
 
 **Out:** High Courts; the fact comparator beyond a single structured call; the citator beyond Indian Kanoon cited-by and own extraction; bring-your-own-login connectors; Word add-in; teams and billing; the retrained role classifier.
 
-### 1.2 Day-by-day plan
+*Delivered against that scope:* the whole 2013-2025 SC corpus rather than a subset; **all twelve**
+modes rather than eight; the fact comparator; the citator built from own extraction across the corpus,
+with the bench-strength rule; and a third direction (`contrary`) that was not scoped. Still out, as
+planned: High Courts, connectors, the add-in, teams and billing, the retrained role classifier.
+
+### 1.2 Day-by-day plan, as written on 4 September
+
+Kept as written. §0 is what happened. The engine column ran ahead of it and out of order; the
+co-founder column is where the outstanding work is.
 
 | Day | Developer (D) | Co-founder (L) | Exit criterion |
 |---|---|---|---|
@@ -48,24 +116,37 @@ Phase 0 is the hackathon sprint. Phases 1-3 take the same engine to a startup. D
 
 ### 1.4 Cut list, in order, if time runs short
 
-1. Surface B reduced to one issue and no self-attack.
-2. Fact comparator removed (mode 11 shown as "phase 1").
-3. PDF report replaced by CSV export.
-4. Annotated brief removed; verdict board only.
-5. Indian Kanoon integration removed; the knowledge base alone decides existence, with an explicit "not in corpus" caveat instead of "phantom".
+Written on 4 September. Four of the five are moot because the thing they would cut is built, and item
+5 is the state anyway. Kept because a cut list is only useful before you need it.
+
+1. ~~Surface B reduced to one issue and no self-attack.~~ Built, including the self-attack.
+2. ~~Fact comparator removed (mode 11 shown as "phase 1").~~ Built: `engine/facts.py`.
+3. ~~PDF report replaced by CSV export.~~ Reports are Markdown; the draft exports DOCX.
+4. ~~Annotated brief removed; verdict board only.~~ Both built.
+5. Indian Kanoon integration removed; the knowledge base alone decides existence, with an explicit "not in corpus" caveat instead of "phantom". **This is already how it works** — the corpus decides, the treatment report always states how many judgments it searched, and a lookup is a lead rather than a source of truth.
+
+What would actually be cut now, in order: the drafting workspace, since verification is the product a
+lawyer can use this month and [DEPLOYMENT.md](DEPLOYMENT.md) §1 says why drafting is not; then the
+contrary search, which is a lead generator and costs a minute to explain; then the memo, which needs a
+model and so needs the network to hold up.
 
 ### 1.5 Risks specific to the sprint
 
 | Risk | Mitigation |
 |---|---|
-| A free tier rate-limits or goes down during the demo | Three providers behind LangChain fallbacks; digests precomputed on day 9; local Ollama as the last resort; backup video |
-| CPU embedding of the subset takes too long | Use a Kaggle T4 session on day 2; embed only judgments from 2018 onward if it must stay on CPU |
+| A free tier rate-limits or goes down during the demo | Three providers behind LangChain fallbacks; local Ollama as the last resort; backup video. **And eight of the twelve modes need no model at all**, so the demo degrades to a smaller true claim rather than to nothing |
+| ~~CPU embedding of the subset takes too long~~ | Resolved in a direction nobody expected: a static encoder does the whole corpus in four minutes, and the measurement then said dense retrieval does not help at this scale. Off by default; nothing on the demo path wants a GPU |
 | Citation grammar misses formats in the memorials | L's format list on day 0; tests drive the grammar; NER catches names without citations |
 | Demo network failure | Backup video recorded on day 10; the whole stack runs locally with reduced quality as a second fallback |
+| **A configured model is retired and every call fails silently** | Met on 9 September, and the sharpest risk here because it does not look like a failure: every degraded check is honestly recorded as *not assessed*, so a dead model reads as a corpus with nothing to say. `orderorder doctor --probe` before every run, and watch the abstention rate |
 
 ---
 
 ## 2. Gantt
+
+The sprint chart is the plan as drawn on 4 September, kept for the record. The engine work in it
+finished ahead of the bars and out of their order — §0 is what actually happened — and the phase-1
+chart below it still stands.
 
 ```mermaid
 gantt
@@ -114,10 +195,10 @@ gantt
 
 | Goal | Deliverable | Owner | Exit criterion |
 |---|---|---|---|
-| Full Supreme Court corpus | Ingest 1950-2025 from AWS Open Data; official PDFs for the most-cited 5,000 judgments; digests built in batches on Kaggle sessions or the first paid GPU hours | D | Coverage report: every citation in the gold set resolves locally |
-| Citator graph | Own citation-edge extraction across the corpus; treatment classifier trained on cue-phrase labels plus L's labels; Indian Kanoon cited-by merged | D, L | Treatment recall ≥ 90% on gold |
+| Full Supreme Court corpus | **Done in phase 0, and it is the whole of it**: 38,032 judgments 1950-2025, 707,647 paragraphs, 38,005 with text. This closes the hole that mattered — on the 2013-2025 corpus 56% of citations pointed at cases it did not hold. What remains here is digests, built in batches on Kaggle sessions or the first paid GPU hours | D | Coverage report: every citation in the gold set resolves locally |
+| Citator graph | **Own extraction done in phase 0**: 8,716 edges, 25 negative treatments each read against its judgment over four rounds, the bench-strength rule, and the *undermined* status. The graph is thin — 79% of the corpus is never cited within it — so the phase-1 work is the older corpus above, plus Indian Kanoon cited-by merged and L's labels | D, L | Treatment recall ≥ 90% on gold |
 | Gold set to 500 | Items across all 12 modes; 20% double-annotated; agreement reported | L | Kappa reported; P1 metric targets in [PRD.md](PRD.md) §12 met |
-| Retrained role classifier | InLegalBERT fine-tuned on OpenNyAI roles + LegalSeg; deployed with LLM fallback | D | Agreement with LLM labels ≥ 85%; ratio/obiter agreement with L ≥ 75% |
+| Retrained role classifier | Reconsidered. Voice and weight were built from the judgment's structure and its attributing cues, which hand a reader a quotable reason instead of a label. A classifier is worth training only if it beats that on ratio and obiter, which is the one place a model is still called | D | Beats the cue rules on L's labels, or is dropped |
 | High Courts | Two or three courts chosen by user demand (likely Delhi, Bombay, Punjab and Haryana) with per-court neutral-citation prefixes | D | Same metrics on an HC gold subset |
 | Teams | Workspaces, roles, audit log, admin console | D | A moot society uses one workspace |
 | Word add-in spike | Verify-from-Word prototype | D | Go/no-go decision |
@@ -161,17 +242,66 @@ gantt
 
 ## 7. Decision log
 
+### 7.1 Decided 4 September, before building
+
+| Date | Decision | Reason | Held? |
+|---|---|---|---|
+| 2026-09-04 | Both surfaces in the MVP; verification engine is the core; drafting reuses it through a gate | Co-founder's problem statement is verification; the pipeline idea is drafting; one engine serves both | Yes |
+| 2026-09-04 | Open and official data only; no Manupatra / SCC scraping | Their terms prohibit it; AWS Open Data is CC-BY-4.0 | Yes |
+| 2026-09-04 | Fully self-hosted by default; cloud as a consented toggle | Privilege-waiver risk; DPDP; cost control | Yes |
+| 2026-09-04 | Canonical paragraph IDs with text-version badges | Cross-reporter numbering is unresolved in the literature and was the hard ceiling in the Princeton benchmark | Yes |
+| 2026-09-04 | Docling + PaddleOCR-VL; no PyMuPDF, MinerU, Marker, Surya | Licences | **No** — see 7.2 |
+| 2026-09-04 | Rhetorical roles by local LLM now, retrained InLegalBERT later | OpenNyAI package unmaintained; label set retained | **No** — see 7.2 |
+| 2026-09-04 | Postgres + pgvector only; Qdrant deferred | Corpus fits; one system for a team of two | **Narrowed** — see 7.2 |
+| 2026-09-04 | Hackathon build is ₹0: free LLM API tiers behind LangChain fallbacks, free GPU notebooks for batch work, the development machine for the app | Development hardware is CPU-only; no budget now; the demo processes no privileged data | Yes |
+| 2026-09-04 | LangChain + LangGraph as the orchestration layer, replacing the earlier Pydantic AI plan | Provider swapping across free tiers, a state graph that matches the verdict state machine, ready integrations, LangSmith's free plan | Yes for the first two reasons; the integrations were not used |
+| 2026-09-04 | Named OrderOrder, repository `order-order` | The courtroom call to order; replaced the first draft's working name | Yes |
+
+### 7.2 Decided since, by building or by measuring
+
+The ones marked **measured** are the useful entries: something was built, a number was taken, and the
+number rather than an argument settled it.
+
 | Date | Decision | Reason |
 |---|---|---|
-| 2026-09-04 | Both surfaces in the MVP; verification engine is the core; drafting reuses it through a gate | Co-founder's problem statement is verification; the pipeline idea is drafting; one engine serves both |
-| 2026-09-04 | Open and official data only; no Manupatra / SCC scraping | Their terms prohibit it; AWS Open Data is CC-BY-4.0 |
-| 2026-09-04 | Fully self-hosted by default; cloud as a consented toggle | Privilege-waiver risk; DPDP; cost control |
-| 2026-09-04 | Canonical paragraph IDs with text-version badges | Cross-reporter numbering is unresolved in the literature and was the hard ceiling in the Princeton benchmark |
-| 2026-09-04 | Docling + PaddleOCR-VL; no PyMuPDF, MinerU, Marker, Surya | Licences |
-| 2026-09-04 | Rhetorical roles by local LLM now, retrained InLegalBERT later | OpenNyAI package unmaintained; label set retained |
-| 2026-09-04 | Postgres + pgvector only; Qdrant deferred | Corpus fits; one system for a team of two |
-| 2026-09-04 | Hackathon build is ₹0: free LLM API tiers behind LangChain fallbacks, free GPU notebooks for batch work, the development machine for the app; the self-hosted GPU box is deferred to production | Development hardware is CPU-only; no budget now; the demo processes no privileged data |
-| 2026-09-04 | LangChain + LangGraph as the orchestration layer, replacing the earlier Pydantic AI plan | Provider swapping across free tiers, a state graph that matches the verdict state machine, ready integrations for Docling, pgvector and tracing, LangSmith's free plan |
-| 2026-09-04 | Named OrderOrder, repository `order-order` | The courtroom call to order; replaced the first draft's working name |
-| Open | Trademark, domain and Bar Council advertising checks for the name | Needed before public launch, not before the hackathon |
-| Open | Embedding model (BGE-M3 vs Qwen3-Embedding) | Decided on the gold set on sprint day 6 |
+| 2026-09-05 | Ingest the **whole** 2013-2025 corpus rather than a subset | Bulk ingestion runs at ~0.4 s a judgment on eight workers, so the subset saved hours and cost the ability to say anything about coverage. 9,429 judgments, 5 genuine losses |
+| 2026-09-05 | Docling dropped; pypdfium2 plus a cleaner written against this publisher | The SCR PDFs are born-digital and uniform, so the problem was never layout. It was telling the reporter's words from the court's — headnote, sign-off, margin letters, coram |
+| 2026-09-05 | The editorial headnote and the editors' sign-off are stored apart and never resolve a pinpoint | A quote verified against the publisher's summary would be reported as the court's. Cutting the trailer removed 424,000 characters from judgments already stored |
+| 2026-09-05 | Voice and weight decided from structure and attributing cues, never from a model; roles not labelled at all | A label is a model's opinion; a cue is a quotable reason a reader can check against the judgment. It also means a brief pinpointing a dissent is caught with no API key |
+| 2026-09-05 | The cue that governs is the **last one before the sentence relied on** | A paragraph routinely sets out an argument and then rejects it |
+| 2026-09-06 | SQLite as the default store; Postgres + pgvector kept wired and optional | 409,499 rows is a 300 MB matrix and a matrix multiply. One file, no service to run. `DATABASE_URL` switches it |
+| 2026-09-06 | **Measured:** dense retrieval ships **off by default** | On the 2013-2025 corpus, fused at four votes, it took paragraph recall on paraphrases from 36% to 30%. **Superseded on 2026-09-10** — see below: at one vote it helps. The conclusion that survives is the discrimination test, which rules out a night on a bigger *CPU* model |
+| 2026-09-06 | No reranker | It reorders the top 40; the failure is that the right paragraph is not in the top 400 |
+| 2026-09-06 | **Measured:** selective quotation (mode 9) gets its own string check and no model | A run *with* a model scored it 0/20 — the model found the dropped condition every time and recorded it as mode 8. As a string operation it is 20/20 with nothing configured. The measurement did not tune the engine; it showed a check believed to need a model did not |
+| 2026-09-06 | A bench cannot overrule one at least as large as itself; such claims are recorded as **doubted** | Arithmetic, not language. Reporting an overruling that did not happen would have an advocate drop a binding authority |
+| 2026-09-06 | Treatment reports always state how many judgments were searched, and `good_law` separates "followed" from "never cited" | 79% of the corpus has never been cited within it; 56% of the citations these judgments make are to cases the corpus does not hold |
+| 2026-09-06 | The **undermined** status: a judgment that relied on a case since overruled, one hop, reported as an inference from the graph | The Constitution Bench said it in terms: "all other decisions in which Pune Municipal Corpn. has been followed, are also overruled" |
+| 2026-09-06 | A third direction, `contrary`, built: which judgment says the *other* thing | A contrary holding is the *nearest* text in the corpus, not the farthest — same subject, almost the same words. What separates it is clause polarity, which is grammar rather than ranking, so no model is needed or used |
+| 2026-09-06 | **Measured:** shared terms weighted by corpus rarity rather than counted | Halves the spurious-lead floor (1.5 leads each to 0.7; 24 of 40 propositions to 12) for one true detection in twenty-one and no measurable time. `--no-weighted` reproduces the old behaviour |
+| 2026-09-06 | Everything is scored on **held-out** judgments the detectors were not developed against | The set they were fixed on cannot measure them |
+| 2026-09-09 | **Ingest 1950-2025, not 2013-2025** | The bucket always held it. A comment asserting otherwise was never checked against the source, which is the engine's own failure mode one level up. 38,032 judgments, 707,647 paragraphs, 27 PDFs missing at source |
+| 2026-09-10 | Rhetorical roles built as a **cue classifier**, abstaining to `none` | A cue is a phrase in the judgment, so a disagreement is settleable by looking; a model's label is not. Retrieval needs them to tell the holding from the case history — voice and weight remain independent |
+| 2026-09-10 | **`DENSE_VOTES` 4 → 1**, dense still off by default | Re-measured on the full corpus: one vote dominates four at every depth, and *helps* the row it was bought for. Off by default is now a trade — five points on paraphrases against nine on fragments — rather than a verdict that it does not work |
+| 2026-09-10 | Chroma as an **optional extra**, not a dependency | 1.5.9 carries five open advisories with no fixed version. Keeping it out of the audited production set keeps the audit honest rather than suppressed; the cost is that CI cannot warn whoever enables it |
+| 2026-09-10 | A fronted procedural participle marks a **recital**, not the brief's attribution | "Rejecting the plea, the High Court opined that ..." is the brief recounting the history below. Without the rule, every clean sentence lifted from a judgment that recounts the case below reads as failure mode 3 |
+| 2026-09-10 | An **anonymised cause title asks for review** rather than passing | "State of U.P. v. Anr." token-matches hundreds of judgments at a passing score. The strings cannot answer it, so the engine asks — the third state, applied to resolution |
+| 2026-09-07 | One static page, no Next.js, no Node | The page is a verdict board, a viewer, a search box and a drafting workspace. A toolchain bought none of that and had to be deployed alongside the engine |
+| 2026-09-07 | The binding decides authentication: loopback asks nothing, anything else **requires** a token or the server refuses to start | A warning at boot is read once. An open server looks exactly like a closed one until somebody finds it |
+| 2026-09-07 | Corpus and keys stay outside the image; the container runs as uid 10001 | The corpus is state that outlives the code; a key in a layer is published to whoever can pull it, and `docker history` shows it after deletion |
+| 2026-09-07 | CI builds the image and asserts it fails to start open | Those guarantees are properties of the artefact that ships, not of the source |
+| 2026-09-08 | Alembic wired, baseline = current schema, environment inside the package | `create_all` creates what is missing and never alters what is there, so it was never going to be how a deployed database changes shape. A migration you cannot run on the box you deployed to is not a migration |
+| 2026-09-08 | One stderr logger; **prompts are never logged** | A prompt carries the brief; the brief is privileged; the guarantee is that it is not stored, and a log line would quietly undo it. `tests/test_logs.py` holds it |
+| 2026-09-08 | Fifteen-minute job deadline, checked between citations; eviction prefers finished jobs | A Python thread cannot be killed from outside, so the verdicts already paid for are kept and the next one does not start |
+| 2026-09-09 | Primary model moved to `gemini-3.6-flash`; `gemini-2.5-flash` retired | Google answers 404 on new keys. It failed in the way that costs most: every call degrades to *not assessed* by design, so a dead model is indistinguishable from a corpus with nothing to say. One run scored 100% abstention and mode 4 at 0/14 and **read like data** |
+
+### 7.3 Still open
+
+| Question | Reason it is open |
+|---|---|
+| Whether a strong encoder on a GPU closes the paraphrase gap | BGE-M3 on a borrowed session; the encoder is a flag and the store records which model wrote the vectors, so it is one command and a re-run of the numbers |
+| Whether a contrary *lead* can become a *finding* | Only a reading can say whether a passage denies a proposition or confines the rule to other facts. The second reading is written and off by default until it has a number from something other than a laptop |
+| A gold set from memorials a person wrote | Everything so far is planted by machine in real judgments. That is ground truth the corpus supplies rather than labels anyone wrote — a real property, and not the distribution real advocates produce |
+| **Re-running every evaluation against the 1950-2025 corpus** | The detector numbers, the citator's edge count and its 79% uncited figure all belong to a corpus a quarter the size. Cheap to redo and several published claims are downstream of it |
+| Embedding model (BGE-M3 vs Qwen3-Embedding) | Superseded in part: the question is no longer which encoder but whether any dense retrieval helps at this scale (7.2, 2026-09-06) |
+| Trademark, domain and Bar Council advertising checks for the name | Needed before public launch, not before the hackathon |
+| Indian Kanoon's position on caching fetched documents, in writing | Lookup only until confirmed |

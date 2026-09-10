@@ -3,11 +3,18 @@
 | | |
 |---|---|
 | **Product name** | OrderOrder (trademark and domain clearance outstanding, see §15.5) |
-| **Version** | 0.1, draft for co-founder review |
-| **Date** | 4 September 2026 |
+| **Version** | 0.2 |
+| **Date** | 10 September 2026 (0.1 written 4 September) |
 | **Owners** | Developer (product, engineering, infrastructure); law-student co-founder (domain rules, evaluation data, users) |
-| **Status** | Hackathon MVP scope agreed; startup phases sketched |
-| **Companion documents** | [ARCHITECTURE.md](ARCHITECTURE.md) · [TECH_STACK.md](TECH_STACK.md) · [ROADMAP.md](ROADMAP.md) |
+| **Status** | **Both surfaces built and measured on held-out data.** All twelve failure modes implemented; eight decided with no language model. Outstanding: a gold set from memorials a person wrote, OCR, and the demo itself |
+| **Companion documents** | [ARCHITECTURE.md](ARCHITECTURE.md) · [TECH_STACK.md](TECH_STACK.md) · [ROADMAP.md](ROADMAP.md) · [DEPLOYMENT.md](DEPLOYMENT.md) |
+
+> This document is the requirement, not the report. The problem, the evidence, the users, the taxonomy
+> and the metric *targets* below are as written on 4 September and still stand. What has since been
+> built against them is in [ROADMAP.md](ROADMAP.md) §0; what it scores is in
+> [ARCHITECTURE.md](ARCHITECTURE.md) §11.4; what is deployable is in [DEPLOYMENT.md](DEPLOYMENT.md) §1.
+> Where a requirement below has been met, or met differently, or turned out to be the wrong
+> requirement, §7 and §12 say so in place.
 
 ---
 
@@ -154,6 +161,13 @@ Modes 4, 7, 8 and 11 turn on what a passage *means* — whether it supports the 
 
 Priority: **P0** = hackathon MVP; **P1** = phase 1 (first three months after); **P2** = later.
 
+**State, as of 9 September 2026.** Every P0 requirement in §7.1 is built. In §7.2 all are built except
+B1's OCR half. In §7.3 the platform requirements that assume *accounts* — S4, S5, S6 — are not, and
+that is a decision rather than a slip: there is one bearer token and no user model, because nothing is
+multi-tenant yet, and [ARCHITECTURE.md](ARCHITECTURE.md) §13 lists what arrives together with the
+first matter that belongs to somebody. Three things were built that no requirement below asked for,
+and they are added as A17, A18 and B12.
+
 ### 7.1 Surface A: Citation Stress-Test
 
 **User story.** As a mooter, I upload my memorial and within ten minutes I see every citation graded, the exact paragraph each one rests on, and what the other side will say about it.
@@ -176,6 +190,8 @@ Priority: **P0** = hackathon MVP; **P1** = phase 1 (first three months after); *
 | A14 | Produce a verdict board (all citations at a glance), an annotated brief (inline flags), and a downloadable verification report (PDF) | P0 | Demo walkthrough |
 | A15 | Check a batch of briefs (e.g. all memorials in a moot) and export a CSV summary | P2 | — |
 | A16 | Stress-test the *other side's* brief in the same flow | P0 | Same pipeline, no extra work |
+| A17 | **Given a proposition and no citation, find the judgment that supports it and the line to read** — the direction a lawyer preparing argument actually starts from. Drop any passage that is not the court speaking before it reaches the lawyer | Not in 0.1; built | Case@1 91% on a quoted line, 33% on a paraphrase, and the gap is published rather than hidden |
+| A18 | **Find the judgment that says the other thing**: retrieval read for the opposite sign, by clause polarity rather than by ranking, returning a lead to read and never a finding | Not in 0.1; built | 55% of negated holdings called contrary against 5% of the same holdings as written; none went the other way |
 
 ### 7.2 Surface B: Verified Drafting
 
@@ -194,12 +210,13 @@ Priority: **P0** = hackathon MVP; **P1** = phase 1 (first three months after); *
 | B9 | Export DOCX and PDF with a verification appendix (every citation, paragraph, quote, treatment) | P0 | Opens cleanly in Word |
 | B10 | Moot-court mode: bench memorandum and likely questions from the bench | P2 | — |
 | B11 | Verify statutory-provision quotations against bare-act text | P2 | — |
+| B12 | **A proposition that found no authority stays in the draft, marked, rather than being dropped** | Not in 0.1; built | A draft that quietly loses its unsupported sentences reads as though everything in it is supported |
 
 ### 7.3 Shared platform requirements
 
 | ID | Requirement | Priority |
 |---|---|---|
-| S1 | Local knowledge base of Supreme Court judgments built from AWS Open Data with paragraph-level structure, canonical paragraph IDs, per-reporter numbering map and a once-per-judgment digest cache | P0 (subset), P1 (full SC corpus) |
+| S1 | Local knowledge base of Supreme Court judgments built from AWS Open Data with paragraph-level structure, canonical paragraph IDs, per-reporter numbering map and a once-per-judgment digest cache | P0 (subset), P1 (full SC corpus) — **the full 1950-2025 corpus was delivered in phase 0**; the digest cache is the part still outstanding |
 | S2 | On-demand fetch from official/open online sources (Indian Kanoon API with attribution, SCR portal, eCourts judgment portal, Supreme Court website) with write-back into the knowledge base | P0 (Indian Kanoon), P1 (others) |
 | S3 | Judgment viewer with paragraph highlights, opinion boundaries, role labels, reporter and text-version badges | P0 |
 | S4 | Matter workspace grouping uploads, briefs, drafts and reports; per-matter isolation | P0 (single user), P1 (teams) |
@@ -299,19 +316,30 @@ Priority: **P0** = hackathon MVP; **P1** = phase 1 (first three months after); *
 
 ## 12. Success metrics
 
-### 12.1 Engine metrics (measured on the gold set, see [ARCHITECTURE.md](ARCHITECTURE.md) §11)
+### 12.1 Engine metrics
 
-| Metric | Hackathon target | Phase 1 target |
-|---|---|---|
-| Fabrication recall (modes 1-2 caught) | ≥ 99% | ≥ 99.5% |
-| Pinpoint hit@1 / hit@3 | ≥ 70% / ≥ 85% | ≥ 85% / ≥ 92% |
-| Support-level macro-F1 (full / partial / none / contradicted) | ≥ 0.70 | ≥ 0.80 |
-| Overstatement recall (modes 8-9) | ≥ 70% | ≥ 85% |
-| Voice / opinion attribution accuracy | ≥ 85% | ≥ 92% |
-| Treatment detection recall (mode 10) | ≥ 80% | ≥ 90% |
-| Quote-grounding rate | 100% | 100% |
-| Abstention rate ("needs review") | ≤ 20% | ≤ 10% |
-| Median latency per citation (batched, judgment already digested) | ≤ 30 s | ≤ 10 s |
+Targets as set on 4 September, against what has been measured since on **forty judgments the detectors
+were not developed on**. The full runs, and what they do not establish, are in
+[ARCHITECTURE.md](ARCHITECTURE.md) §11.4.
+
+| Metric | Hackathon target | Measured, 9 Sep | Phase 1 target |
+|---|---|---|---|
+| Fabrication recall (modes 1-2 caught) | ≥ 99% | **100%** (40/40, 40/40), no model | ≥ 99.5% |
+| Pinpoint hit@1 / hit@3 | ≥ 70% / ≥ 85% | Wrong-pinpoint recall **40/40**, no model | ≥ 85% / ≥ 92% |
+| Support-level macro-F1 (full / partial / none / contradicted) | ≥ 0.70 | **Not yet scored as an F1** — needs a model answering, and the one run with a model configured was against a retired endpoint | ≥ 0.80 |
+| Overstatement recall (modes 8-9) | ≥ 70% | Mode 9 **20/20** with no model, after it was moved to a string check; mode 8 needs a model and is unscored | ≥ 85% |
+| Voice / opinion attribution accuracy | ≥ 85% | Wrong-voice recall **34/34**, no model | ≥ 92% |
+| Treatment detection recall (mode 10) | ≥ 80% | **14/14**, no model | ≥ 90% |
+| Quote-grounding rate | 100% | **100%** — the invariant, not a score | 100% |
+| Abstention rate ("needs review") | ≤ 20% | **68%** against a live model, and deliberately so: two thirds handed back with a reason to look, which is the intended behaviour of a tool whose alternative is silent confidence. The target is the one number here that should probably move | ≤ 10% |
+| **False positives on clean citations** | not set in 0.1 | **0/40** with no model, **0/25** with one. The metric recall cannot see, and the one that decides whether the board is worth reading | 0 |
+| Median latency per citation | ≤ 30 s | **6.0 s** on a hosted model; **247 s** on a 4B model on four CPU cores, measured | ≤ 10 s |
+
+Two metrics this list did not think to set, and should have. **Search**, because a brief arrives with
+citations and a lawyer preparing argument arrives with none: 91% case@1 on a quoted line, 33% on a
+paraphrase. And **what a drafting tool is offered**: for a proposition phrased the way an advocate
+phrases one, more than half of what a word search returns is somebody's argument rather than anybody's
+holding — which is the measured case for the gate, rather than the principled one.
 
 ### 12.2 Product metrics (phase 1 onward)
 
@@ -378,8 +406,8 @@ The demo memorial's eight citations produce the eight expected verdicts, each wi
 
 | Phase | Window | Scope | Exit criterion |
 |---|---|---|---|
-| **0. Hackathon MVP** | 10 working days (compressible) | SC-only subset corpus; Surface A for modes 1, 2, 4, 5, 6, 8, 10, 12; Surface B for one matter type with the gate; DOCX export; minimal UI; 50-claim gold set; ₹0 stack on free tiers | Demo script runs end to end on the development machine against free tiers |
-| **1. Foundation** | Months 1-3 after | Full SC corpus; own citator graph; retrained role classifier; 2-3 High Courts; gold set 500+; teams; Word add-in spike; Indian Kanoon written terms | Phase-1 metric targets met; 3 moot societies onboarded |
+| **0. Hackathon MVP** | 10 working days (compressible) | Planned: SC-only subset corpus; Surface A for modes 1, 2, 4, 5, 6, 8, 10, 12; Surface B for one matter type with the gate; DOCX export; minimal UI; 50-claim gold set; ₹0 stack on free tiers. **Delivered**: the whole Supreme Court 1950-2025 (38,032 judgments, 707,647 paragraphs), all twelve modes, a third direction (contrary search), rhetorical roles, held-out measurement, and a deployable container | Demo script runs end to end on the development machine against free tiers — **outstanding** |
+| **1. Foundation** | Months 1-3 after | ~~Full SC corpus~~ (done in phase 0); own citator graph re-measured over it; 2-3 High Courts; gold set 500+ from memorials people wrote; teams; Word add-in spike; Indian Kanoon written terms | Phase-1 metric targets met; 3 moot societies onboarded |
 | **2. Practitioner product** | Months 4-9 | BYO-login connectors; moot-court mode; pricing and billing; DPDP-ready handling; on-prem package | Paying practitioners; firm pilot |
 | **3. Coverage** | Months 10-18 | All High Courts; tribunals; statutes and amendments; statutory-provision verification; regional-language OCR | — |
 
@@ -389,14 +417,15 @@ Detail in [ROADMAP.md](ROADMAP.md).
 
 ## 17. Open questions
 
-| Question | Owner | Needed by |
-|---|---|---|
-| Hackathon date and format (demo length, judging criteria) | Developer | Before sprint day 1 |
-| Which moot memorials can be used for the gold set and demo (permissions from authors) | Co-founder | Sprint day 3 |
-| Indian Kanoon's position on caching fetched documents, in writing | Developer | Phase 1 |
-| Whether Gemma 4's licence permits commercial use as the research pass reported (re-verify) | Developer | Before model choice |
-| Empirical check of SCC vs official paragraph numbering on a 50-judgment sample | Co-founder | Phase 1 |
-| Trademark search and domain for the OrderOrder name | Both | Before public launch |
+| Question | Owner | Needed by | State |
+|---|---|---|---|
+| **Which moot memorials can be used for the gold set and demo** (permissions from authors) | Co-founder | Was sprint day 3 | **Open, and now the most valuable outstanding item.** Everything is scored against errors planted by machine in real judgments — ground truth the corpus supplies rather than labels anyone wrote, which is a real property and is not the distribution real advocates produce |
+| Hackathon date and format (demo length, judging criteria) | Developer | Before sprint day 1 | Open |
+| Indian Kanoon's position on caching fetched documents, in writing | Developer | Phase 1 | Open; lookup only until confirmed |
+| Whether Gemma 4's licence permits commercial use as the research pass reported (re-verify) | Developer | Before model choice | Moot for now — nothing in the built path runs on it |
+| Empirical check of SCC vs official paragraph numbering on a 50-judgment sample | Co-founder | Phase 1 | Open. Mitigated meanwhile: pinpoints resolve against the official text and every verdict records which text version it used |
+| Trademark search and domain for the OrderOrder name | Both | Before public launch | Open |
+| Whether the abstention target of ≤ 20% is the right target | Both | Phase 1 | New. Measured at 68%, and the argument for it being correct is in §12.1 |
 
 ---
 

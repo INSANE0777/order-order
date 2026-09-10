@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Version** | 0.1 |
-| **Date** | 6 September 2026 |
-| **Companion documents** | [ARCHITECTURE.md](ARCHITECTURE.md) §10 · [TECH_STACK.md](TECH_STACK.md) |
+| **Version** | 0.2 |
+| **Date** | 9 September 2026 |
+| **Companion documents** | [ARCHITECTURE.md](ARCHITECTURE.md) §10, §12, §13 · [TECH_STACK.md](TECH_STACK.md) · [ROADMAP.md](ROADMAP.md) §0 |
 
 [ARCHITECTURE.md](ARCHITECTURE.md) §10 describes the topology this is heading for. This document is
 narrower and more useful: what is actually built, what will stop you, and in what order to fix it.
@@ -40,12 +40,27 @@ Everything else on this list is an afternoon's work. This one is a decision.
 | `qwen3:4b`, local, CPU | **247 s per call**, measured | Proves the wiring. Not a service. |
 | A routed gateway on free endpoints | 80% `429`, measured | Answers the health probe and then fails four calls in five. |
 | A paid API tier | seconds | The only one that serves. |
+| A retired model id | instant 404 | Worst of all: it does not read as a failure. See below. |
 
-Two things to know before choosing. The engine is schema-bound everywhere, so an endpoint that accepts
-requests but will not fill a JSON schema is useless to it — `orderorder doctor --probe` makes one real
-call and tells you. And with a router in front, run
-`scripts/gateway-failure-rate.py --marker <file>` over a real workload: a route can pass the probe and
-still be mostly rate-limited, which produces a report full of *not assessed* that looks like data.
+Three things to know before choosing.
+
+The engine is **schema-bound everywhere**, so an endpoint that accepts requests but will not fill a
+JSON schema is useless to it — `orderorder doctor --probe` makes one real call and tells you.
+
+With a router in front, run `scripts/gateway-failure-rate.py --marker <file>` over a real workload: a
+route can pass the probe and still be mostly rate-limited, which produces a report full of *not
+assessed* that looks like data.
+
+And **check that the model id still exists**, which sounds beneath mentioning and is the one that
+actually cost this project a day. `gemini-2.5-flash` was the configured primary here and has been
+retired: Google answers 404 for it on new keys and names `gemini-3.6-flash` as the replacement. It
+failed in the worst possible way, and the reason is a direct consequence of the design being right.
+Every model call in this engine degrades to *not assessed* rather than to a guess, so a **dead model
+is indistinguishable from a corpus with nothing to say** — `evals/report-holdout-model.txt` scored
+100% abstention and mode 4 at 0/14 and read like a result rather than like an outage. Nothing in the
+verdicts was wrong; every one of them honestly said the model could not be reached. What was missing
+was anywhere that said it *to an operator*, which is §2.3a. Probe before a run, probe again when a
+report comes back emptier than the last one, and treat a model id as a thing that expires.
 
 ### 2.2 Exposure
 
@@ -98,6 +113,18 @@ a log line would quietly undo. `tests/test_logs.py` is what holds that.
 
 This is not an audit log. Nothing records who asked what, and §3a still says so.
 
+### 2.3b The optional Chroma extra carries unpatched advisories
+
+`uv sync --extra chroma` installs `chromadb` 1.5.9, which has **five open advisories and no fixed
+version published**. It is an extra rather than a dependency precisely so the CI audit — which runs
+against the locked production set — is not suppressed to accommodate it, and that is the right way
+round. But the audit therefore does not see it, so nothing will warn an operator who enables it.
+
+Nothing web-facing touches Chroma: `chroma-import` and `chroma-search` are CLI only, and the store is
+a local directory under `ORDERORDER_DATA_DIR`, so the exposure is a local process rather than a
+listening service. Enable it if something outside this process needs to query the vectors; do not
+enable it on a box serving the API, and re-check for a fixed release before you do.
+
 ### 2.4 SQLite is one writer
 
 The corpus is a 1.2 GB SQLite file. Reads are fine and concurrent; writes are not. Ingestion, the
@@ -136,7 +163,8 @@ ORM object measured **3.1 KB** on the Supreme Court corpus, so the list alone is
 
 | corpus | judgments | the resume list |
 |---|---|---|
-| Supreme Court 2013-2025, what is held today | 9,429 | 30 MB |
+| Supreme Court 2013-2025 | 9,429 | 30 MB |
+| **Supreme Court 1950-2025, what is held today** | **38,032** | **~118 MB** |
 | Supreme Court 1950-2025 | ~50,000 | ~0.2 GB |
 | One large High Court | ~1,000,000 | ~3 GB |
 | All 25 High Courts | ~17,800,000 | ~56 GB |
@@ -166,7 +194,8 @@ about ingestion order, which is currently newest-first and load-bearing for a de
 The queue in front of the workers is already bounded and does not grow with the corpus: four
 judgments per worker are submitted ahead, rather than one `Future` per judgment for the whole run.
 
-**On disk**, measured on the same corpus — 9,429 judgments, 409,499 paragraphs, 1.22 GB:
+**On disk**, measured on the 2013-2025 corpus — 9,429 judgments, 409,499 paragraphs, 1.22 GB. The
+shares below are what generalise; the totals are not, since the corpus is now 707,647 paragraphs:
 
 | | size | share | |
 |---|---|---|---|

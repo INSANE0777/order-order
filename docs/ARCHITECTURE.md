@@ -2,11 +2,19 @@
 
 | | |
 |---|---|
-| **Version** | 0.1, draft |
-| **Date** | 4 September 2026 |
-| **Companion documents** | [PRD.md](PRD.md) · [TECH_STACK.md](TECH_STACK.md) · [ROADMAP.md](ROADMAP.md) |
+| **Version** | 0.2 |
+| **Date** | 9 September 2026 (first written 4 September) |
+| **Companion documents** | [PRD.md](PRD.md) · [TECH_STACK.md](TECH_STACK.md) · [ROADMAP.md](ROADMAP.md) · [DEPLOYMENT.md](DEPLOYMENT.md) |
 
 This document specifies how OrderOrder is built: the ingestion pipeline and knowledge base, the verification engine that checks one citation at a time, the drafting engine that reuses it, the retrieval hierarchy, the data model, the verdict schema, deployment, and the evaluation harness. Diagram numbers are referenced from the other documents.
+
+**How to read it against the code.** Most of this specification is now built and measured; §11.4 is the
+measurement and it is the section to trust when the two disagree. Where a component was specified and
+something else was built instead — the document parser, the embedding model, the database, the web
+front end — the section says so in terms rather than being quietly amended, because the reason a
+design was abandoned is worth more than the design was. Sections still describing a target rather than
+an artefact are marked **planned**. [DEPLOYMENT.md](DEPLOYMENT.md) is the operational counterpart: what
+is ready, what will stop you, and the security posture item by item.
 
 ---
 
@@ -37,17 +45,17 @@ flowchart LR
     end
 
     subgraph orderorder["OrderOrder (self-hosted)"]
-        WEB["Web app<br/>Next.js"]
+        WEB["Web page<br/>one static document, served by the API"]
         API["API<br/>FastAPI"]
         Q["Job runner<br/>in-process now, arq later"]
         ING["Ingestion and KB builder"]
         ENG["Verification engine"]
         DRF["Drafting engine"]
         LLM["LLM behind LangChain<br/>free API tiers or Ollama now,<br/>SGLang in production"]
-        EMB["Embeddings + reranker<br/>local now, TEI in production"]
-        OCR["Docling + PaddleOCR-VL"]
-        DB[("PostgreSQL<br/>pgvector + full-text")]
-        OBJ[("Object store<br/>MinIO or disk")]
+        EMB["Embeddings<br/>static encoder on CPU,<br/>off by default (11.4)"]
+        PDF["PDF text<br/>pypdfium2 + a publisher-specific cleaner"]
+        DB[("SQLite + FTS5<br/>Postgres + pgvector optional")]
+        OBJ[("Disk under ORDERORDER_DATA_DIR")]
     end
 
     subgraph ext["Open and official sources"]
@@ -83,16 +91,20 @@ flowchart LR
 
 | Component | Responsibility | Package |
 |---|---|---|
-| Web app | Upload, verdict board, annotated brief, judgment viewer, drafting workspace, exports | `apps/web` |
-| API | Auth, matters, uploads, jobs, verdict and draft endpoints, server-sent progress events | `apps/api` |
-| Job runner | Long-running jobs: ingestion, verification, drafting, digest building; FastAPI background tasks with a jobs table for the hackathon, arq workers in production | `apps/api` |
-| Ingestion and KB builder | Parsing, OCR, segmentation, roles, embeddings, digests, citation graph | `packages/ingest` |
-| Verification engine | The per-citation pipeline (§4); pure Python, CLI-testable without the web app | `packages/engine` |
-| Drafting engine | Case digest, issues, retrieval, propositions, gate, assembly, self-attack | `packages/engine` |
+| Web page | Upload, verdict board, annotated brief, judgment viewer, authority search, drafting workspace, exports. One static HTML document with its own CSS and JS and no build step — see §10 | `web/static` |
+| API | Bearer token ahead of every route, uploads, jobs, verdict and draft endpoints, server-sent progress events | `web/api.py` |
+| Job runner | Long-running jobs: verification and drafting. An in-process registry with a deadline, not a table; ingestion and indexing are CLI commands. See [DEPLOYMENT.md](DEPLOYMENT.md) §2.3 | `web/jobs.py` |
+| Ingestion and KB builder | Fetching, PDF text, cleaning, segmentation, opinions, aliases, embeddings, citation graph | `ingest/` |
+| Verification engine | The per-citation pipeline (§4); pure Python, CLI-testable without the web app | `engine/` |
+| Drafting engine | Case plan, propositions, gate, assembly, self-attack | `drafting/` |
 | LLM | Reached only through LangChain's model interface, so the provider is configuration: free API tiers with fallbacks for the hackathon, Ollama for offline development, SGLang for production; structured output via `with_structured_output` | config |
-| Embeddings + reranker | BGE-M3 and bge-reranker-v2-m3 in-process on CPU for the hackathon (bulk corpus embedding on a free Kaggle GPU session), Text Embeddings Inference in production | in-process or container |
-| OCR | Docling for born-digital pages; PP-OCRv6 on CPU for scans during the hackathon, PaddleOCR-VL on a free Kaggle GPU for batches or as a production container | in-process or container |
-| PostgreSQL | System of record, vectors (pgvector), full-text (tsvector), citation graph | container |
+| Embeddings | A static encoder (model2vec) in-process on CPU. Built and measured; **off by default**, now as a trade rather than a verdict — at one vote it buys five points on paraphrase recall and charges nine on fragments (§11.4). BGE-M3 on a GPU is the open experiment; the encoder is a flag and the store records which model wrote it | in-process |
+| Vector store | A memmapped float16 matrix beside the database is what ranking reads. **Chroma is an optional second home for the same vectors** — an import, not a re-embedding — for queries from outside this process. Behind the `chroma` extra, which is a security decision (§3.7) | in-process |
+| Rhetorical roles | A cue classifier over every stored paragraph, abstaining to `none`. Never a model | in-process |
+| Reranker | **Not built.** `RERANKER_MODEL` is configured and nothing reads it. The measurement that would justify one is §11.4's third row, and it points at the encoder rather than at reranking | — |
+| PDF text | pypdfium2 for the text layer, plus a cleaner specific to this publisher: margin letters, running headers, the editorial headnote, the coram, the editors' sign-off. Docling was specified and is not used — the official SCR PDFs are born-digital and the noise in them is publisher-specific rather than layout-general | in-process |
+| OCR | **Not built.** A brief filed as a scan is reported as having no text layer rather than guessed at. §3.2 is the design, PP-OCRv6 and PaddleOCR-VL are still the choice, and nothing needs it until a scanned brief does | — |
+| Database | System of record, full-text (FTS5), citation graph. **SQLite by default** — one file, 1.2 GB on the whole corpus. Postgres with pgvector is wired and optional, and is what the vector half would need at scale | file, or container |
 | Object store | Original files, OCR output, rendered reports | MinIO or local disk |
 
 ---
@@ -103,9 +115,9 @@ flowchart LR
 flowchart TD
     A["Input: user upload or corpus file"] --> B{"File type?"}
     B -->|PDF| C{"Per page: text layer present?"}
-    B -->|Image| D["PaddleOCR-VL (GPU)<br/>or PP-OCRv6 (CPU)"]
+    B -->|Image| D["OCR: PaddleOCR-VL or PP-OCRv6<br/>PLANNED, not built"]
     B -->|DOCX or text| E["Direct text extraction"]
-    C -->|yes| F["Docling parse<br/>layout blocks, reading order"]
+    C -->|yes| F["pypdfium2 text layer<br/>+ publisher-specific cleaner"]
     C -->|no| D
     D --> G["OCR blocks with confidence<br/>ocr_derived = true"]
     F --> H["Normalised text + block map"]
@@ -115,8 +127,8 @@ flowchart TD
     I --> J["Canonical paragraph IDs<br/>judgment / text version / sequence / printed label"]
     J --> K["Opinion boundaries and headnote split<br/>majority, concurring, dissent"]
     K --> L["Rhetorical role labels<br/>facts, issues, arguments, analysis, ratio, disposition"]
-    L --> M["Embed paragraphs<br/>BGE-M3 on CPU or a free Kaggle GPU,<br/>TEI in production"]
-    M --> N[("Postgres: paragraphs, roles, vectors, tsvector")]
+    L --> M["Embed paragraphs<br/>static encoder on CPU; off by default (11.4)"]
+    M --> N[("SQLite: paragraphs, opinions, FTS5<br/>vectors in a memmapped matrix beside it")]
     K --> O["Citation extraction<br/>grammar + NER"]
     O --> P[("citation_edge")]
     N --> Q["Judgment digest<br/>once per judgment, cached"]
@@ -133,14 +145,26 @@ A judgment can exist in several **text versions**: the AWS Open Data copy, the o
 
 Corpus build order for the hackathon: AWS Open Data Supreme Court parquet metadata first (fast, gives the citation alias table), then judgment text for the chosen year range, then official PDFs for judgments that appear in the demo memorial and the gold set.
 
-### 3.2 Per-page routing
+### 3.2 Per-page routing — **planned**
+
+The corpus is born-digital throughout, so nothing here has been needed yet and none of it is built: a
+brief with no text layer is reported as such rather than guessed at. This is the design for when a
+scanned brief arrives.
 
 For each PDF page: extract the text layer; if characters per page are below a threshold (about 50-100) **and** image area covers most of the page, treat it as scanned. Also detect invisible OCR text layers (render mode 3) so that a previously OCR'd scan is not trusted blindly: re-OCR when the embedded layer's confidence is unknown and the page image is available.
 
 ### 3.3 Parsing
 
-- **Born-digital pages**: Docling produces layout blocks (headings, paragraphs, footnotes, tables) in reading order. Footnotes are kept and linked to their anchors because Indian briefs cite in footnotes.
-- **Scanned pages**: PaddleOCR-VL-1.6 on GPU (109 languages including Hindi/Devanagari); PP-OCRv6 on CPU for the local path. Blocks carry per-line confidence. Pages under a confidence threshold are flagged for the user in the UI.
+- **Born-digital pages**: the text layer through pypdfium2, then a cleaner written against this
+  publisher. Docling was specified here and was not used, and the reason is worth recording: the
+  official SCR PDFs are born-digital and uniform, so the problem was never layout analysis. It was
+  that the page carries the *reporter's* words as well as the court's — margin letters, running
+  headers, the citation line, the editorial headnote at the front and the editors' sign-off at the
+  back — and a general layout model has no opinion about which of those is the judgment. Each kind of
+  noise is a rule in `ingest/pdf.py`, and cutting the trailer alone took 424,000 characters of
+  publisher's text out of judgments already stored. Docling returns if a source arrives whose problem
+  actually is layout.
+- **Scanned pages** — **planned**: PaddleOCR-VL-1.6 on GPU (109 languages including Hindi/Devanagari); PP-OCRv6 on CPU for the local path. Blocks carry per-line confidence. Pages under a confidence threshold are flagged for the user in the UI.
 - **DOCX and pasted text**: direct extraction preserving paragraph breaks and footnotes.
 
 ### 3.4 Paragraph segmentation and canonical IDs
@@ -158,7 +182,30 @@ Rules first, model second:
 - Editorial headnotes (present in some copies, typically before "JUDGMENT" or containing "Held:" summaries) are split off and labelled `headnote`; they are never treated as the court's words.
 - A local-LLM pass confirms the boundaries on judgments where rules are uncertain, with the result cached in the digest.
 
-### 3.6 Rhetorical roles
+### 3.6 Rhetorical roles — **built, by cue rather than by model**
+
+`ingest/roles.py`, run by `orderorder ingest mark-roles`. The design in 0.1 was a local LLM now and a
+fine-tuned InLegalBERT later; what was built is neither, and the reason is the one that governs every
+other classifier here. A model's label is an opinion about a paragraph that a reader cannot argue
+with. A cue is a phrase in the judgment, so a disagreement is settleable by looking. The cue sets were
+written against the wording of real Supreme Court judgments, and a paragraph matching nothing is
+labelled `none` — the classifier abstains rather than guesses, exactly as `weight.py` does for ratio
+versus obiter, and "List after four weeks." has no rhetorical role worth inventing.
+
+Order matters and is explicit: the most specific wording wins. A paragraph that says both "learned
+counsel for the appellant" and "placed reliance on" is counsel arguing, so argument is tried before
+precedent; a paragraph that disposes of the appeal is a disposition whatever else it mentions, so that
+is tried near the top. `preamble` is positional — it can only be the first paragraph.
+
+Two properties worth keeping. The pass is **idempotent**: a paragraph that already carries a role is
+left alone unless `--relabel`, so the better positional evidence that `mark-opinions` writes is not
+overwritten by a weaker cue. And it **streams by text version**, holding a bounded working set against
+a corpus of 700k paragraphs rather than loading them all.
+
+What this does *not* change is voice (§4.6) and weight (§4.7). Those were built before roles existed
+and still decide from structure and attributing cues directly, because they need to name the cue they
+relied on. The roles serve retrieval: without them a search cannot tell the facts paragraph from the
+holding paragraph, and an answer to a legal question comes back quoting the case history.
 
 Each paragraph receives one of: `preamble`, `facts`, `lower_court`, `issues`, `argument_petitioner`, `argument_respondent`, `analysis`, `statute`, `precedent_relied`, `precedent_not_relied`, `ratio`, `disposition`, `none`. This is the OpenNyAI label set, chosen because `ratio`, `precedent_relied` and `precedent_not_relied` map directly onto the weight and voice checks.
 
@@ -167,7 +214,32 @@ Each paragraph receives one of: `preamble`, `facts`, `lower_court`, `issues`, `a
 
 ### 3.7 Chunking and embeddings
 
-The **paragraph is the chunk**. Each embedding input is the paragraph text prefixed with a short judgment context line (title, court, year, opinion type, role) so that paragraph vectors carry judgment-level meaning. Vectors are stored as `halfvec` in pgvector with an HNSW index; a `tsvector` column holds the full-text representation for BM25-style matching. Hybrid retrieval fuses both with reciprocal rank fusion. Citation strings are never looked up by vector search; they are exact-match SQL on the alias table.
+The **paragraph is the chunk**. Each embedding input is the paragraph text prefixed with a short judgment context line (title, court, year, opinion type, role) so that paragraph vectors carry judgment-level meaning. Hybrid retrieval fuses the two rankings with reciprocal rank fusion. Citation strings are never looked up by vector search; they are exact-match SQL on the alias table.
+
+**What was built instead of pgvector.** The corpus is one SQLite file, so the full-text half is an
+FTS5 table and the dense half is a memory-mapped float16 matrix beside the database with a parallel
+list of paragraph ids — 668,272 rows is a 340 MB matrix and a matrix multiply, and a vector service
+to do that would have been a service to run. Float16 halves the file and changes no ranking, since
+only the order of the scores matters. The `halfvec` and HNSW design in §7 is what the Postgres
+profile uses and is what a corpus past this one needs; `DATABASE_URL` is the switch. Either way the
+fusion seam is the same code, which is what let the encoder be measured rather than assumed
+(§11.4).
+
+**Chroma, as an optional second home for the same vectors** (`engine/chroma_store.py`,
+`orderorder chroma-import` and `chroma-search`). Ranking still reads the memmap — that is the measured
+answer and it does not change. What a database adds is a query surface for anything *outside* this
+process: a dashboard, another service, an export, a metadata-filtered lookup the matrix cannot do. It
+is an **import and not a re-embedding**, so the two backends cannot disagree with each other or with
+the `paragraph` table, and the query is encoded by whatever encoded the corpus because the model name
+is read back from the store's index — a mismatch would rank silently wrong and never announce itself.
+It embeds in-process and persists to a directory; there is no server and telemetry is off.
+
+It is an **optional extra, deliberately**: `uv sync --extra chroma`. `chromadb` 1.5.9 carries five
+open advisories with **no fixed version published**, so it is kept out of the dependency set the CI
+audit covers rather than shipped in it. That is the right call and it has a consequence worth stating
+plainly: enabling the extra takes on unpatched vulnerabilities that the audit will not warn about,
+because the audit no longer sees the package. Nothing web-facing touches it — both commands are CLI
+only.
 
 ### 3.8 The judgment digest
 
@@ -324,9 +396,41 @@ Order of attempts, stopping at the first confident match:
 
 The resolver never asks the model whether a case exists.
 
+### 4.3a Anonymised cause titles: a resolution that asks rather than passes
+
+`check_party_names` compares the brief's party names with the resolved judgment's title and flags a
+mismatch below a floor. The failure it could not see is the opposite one — a *passing* score that
+means nothing. A title whose distinctive half is absent ("State of U.P. v. Anr.", "Union of India v.
+Ors.") shares its whole shape with hundreds of judgments across seventy-five years, and token matching
+scores it against any of them: 57 against a State-of-Orissa case, 61 against an unrelated
+State-of-U.P. one. The citation alone had picked the case and the name check agreed with whatever it
+picked.
+
+So `Resolution` carries a `review` string beside its findings, and an anonymised tail sets it. This is
+deliberately **not** a finding: nothing about the citation is wrong, and grading it down would be a
+false positive. It is the engine's third state applied to resolution — a question the strings cannot
+answer, surfaced rather than left to look like a check that was performed. `build_verdict` turns it
+into `needs_review`. The September 2026 held-out set planted exactly this and the engine graded two
+wrong citations A.
+
 ### 4.4 Metadata and hierarchy check
 
 From the digest: court, bench strength, opinion types, date. Checks: the brief's attribution ("the Supreme Court held") matches the court; the citation is not being used against a larger-bench decision on the same point that the citator knows about; the judgment predates or postdates a statute the brief invokes. Hierarchy rules encoded as data: Article 141; larger benches bind smaller; High Court decisions bind within territory and persuade outside it; division bench over single judge; dissent never binding; obiter persuasive; `per incuriam` and `sub silentio` flags carried from the citator.
+
+**Recitals are not attributions.** A brief routinely narrates the history of the case it cites, and
+that narration names courts: "Rejecting the plea, the High Court opined that ...". The words are the
+citation's own account of what happened below, and the proposition inside the that-clause belongs to
+the court below rather than to what the brief claims the cited judgment decided. Read naively, every
+clean sentence lifted from a judgment that recounts its own history became a mode-3 finding — which is
+the false positive the September 2026 held-out set caught.
+
+What separates the two shapes is a **fronted procedural participle** immediately before the court
+phrase: rejecting, allowing, dismissing, setting aside, quashing, remanding, upholding. A genuine
+attribution — "the High Court has held that X" — carries none. `read_attribution` skips any court cue
+preceded by one within the eighty characters before it and takes the first that is not. The window is
+a deliberate bound rather than a parse: it keeps the rule cheap and its failure mode is to miss a
+recital with a very long participial clause, which returns the old false positive rather than creating
+a new false negative.
 
 ### 4.5 Locator and quote verifier
 
@@ -394,7 +498,7 @@ The pipeline above is one LangGraph `StateGraph`. The state is the verdict-in-pr
 | Resolver | `resolve` | Pure Python (SQL, rapidfuzz, Indian Kanoon client) | citation | existence, judgment id, candidates |
 | Metadata check | `check_hierarchy` | Pure Python (rules table) | digest metadata | flags |
 | Digest | `ensure_digest` | Cached; LLM chain over the whole judgment on a miss | judgment text | digest |
-| Locator | `locate` | Hybrid SQL retriever + reranker, then LLM asked for quotes | atomic claims, paragraphs | candidate paragraphs, quotes |
+| Locator | `locate` | BM25 inside the judgment with the claimed pinpoint injected, then LLM asked for quotes. The reranker in this row is not built | atomic claims, paragraphs | candidate paragraphs, quotes |
 | Quote verifier | `verify_quotes` | **Pure Python, no model** | quotes, paragraph text | verified quotes, offsets, match types |
 | Voice and opinion | `attribute` | Rules first, LLM confirms | paragraph, opinion map | voice, opinion |
 | Weight | `classify_weight` | Rules + LLM | role, digest holdings | ratio or obiter |
@@ -479,7 +583,7 @@ flowchart LR
 | Level | Source | Access pattern | Quota and attribution |
 |---|---|---|---|
 | L0 | `judgment_digest` | In-process cache and table | — |
-| L1 | Local KB built from AWS Open Data and official PDFs | SQL, pgvector, tsvector | CC-BY attribution in app footer |
+| L1 | Local KB built from AWS Open Data and official PDFs | SQL, FTS5, optional dense fusion | CC-BY attribution in app footer |
 | L2 | Indian Kanoon API (`/search/`, `/docmeta/`, `/doc/`, `/docfragment/`, cited-by lists) | Per-user daily quota; results cached as stubs | "Powered by IKanoon" wherever shown or used as context |
 | L2 | SCR portal and `api.sci.gov.in` PDFs | On-demand fetch by neutral citation | Public record |
 | L2 | eCourts judgment portal | Manual-assist fetch (CAPTCHA) in phase 1 | Public record |
@@ -754,37 +858,58 @@ stateDiagram-v2
 
 ```mermaid
 flowchart TB
-    subgraph free["Hackathon profile: zero cost (local machine + free tiers, demo data only)"]
-        f1["web: Next.js dev server<br/>Vercel Hobby if a public link is needed"]
-        f2["api + LangGraph engine<br/>FastAPI, background tasks, jobs table"]
-        f3["postgres + pgvector<br/>Docker, volume on drive G"]
-        f4["ollama: Qwen3.5-4B Q4<br/>offline fallback"]
-        f5["free LLM API tiers behind LangChain fallbacks<br/>Groq, Google AI Studio, Cerebras"]
-        f6["Kaggle or Colab GPU notebook<br/>batch: embeddings, digests, PaddleOCR-VL"]
-        f7["LangSmith Developer plan<br/>traces and eval datasets"]
+    subgraph built["What is built and runs today"]
+        b1["One static page<br/>HTML, CSS, JS, self-hosted fonts, no build step"]
+        b2["api + LangGraph engine<br/>FastAPI, in-process jobs with a deadline"]
+        b3[("SQLite + FTS5, 1.2 GB<br/>vectors in a memmapped matrix beside it")]
+        b4["free LLM API tiers behind LangChain fallbacks<br/>Gemini, Groq, Cerebras; Ollama offline"]
+        b5["stderr log, ORDERORDER_LOG_LEVEL<br/>docker logs; prompts never logged"]
     end
-    subgraph prod["Production profile: self-hosted GPU box (privileged data)"]
-        p1["web"]
+    subgraph container["Serving profile: the same code in a container"]
+        c1["Dockerfile, uid 10001, non-root"]
+        c2["bearer token required off loopback<br/>or the server refuses to start"]
+        c3["corpus as a volume at /data<br/>keys as environment, never a layer"]
+        c4["published to 127.0.0.1:8000<br/>reverse proxy for TLS"]
+    end
+    subgraph prod["Production profile: self-hosted GPU box (privileged data) — PLANNED"]
         p2["api + arq workers"]
         p3["postgres + pgvector"]
-        p4["sglang: Qwen3.5-27B AWQ<br/>or gpt-oss-120b on 80 GB"]
+        p4["sglang: an open-weight model<br/>on hardware the team controls"]
         p5["tei: embeddings + reranker"]
         p6["paddleocr-vl service"]
         p7["minio, langfuse, caddy TLS"]
     end
-    free -. "same LangGraph code, only environment variables change" .-> prod
-    f2 --> f3
-    f2 --> f4
-    f2 --> f5
-    f2 -.-> f7
-    f6 -. "parquet and JSONL import" .-> f3
+    b1 --> b2
+    b2 --> b3
+    b2 --> b4
+    b2 --> b5
+    built -. "same code, one Dockerfile" .-> container
+    container -. "same code, only environment variables change" .-> prod
     p2 --> p3
     p2 --> p4
     p2 --> p5
     p2 --> p6
 ```
 
-**Diagram 9.** Two profiles of the same code. The hackathon profile costs nothing: the development machine runs the app and the database, free API tiers serve the language model behind LangChain fallbacks, a free GPU notebook does the batch work, and only demo data flows through it. The production profile brings every model onto a self-hosted GPU box because privileged documents must not leave it.
+**Diagram 9.** Three profiles of the same code, and the distance between them is environment
+variables and a compose profile rather than a rewrite.
+
+What actually runs is smaller than this document originally drew. There is no Next.js app: the page
+is one static HTML document with its own CSS and JS, served by the same FastAPI process, because a
+build step and a second runtime buy nothing for a page that is a verdict board, a judgment viewer and
+a drafting workspace, and they cost a whole toolchain to deploy. There is no object store: uploads
+are parsed in memory and never stored, which is a stronger confidentiality guarantee than a bucket
+with a retention policy. And the database is a file. Postgres with pgvector is in
+`infra/docker-compose.yml` and is what the vector half wants at a corpus larger than this one.
+
+The **serving profile** is the interesting one because it is where the security posture is enforced
+rather than described. The binding decides: loopback asks for nothing, anything else requires
+`ORDERORDER_API_TOKEN` and the server refuses to start without it, so a `docker compose up` with no
+token fails while compose is still interpolating rather than publishing nine thousand judgments and a
+billable model key to whatever can route to the host. The corpus stays outside the image because it is
+state that outlives any version of this code; keys stay outside because a key in a layer is published
+to everyone who can pull it. [DEPLOYMENT.md](DEPLOYMENT.md) is the operational document: what will
+stop you, in what order, and the security checklist item by item.
 
 ---
 
@@ -858,11 +983,19 @@ orderorder eval search --judgments 40                 # the other direction
 - `--rng-seed` draws a different set of judgments. The set the detectors were fixed against cannot measure them; every number below is from a held-out draw.
 - `--no-model` scores the model-free checks in seconds rather than an hour, which is what makes it usable while developing a detector; the modes that need a model are reported *unassessed* rather than counted as misses, because a miss and a question never asked are different things.
 - `--detail` prints every item the engine and the gold label disagree about, which is the view to read when a score moves.
-- Retrieval choices (embedding model, reranker, chunk context prefix, top-k) are compared on paragraph recall; model choices on support F1 and overstatement recall.
+- Retrieval choices (embedding model, chunk context prefix, top-k, and the weight given to the dense ranking) are compared on paragraph recall; model choices on support F1 and overstatement recall. §11.4 is that comparison, and it is the reason the dense half ships off by default.
 - Every user override in production is offered to the gold set (anonymised, opt-in).
 - Inter-annotator agreement (Cohen's kappa) is reported for the double-annotated subset; labels with low agreement (weight, applicability) are treated as soft targets.
 
 ### 11.4 What has been measured
+
+> **Which corpus each number is from.** The corpus grew from 9,429 judgments (2013-2025) to **38,032**
+> (1950-2025, 707,647 paragraphs) on 9-10 September. The detector tables below — every recall figure,
+> the false-positive rates, the drafting and contrary runs — were measured on the **2013-2025** corpus
+> and have not been re-run since. They are reported as measured rather than reattached to a corpus four
+> times the size. What *has* been re-measured on the full corpus is the retrieval comparison, and it is
+> marked where it appears. Re-running the detector suite against 1950-2025 is the first outstanding
+> evaluation task.
 
 Against 270 items planted in 40 judgments the detectors were not developed on, with no model configured:
 
@@ -909,11 +1042,43 @@ Search, 148 queries over the whole corpus:
 
 The distance between the first two rows and the third is the most useful number on this page, and it is not a tuning problem. Retrieval here is lexical: it matches words. A verbatim line and a half-remembered fragment *are* the judgment's words, so it finds them. A paraphrase shares only the idea, and there is nothing for BM25 or proximity to match — two thirds of the time the right case does not come first.
 
-**The dense half was built and it does not close that gap.** `orderorder embed` gives every paragraph a vector and `engine.search` fuses that ranking with the lexical ones. Fused at one vote it takes paragraph recall on the paraphrase set *down* from 36% to 30%, and weighting it up makes that monotonically worse — 27% at three votes, 25% at eight. It is adding noise to rankings that were carrying signal, so it is off by default and `--dense` turns it on.
+**The dense half, re-measured on the full corpus — and the earlier reading was wrong about the sign.**
+This is the one conclusion in this document that a later measurement reversed, so it is worth setting
+out what changed rather than editing the claim.
 
-The reason is scale, not the fusion. Asked to pick the right paragraph out of a field of 400, the static encoder gets it first 24 times in 40; a small sentence transformer, which would take 8.3 hours over this corpus against 4 minutes, gets it 23. Both are useless at 391,356 candidates, because a thousand times more candidates is a thousand more chances to be nearer by accident, and neither discriminates finely enough to survive it.
+The 2013-2025 run fused the dense ranking at **four** votes, on the reasoning that the lexical
+rankings agree with each other by construction and counting them one apiece against a single dense
+vote is not neutrality. At four votes dense retrieval is destructive, and that is what "it does not
+close the gap" recorded. Re-run over the full corpus (668,272 paragraphs with vectors,
+`potion-base-8M`) at **one** vote:
 
-What that rules out is spending a night on a bigger *CPU* model, which is worth knowing before spending it. What it leaves open is the plan this document always had: a strong encoder — BGE-M3 — embedded on a borrowed GPU. The store records which model wrote it and the encoder is a flag, so that experiment is `orderorder embed --model ...` and a re-run of the numbers above.
+| query | lexical only | + dense, 4 votes | + dense, 1 vote |
+|---|---|---|---|
+| verbatim @1 | **98%** | 86% | 96% |
+| fragment @1 | **85%** | 43% | 76% |
+| paraphrase @1 | 25% | 33% | **30%** |
+| paraphrase @5 | 42% | 40% | **47%** |
+| paraphrase @10 | 48% | 40% | **56%** |
+
+One vote dominates four at every depth. And at one vote the dense half **does** buy what it was bought
+for: paraphrase recall goes 42% to 47% at five, and 48% to 56% at ten. `DENSE_VOTES` is now 1.
+
+It still defaults to off, for a reason that is now a trade rather than a verdict: a static 8M model
+buys five points at the top of the paraphrase ranking and charges **nine** on the fragment one, and a
+lawyer typing a half-remembered line is not a rare user. `--dense` turns it on, and for a corpus
+searched mostly by idea rather than by remembered wording it is probably the better default.
+
+The corpus itself moved two numbers, in opposite directions and for one reason: verbatim @1 went
+**up** (91% to 98%) and paraphrase @1 went **down** (33% to 25%). More candidates make an exact string
+easier to pin and an idea harder.
+
+What is still ruled out is spending a night on a bigger *CPU* model. Asked to pick the right paragraph
+out of a field of 400, the static encoder gets it first 24 times in 40; a small sentence transformer,
+which would take 8.3 hours over this corpus against 4 minutes, gets it 23. Neither discriminates
+finely enough for a field of hundreds of thousands. What it leaves open is the plan this document
+always had: a strong encoder — BGE-M3 — embedded on a borrowed GPU. The store records which model
+wrote it and the encoder is a flag, so that experiment is `orderorder embed --model ...` and a re-run
+of the table above.
 
 **Drafting**, 74 propositions drawn from the same forty judgments, `orderorder eval gate`. The other two directions ask whether a detector is right. This one asks a different question, because the gate's voice check and the labelling of the items are the same code, and a detector cannot grade itself. What it asks is about the **traffic**: how much of what a word search puts within a drafting tool's reach is something nobody may cite.
 
@@ -929,8 +1094,8 @@ That is the case for `court_voice_only` being the default in `engine.search` and
 No judgment in the draw carried a dissenting opinion, so that row is missing rather than clean. And with no model configured nothing can be bound, so the end-to-end columns are structurally zero: what they measure is the three-state honesty — an unchecked passage is offered to read and never as authority — not the gate's judgement about support.
 
 **The citation graph is thin, and that limits what the citator can claim.** `orderorder citator`
-extracts 8,716 edges across 9,429 judgments, and **79% of the corpus has never been cited by anything
-in it**. Two consequences, both now handled rather than hidden. A `TreatmentReport` whose status is
+extracted 8,716 edges across the 9,429-judgment 2013-2025 corpus, and **79% of that corpus had never been cited by anything
+in it** (both figures predate the 1950-2025 build; see the note at the end of this subsection). Two consequences, both now handled rather than hidden. A `TreatmentReport` whose status is
 `good_law` means "forty benches followed it" or "nothing has ever cited it", and only the first is a
 finding -- `is_unchecked` separates them and `describe()` is the phrase that does not overclaim. And
 the drafting self-attack's observation that no later judgment has cited an authority fired on four
@@ -941,6 +1106,17 @@ Two causes, and they are worth telling apart before anyone treats this as a cita
 judgments outside the corpus are dropped rather than stored, so a case cited only by judgments the
 corpus does not hold shows as uncited. And the window is 2013-2025: a 2024 judgment has had almost no
 time to be cited by anything, whatever its importance.
+
+**The first of those two causes has largely been removed, and the numbers above have not caught up.**
+The corpus now runs from 1950, so the judgments that were citing into the void are mostly held. On the
+2013-2025 corpus, 56% of the citations these judgments made were to cases decided before 2013; that
+was the single largest hole in what the citator could see, and ingesting seventy-six years closes most
+of it by construction. The citator was rebuilt over the full corpus and **its edge count has not been
+reported**, so the 8,716 and the 79% above belong to the smaller corpus and should be read as an upper
+bound on the thinness rather than a current measurement. Re-running `orderorder citator` and
+publishing the density is the cheapest useful evaluation left, because several claims in this section
+are downstream of it. The second cause does not go away: recency is structural, and a judgment decided
+last year will be uncited whatever the corpus holds.
 
 **The second reading was built and it does not work on a fast model.** `engine/challenge.py` reads a
 verified quote back against the claim in a separate call that is never shown the first answer. On
@@ -1028,30 +1204,111 @@ much a word narrows the field can.
 
 ## 12. Observability
 
-- Every LLM call is traced through LangChain's callback layer: LangSmith's free Developer plan during the hackathon, Langfuse self-hosted in production because privileged text must not leave the box. Traces carry prompt version, token counts, output, latency and a cost proxy, and link to the verdict's `retrieval_trace_id`.
-- Structured logs per job stage; metrics for queue depth, digest cache hit rate, quote-verification failure rate, abstention rate, Indian Kanoon call counts against quota.
-- A weekly report of the eval harness on the current model and corpus snapshot.
+There was no logging at all until 8 September, which is a strange absence in something otherwise this
+careful, and the reason it lasted is worth keeping: every degraded check already reports itself **to
+the advocate**. The verdict says the model could not be reached and grades the citation *not checked*.
+That is the correctness property, it is tested, and it is not operations. A provider that has started
+refusing every call produces a page full of honest abstentions and, until there was a log, no other
+trace at all.
+
+What is built:
+
+- **One logger, on stderr**, where `docker logs` already looks, wired at the single place a model is
+  built rather than into nine `except` blocks. `ORDERORDER_LOG_LEVEL` sets the volume. A failed model
+  call is logged once, naming the whole fallback chain that failed and the reason; a failed job is
+  logged with its id.
+- **Prompts are never logged.** A prompt carries the brief, an uploaded brief is privileged, and the
+  guarantee this deployment makes is that it is not stored — which a log line would quietly undo.
+  `tests/test_logs.py` is what holds that, rather than discipline.
+
+It found something on the first run, which is the argument for it. The configured primary model had
+been retired by its provider; every call was 404ing; every failure was correctly recorded as *not
+assessed*; and `evals/report-holdout-model.txt` therefore scored 100% abstention and mode 4 at 0/14
+and **read like a result**. A dead model is indistinguishable from a corpus with nothing to say when
+every failure is honestly reported. That is the failure mode this section exists to catch, and it is a
+direct consequence of the three-state design being right.
+
+Planned, and not built: metrics for queue depth, digest cache hit rate, quote-verification failure
+rate, abstention rate and Indian Kanoon calls against quota; per-stage structured logs; tracing through
+LangChain's callback layer (LangSmith during the hackathon, Langfuse self-hosted in production, because
+privileged text must not leave the box) carrying prompt version, token counts, latency and a cost proxy
+linked to the verdict's `retrieval_trace_id`; and a weekly eval report on the current model and corpus
+snapshot. The abstention rate is the one to build first — §11.4's headline number is only meaningful
+next to a provider that is answering.
+
+This is not an audit log. Nothing records who asked what. §13 says so too.
 
 ---
 
 ## 13. Security architecture
 
-- Authentication via the web app; API tokens per user; roles owner, member, reviewer.
+The shape of the thing decides most of this, and the shape changed. There are no accounts, no
+passwords, no sessions and no cookies. There is **one bearer token that the operator generates**, and
+one process that serves a corpus of public judgments read-only. What is genuinely sensitive is the
+brief an advocate uploads, and the answer for that is that it is never stored — parsed in memory,
+handed straight back, never written to a table and never written to a log.
+
+Built:
+
+- **The binding decides.** Bound to loopback, no token is needed and none is asked for. Bound to
+  anything else, a token is *required* and the server **refuses to start** without one. Refusing to
+  start is the load-bearing half: a warning printed at boot is read once and then lives in a scrollback
+  nobody reads again, and an open server looks exactly like a closed one until somebody finds it.
+- **Authorisation is server-side and central**, in one middleware ahead of every route rather than
+  per-route — because a per-route check is the one somebody forgets on the route added next week, and
+  the route added next week is the upload endpoint. `/api/health` is the single open path.
+- Token compared with `hmac.compare_digest`. Failed authentication rate-limited hard and separately
+  (5/min); ordinary traffic rate-limited too, with starting work costlier than reading a result, since
+  the resource being protected is one worker. `X-Forwarded-For` is deliberately not trusted.
+- Every query parameterised; input validated and bounded; uploads bounded at read time rather than
+  after the memory is spent; user content escaped at the last step before the DOM; security headers on
+  every response including refusals, with a CSP carrying no `unsafe-inline`; errors that return an
+  exception's *type* and never its message or a path.
+- Keys never enter an image layer or the repository, and CI scans the whole history rather than the
+  diff, since a key committed and later deleted is still published.
+- The image runs as uid 10001, not root.
+
+Planned, and not built — all of it arriving together with multi-tenancy, because none of it has an
+object to protect until matters belong to people:
+
+- Accounts, roles (owner, member, reviewer), and API tokens per user rather than per deployment.
 - Row-level security on every matter-scoped table; object-store keys namespaced by matter.
-- Encryption at rest (database volume and object store), TLS at the edge (Caddy), secrets in environment files never committed.
-- Uploads scanned before parsing; parsing runs in a worker container with no network egress except the allow-listed sources.
-- Cloud toggle: a per-matter setting, off by default, that requires an explicit consent record naming the provider, the retention setting and the region; the toggle state is stamped on every verdict produced while it was on.
-- Audit log of access, export, verdict override and settings changes; delete-on-request removes the matter's rows, objects, traces and cache entries.
-- No user document is used for training or fine-tuning.
+- An audit log of access, export, verdict override and settings changes; delete-on-request removing the
+  matter's rows, objects, traces and cache entries.
+- Encryption at rest, TLS terminated at Caddy, uploads scanned before parsing, parsing in a worker
+  container whose egress is limited to the allow-listed judgment sources.
+- The cloud toggle: a per-matter setting, off by default, requiring an explicit consent record naming
+  the provider, the retention setting and the region, with the toggle state stamped on every verdict
+  produced while it was on.
+
+No user document is used for training or fine-tuning; on the provider side `LLM_SENSITIVE` is what
+keeps that promise, naming the one provider allowed to see text that is not demo data.
+
+[DEPLOYMENT.md](DEPLOYMENT.md) §3a walks the standard web-application checklist item by item,
+including the honest column: the controls that do not apply here, and why each one does not — because
+a control that does not apply is not a control that has been passed.
 
 ---
 
 ## 14. Open design questions
 
+Answered since this document was written:
+
+| Question | Answer | Where |
+|---|---|---|
+| Chunk context prefix for embeddings: title-only vs digest summary | Still unmeasured, and now worth measuring. The dense half at **one** vote helps paraphrase recall (42%→47% at five, 48%→56% at ten) and costs nine points on fragments, so the prefix is tuning a thing that works rather than rescuing one that does not | §11.4 |
+| Which encoder | Measured, not chosen: a static encoder and a small sentence transformer are indistinguishable on a field of 400 and both useless on the corpus. What is ruled out is a night on a bigger *CPU* model; BGE-M3 on a GPU is untested and is the open one | §11.4 |
+| Treatment classifier: cue phrases + LLM vs a trained classifier | Cue phrases, plus one arithmetic rule — a bench cannot overrule one at least as large as itself — and no model at all. 25 negative treatments across the corpus, each read against its judgment over four rounds, every false positive pinned as a test | §4.9 |
+| Rhetorical roles by LLM, then a trained InLegalBERT classifier | Neither: a **cue classifier**, `ingest/roles.py`, abstaining to `none` where nothing matches. A cue is a phrase in the judgment, so a disagreement is settleable by looking; a model's label is not. Voice and weight remain independent of it | §3.6 |
+| Whether the database is Postgres | SQLite, one file. Postgres with pgvector stays wired for the profile that needs vectors at scale | §3.7, §10 |
+
+Still open:
+
 | Question | Options | Decide by |
 |---|---|---|
-| Chunk context prefix for embeddings: title-only vs digest summary | Measure pinpoint hit@k on the gold set | Sprint day 6 |
-| Cross-version alignment algorithm: sentence-level fuzzy alignment vs LLM-assisted | Start with fuzzy alignment; add LLM for low-confidence spans | Phase 1 |
-| Treatment classifier: cue phrases + LLM vs trained classifier on citation_edge labels | Cue phrases + LLM for the hackathon | Phase 1 |
-| Whether headnotes from any open source can be used as retrieval hints without being treated as text | Not in MVP | Phase 2 |
+| Whether a strong encoder on a GPU closes the paraphrase gap at corpus scale | BGE-M3 on a borrowed session; `orderorder embed --model ...` and a re-run of §11.4 | The next GPU session |
+| Whether a contrary lead can become a finding | The second reading is written and off by default; it needs a number measured on something other than a laptop, and a labelled set that says whether a passage *denies* a proposition or merely confines the rule to other facts | Phase 1 |
+| Cross-version alignment algorithm: sentence-level fuzzy alignment vs LLM-assisted | Start with fuzzy alignment; add LLM for low-confidence spans. Not built — one text version per judgment so far, so nothing to align | Phase 1 |
+| Whether headnotes from any open source can be used as retrieval hints without being treated as text | Not in MVP. They are stored separately and never resolve a pinpoint | Phase 2 |
 | Digest granularity for very long judgments (Constitution Bench, 500+ pages): per-opinion digests | Per-opinion digests merged into one | Phase 1 |
+| The FTS5 duplicate | An external-content table removes 38% of the database at the cost of a join and a rebuild of every index | Before the corpus grows past the Supreme Court |

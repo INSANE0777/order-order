@@ -50,9 +50,12 @@ uv run orderorder verify --file brief.txt --annotate flagged.txt --report report
 uv run orderorder ingest bulk-text                   # text for the whole corpus; resumable
 uv run orderorder ingest aliases                     # learn the SCC citations the open data omits
 uv run orderorder ingest repair-trailers             # cut the reporter's own words out of stored text
+uv run orderorder ingest mark-roles                  # label every paragraph's rhetorical role, by cue
 uv run orderorder index                              # full-text index over every paragraph
 uv run orderorder citator                            # who cited whom, and what they did with it
 uv run orderorder embed                              # vectors for every paragraph (see the numbers first)
+uv run orderorder chroma-import                      # optional: the same vectors into a local Chroma db
+uv run orderorder chroma-search "notice under Section 106"   # ... and query it directly
 uv run orderorder find "a misrepresentation vitiates consent only where it induced the contract"
 uv run orderorder contrary "a notice under Section 106 is mandatory before a suit for eviction"
 uv run orderorder argue propositions.txt             # bind each proposition to an authority, or refuse
@@ -185,7 +188,7 @@ weights are loaded there is not enough left to hold the prompt, so the OS pages 
 each call is the model reading its own input back off disk. A local model on a machine like that is
 therefore good for `doctor --probe` and a handful of propositions, and not for a brief.
 
-Search, 148 queries over all 409,499 paragraphs:
+Search, 148 queries, measured on the 2013-2025 corpus (409,499 paragraphs):
 
 | query | case@1 | case@5 | para@5 | line |
 |---|---|---|---|---|
@@ -197,11 +200,30 @@ Once the right paragraph is found, the sentence named as the line is the one the
 almost every time. Getting to the right paragraph is another matter, and the third row says why:
 retrieval is lexical, so it finds the judgment's own words and not an idea restated in someone else's.
 
-Embeddings were the obvious answer and they did not work. `orderorder embed` builds the vectors and
-the search fuses them, but over 391,356 paragraphs a CPU-feasible encoder makes paragraph recall on
-that third row *worse*, not better — 36% down to 30%, and further the more weight it is given. It is
-off by default, the numbers are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §11.4, and what the
-testing rules out is a night spent on a bigger CPU model rather than the idea itself.
+**Re-measured on the full corpus** (668,272 paragraphs with vectors, `potion-base-8M`), which is also
+where the dense half was finally settled. Only case@1 and the paraphrase depths were re-run:
+
+| query | lexical only | + dense, 4 votes | + dense, 1 vote |
+|---|---|---|---|
+| verbatim @1 | **98%** | 86% | 96% |
+| fragment @1 | **85%** | 43% | 76% |
+| paraphrase @1 | 25% | 33% | **30%** |
+| paraphrase @5 | 42% | 40% | **47%** |
+| paraphrase @10 | 48% | 40% | **56%** |
+
+That table is a better answer than the one it replaces, and it corrects it. The earlier reading was
+that dense retrieval simply made things worse; on the full corpus at **one** vote rather than four it
+plainly helps the row it was bought for — paraphrase recall goes 42% to 47% at five and 48% to 56% at
+ten. What it charges for that is nine points off the fragment row, and a lawyer typing a half-remembered
+line is not a rare user. So `dense` still defaults to off, but for a reason that is now a trade rather
+than a verdict: **a static 8M model buys five points on paraphrases and charges nine on fragments.**
+`--dense` turns it on. A stronger encoder on a GPU is the experiment that can change the trade; a
+bigger CPU model is not, per the discrimination test in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §11.4.
+
+Note also what the bigger corpus did on its own: verbatim recall went **up** (91% to 98%) and
+paraphrase recall went **down** (33% to 25%). More candidates make an exact string easier to pin and
+an idea harder, which is the same fact from both ends.
 
 Drafting, 74 propositions lifted from the same forty judgments — half of them from paragraphs
 reciting counsel's argument rather than the court's holding:
@@ -278,6 +300,17 @@ downgrades the claim to unsupported and flags it, however confident the model wa
 never fuzzy-matches, so a near-miss paraphrase fails too. This is ordinary Python and it runs whatever
 model produced the answer, which is why the tests can exercise it with a stub and no API key.
 
+**Two ways a check can be confidently wrong, both now closed.** A brief that recounts what happened
+below — "Rejecting the plea, the High Court opined that ..." — is not claiming the High Court is the
+authority it relies on; it is narrating the history of the case it cites. Read naively, every such
+clean sentence became a wrong-court finding. A fronted procedural participle before the court phrase
+now marks it as a recital, and a genuine attribution ("the High Court has held that X") carries no
+such participle. And a cause title that names nobody — "State of U.P. v. Anr." — token-matches
+hundreds of judgments across seventy-five years at a *passing* score, so the citation alone picked the
+case and the name check silently agreed. That is now a **request for review** rather than a pass: not
+a finding, because nothing is wrong yet, but a question the strings cannot answer and so must not
+appear to have answered. Both were caught by the held-out set, which is what a held-out set is for.
+
 Three states are kept apart, because collapsing them is how tools overclaim: **supported**,
 **checked and not supported**, and **not checked**. A missing API key, a provider outage or a
 retrieval miss produces the third, never the second.
@@ -304,8 +337,11 @@ overruling that did not happen would have an advocate drop a binding authority.
 
 The treatment report always states how many judgments it searched, because "no negative treatment
 found" over nine thousand judgments means something different from the same words over the full
-seventy-five years — and 56% of the citations these judgments make are to cases decided before 2013,
-which the corpus does not yet hold.
+seventy-five years. On the 2013-2025 corpus, **56% of the citations these judgments make were to cases
+decided before 2013** — the single largest hole in what the citator could see. Ingesting 1950-2025
+closes most of it by construction. How much is a number nobody has taken yet: the citator was rebuilt
+over the full corpus and its edge count has not been reported, so the honest statement is that the
+gap is now small rather than that it is a particular size.
 
 | Piece | Module |
 |---|---|
@@ -342,30 +378,42 @@ which the corpus does not yet hold.
 | The engine as a LangGraph state graph | `engine/graph.py` |
 | The evaluation harness: plant known failures, score all four directions | `evaluation/` |
 | Repairs to stored text when extraction is corrected after the fact | `ingest/repair.py` |
+| Rhetorical role for every paragraph — facts, issues, argument, ratio, disposition — by cue, never by model | `ingest/roles.py` |
+| The paragraph vectors in a local Chroma database, for anything outside this process that wants to query them | `engine/chroma_store.py` |
 
-Measured on the real corpus, which is now the whole of it:
+Measured on the real corpus, which is now **the whole Supreme Court, 1950 to 2025**:
 
 | | |
 |---|---|
-| Judgments (2013-2025) | 9,429 |
-| Citation aliases | 20,778, of which 1,870 learned from the corpus itself |
-| Judgments with full text | 9,424 (99.95%) |
-| Paragraphs indexed | 409,499 |
-| Citation edges | 8,716 |
-| Separate opinions | 109: 47 dissents and 62 concurrences |
+| Judgments (1950-2025) | 38,032 |
+| Judgments with full text | 38,005 (99.93%) |
+| Paragraphs indexed | 707,647 |
+| Paragraphs with a vector | 668,272 |
+| Date range | 1950-03-14 to 2025-12-12 |
 
-- Importing metadata takes about 15 seconds a year and parses every citation in the source.
-- Ingesting the text of the whole corpus takes about 0.4 seconds a judgment on four CPU cores with
-  eight worker processes. Of 9,381 judgments, 194 failed on the first pass; 189 of those were transient
-  network failures and recovered on the retry, leaving 5 genuine losses: two PDFs the bucket does not
-  have and three that yield no text after cleaning.
-- Building the full-text index over 409,499 paragraphs takes 87 seconds. A search across all of them
-  answers in about 8 seconds.
-- The citator extracts 8,716 edges. Negative treatment is rare, as it should be: 25 across the whole
-  corpus. Each was read against the judgment that produced it over four rounds of auditing, and every
-  false positive that reading found is pinned as a test. The precision bar is asymmetric: a missed
-  overruling costs an advocate nothing they did not already lack, while a false one has them drop a
-  binding authority.
+The corpus grew from 9,429 judgments to 38,032 on 9-10 September, and the reason is worth saying
+because it was a mistake rather than a milestone: **the open-data bucket always held 1950 onwards.**
+A comment in `ingest/corpus.py` asserted its metadata started in 2013, and it did not — 2013 was the
+year range this repository happened to have been built on. Ingesting the rest was a flag, not a
+feature. The lesson is the one the engine already applies to citations: an assertion nobody checked
+against the source reads exactly like a fact.
+
+- Importing metadata for all seventy-six years takes about fifteen minutes.
+- The text pass runs at about 65 judgments a minute on eight workers, so a full-corpus build is near
+  ten hours; it is resumable, so the estimate survives the machine it is measured on. Of 38,032
+  judgments, **27** hold no text, and each is a PDF missing from the source itself — confirmed by
+  re-running `ingest bulk-text --retry` against them.
+- Negative treatment is rare, as it should be: on the 2013-2025 corpus the citator found 25 across
+  9,429 judgments. Each was read against the judgment that produced it over four rounds of auditing,
+  and every false positive that reading found is pinned as a test. The precision bar is asymmetric: a
+  missed overruling costs an advocate nothing they did not already lack, while a false one has them
+  drop a binding authority.
+
+**Which numbers on this page are from which corpus.** The index, the alias inference and the citator
+were rebuilt over the full corpus, but the counts they produced have not been published, and the
+recall tables above were measured on the 2013-2025 corpus and have **not** been re-run against
+1950-2025. They are reported as they were measured rather than quietly reattached to a corpus four
+times the size. What is measured on the full corpus is the retrieval comparison below.
 - `orderorder treatment INSC:2014:53` reports Pune Municipal Corporation as **overruled**, by Indore
   Development Authority v Manoharlal (five judges, 2020) at its paragraph 362, among 118 judgments
   citing it — and shows two later two-judge benches whose words claim to overrule it downgraded to
@@ -388,8 +436,9 @@ since the present matter is not in it. Calling an authority inapplicable is the 
 the model must quote the judgment's own statement of the fact said to distinguish it, and a fact that
 cannot be found in the text is not recorded as distinguishing.
 
-**What the citator cannot see.** A judgment the corpus does not hold, which is 56% of the citations
-these judgments make. And a judgment whose text arrived truncated: Vijay Latka (2016) is held as nine
+**What the citator cannot see.** A judgment the corpus does not hold — which was 56% of the citations
+these judgments make when the corpus stopped at 2013, and is now much less, though by how much is
+unmeasured. And a judgment whose text arrived truncated: Vijay Latka (2016) is held as nine
 paragraphs, so the authority it rests on is not in the text at all and nothing can be inferred about
 it.
 - Fetching and parsing a judgment's official PDF takes two to three seconds; a 51-page judgment

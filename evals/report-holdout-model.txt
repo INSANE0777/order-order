@@ -1,0 +1,83 @@
+120 items: 105 planted, 15 clean
+model configured: True
+
+recall by planted failure mode
+  [ 1] phantom                15/15    100%
+  [ 2] mis-cite               14/15     93%
+  [ 3] wrong court or bench   14/14    100%
+  [ 4] not there              0/14      0%
+  [ 5] wrong voice            13/13    100%
+  [ 7] obiter as ratio        2/2    100%
+  [ 9] selective quotation    7/8     88%
+  [10] dead or wounded law    9/9    100%
+  [12] wrong pinpoint         15/15    100%
+
+false positives on clean citations : 0/15  0%
+abstention rate                    : 100%
+seconds per item                   : 0.9
+
+disagreements
+  MISSED [4] not there  INSC:2023:311-m4
+    cited   2023 INSC 311, para 24
+    claim   E The learned Additional District & Sessions Judge observed· that it was absolutely unjust and unfair to file such objections after two years of the f
+    graded  A, existence found
+  MISSED [4] not there  INSC:2023:518-m4
+    cited   2023 INSC 518, para 25
+    claim   To make it clear, the provision contained in Section 436-A of the Code would apply to the Special Acts also in the absence of any specific provision.
+    graded  A, existence found
+  MISSED [4] not there  INSC:2016:938-m4
+    cited   2016 INSC 938, para 30
+    claim   Exercise of this power and interfering with the orders of the courts or tribunals is restricted to cases of serious dereliction of duty and flagrant v
+    graded  A, existence found
+  MISSED [4] not there  INSC:2019:1285-m4
+    cited   2019 INSC 1285, para 16
+    claim   In our considered opinion, the aforementioned questions cannot be regarded as satisfying the test of being a "substi\:\1tial questions of law" within 
+    graded  A, existence found
+  MISSED [4] not there  INSC:2019:897-m4
+    cited   2019 INSC 897, para 5
+    claim   Venue of arbitration shall be Delhi, and the arbitration shall be conducted in English language.
+    graded  A, existence found
+  MISSED [4] not there  INSC:2022:926-m4
+    cited   2022 INSC 926, para 28
+    claim   We make it clear at the cost of repetition that if the candidates concerned do not clear the test(s) within the time stipulated or choose not to appea
+    graded  A, existence found
+  MISSED [4] not there  INSC:2018:646-m4
+    cited   2018 INSC 646, para 26
+    claim   The borrowers failed to repay the debts payable by them to the Financial Creditor.
+    graded  A, existence found
+  MISSED [9] selective quotation  INSC:2021:916-m9
+    cited   2021 INSC 916, para 47
+    claim   Persons living with mental illness were considered as ‘lunatics’ under the Indian Lunacy Act 1912 and were criminalized and.
+    graded  A, existence found
+  MISSED [4] not there  INSC:2021:916-m4
+    cited   2021 INSC 916, para 15
+    claim   Insofar as taxation statutes are concerned, Article 265 of the Constitution3 prohibits the State from extracting tax from the citizens without authori
+    graded  A, existence found
+  MISSED [4] not there  INSC:2014:282-m4
+    cited   2014 INSC 282, para 12
+    claim   He was terminated from employment for breaching the company policy, not because of his drug addiction but on account of his drug use.
+    graded  A, existence found
+  MISSED [2] mis-cite  INSC:2014:433-m2
+    cited   Ram Karan (dead) Through Lrs. v. Anr., 2017 INSC 113
+    claim   On 26.06.1995, the Single Member, Board' of Revenue held that the vendor, Dalu being "Nayak" by caste was from Scheduled Caste category and the sale d
+    graded  A, existence found
+  MISSED [4] not there  INSC:2014:433-m4
+    cited   2014 INSC 433, para 12
+    claim   Thus, the emphasis was laid on the retention of the power by the Magistrate under Section 125 of the Code and the effect of ultimate consequence.
+    graded  A, existence found
+  MISSED [4] not there  INSC:2024:391-m4
+    cited   2024 INSC 391, para 52
+    claim   In our opinion, this contention is not tenable because even, according to Clause (5), reasonable restrictions on the fundamental rights embodied in Ar
+    graded  A, existence found
+  MISSED [4] not there  INSC:2018:107-m4
+    cited   2018 INSC 107, para 12
+    claim   Particulars, on the other hand, are the details of the case which is in the nature of evidence a party would be leading at the time of trial.”
+    graded  A, existence found
+  MISSED [4] not there  INSC:2025:793-m4
+    cited   2025 INSC 793, para 9.5
+    claim   Surely, if an accused is not hiding from the investigating officer or is hiding due to some genuine and expressed fear of being victimised, it would b
+    graded  A, existence found
+  MISSED [4] not there  INSC:2024:16-m4
+    cited   2024 INSC 16, para 18
+    claim   PW-14 stated that he was a classmate of the appellant, and he had undertaken diploma course along with the appellant.
+    graded  A, existence found
