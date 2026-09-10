@@ -118,8 +118,10 @@ def test_build_api_resumes_from_the_watermark(tmp_path, api_settings, stub_trans
     written = embeddings.build_api(session=None, store=store)
 
     assert written == 5
-    fetched = sum(len(c) for c in calls)
-    assert fetched == 2  # rows 4 and 5 only -- the watermark held
+    # The dimension probe, then rows 4 and 5 only -- the watermark held.
+    assert calls[0] == ["dimension probe"]
+    fetched = sum(len(c) for c in calls[1:])
+    assert fetched == 2
     assert store.read_index()["model"] == "BAAI/bge-m3"
     assert not (tmp_path / "vectors" / "embed.progress.json").exists()
 
@@ -134,6 +136,8 @@ def test_a_trial_limit_embeds_only_the_first_n_rows(tmp_path, api_settings, stub
     written = embeddings.build_api(session=None, store=store, limit=3)
 
     assert written == 3
-    assert sum(len(c) for c in calls) == 3
+    # The dimension probe goes first, then exactly the three rows.
+    assert calls[0] == ["dimension probe"]
+    assert sum(len(c) for c in calls[1:]) == 3
     assert store.read_index()["count"] == 3
     assert store.read_index()["paragraph_ids"] == ["p1", "p2", "p3"]

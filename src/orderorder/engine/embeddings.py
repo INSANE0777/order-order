@@ -239,7 +239,9 @@ def search(
 # never worth starting.
 
 API_BATCH = 64
-API_CONCURRENCY = 8
+# llama-server serves embeddings through n_slots (4 at ctx 8192); more concurrent POSTs than
+# slots just queue at the server while holding their own buffers.
+API_CONCURRENCY = 4
 API_TIMEOUT = 120.0
 
 
@@ -248,10 +250,20 @@ def api_configured() -> bool:
     return bool(settings.embeddings_base_url and settings.embeddings_model)
 
 
+class ContextOverflow(Exception):
+    """The endpoint refused a batch because its tokens do not fit the context. Deterministic --
+    retrying the same batch reproduces it, so the caller must split it or skip it."""
+
+    def __init__(self, texts: list[str]):
+        super().__init__(f"context overflow on a batch of {len(texts)} texts")
+        self.texts = texts
+
+
 def _api_encode_batch(
     client: httpx.Client, base_url: str, api_key: str, model: str, texts: list[str]
 ) -> np.ndarray:
-    """One POST, one batch. Retries transient failures; a 402 or 401 is not transient."""
+    """One POST, one batch. Retries transient failures; a 402 or 401 is not transient, and a
+    context overflow is deterministic -- it comes back as a ContextOverflow the caller bisects."""
     last_error: Exception | None = None
     for attempt in range(4):
         try:
@@ -265,13 +277,17 @@ def _api_encode_batch(
                     f"the embedding endpoint refused the request ({response.status_code}): "
                     f"{response.json().get('error', {}).get('message', 'unauthorized')}"
                 )
+            if response.status_code == 500:
+                message = str(response.json())
+                if "context" in message.lower():
+                    raise ContextOverflow(texts)
             response.raise_for_status()
             vectors = np.asarray(
                 [item["embedding"] for item in response.json()["data"]], dtype=np.float32
             )
             norms = np.linalg.norm(vectors, axis=1, keepdims=True)
             return vectors / np.where(norms == 0, 1.0, norms)
-        except RuntimeError:
+        except (RuntimeError, ContextOverflow):
             raise
         except (httpx.TransportError, httpx.HTTPStatusError) as error:
             last_error = error
@@ -363,42 +379,59 @@ def build_api(
         return len(ids)
 
     store.directory.mkdir(parents=True, exist_ok=True)
-    todo = [start for start in range(done_at, len(ids), API_BATCH)]
+    skipped: list[str] = []
 
-    def fetch(client: httpx.Client, start: int) -> tuple[int, np.ndarray]:
-        vectors = _api_encode_batch(
-            client,
-            base_url,
-            api_key,
-            model,
-            [body for _pid, body in rows[start : start + API_BATCH]],
-        )
-        return start, vectors
+    # The dimension is only knowable from the endpoint's first answer; probe with one text, then
+    # preallocate. open_memmap zero-fills, which is exactly what a skipped row should be: a zero
+    # vector ranks against nothing, and the id is recorded beside the store.
+    probe = _api_encode_batch(
+        httpx.Client(timeout=API_TIMEOUT), base_url, api_key, model, ["dimension probe"]
+    )
+    matrix = np.lib.format.open_memmap(
+        store.vectors_path, mode="w+", dtype=np.float16, shape=(len(ids), probe.shape[1])
+    )
 
-    matrix: np.ndarray | None = None
-    written = done_at
+    def embed_range(client: httpx.Client, start: int, n: int) -> int:
+        """Embed rows [start, start+n) straight into the matrix; returns how many were skipped.
+
+        On a context overflow the batch splits in half, recursively -- row order and row alignment
+        survive, because every sub-range writes exactly the rows it owns. A single text that still
+        overflows is junk by any reading (a 49k-token merged block), stays zero, and is recorded.
+        """
+        batch = rows[start : start + n]
+        try:
+            vectors = _api_encode_batch(
+                client, base_url, api_key, model, [body for _pid, body in batch]
+            )
+        except ContextOverflow:
+            if n == 1:
+                skipped.append(batch[0][0])
+                return 1
+            half = n // 2
+            skips = embed_range(client, start, half)
+            skips += embed_range(client, start + half, n - half)
+            return skips
+        matrix[start : start + n] = vectors.astype(np.float16)
+        return 0
+
     with httpx.Client(timeout=API_TIMEOUT) as client:
-        first_start = todo[0]
-        start, vectors = fetch(client, first_start)
-        matrix = np.lib.format.open_memmap(
-            store.vectors_path, mode="w+", dtype=np.float16, shape=(len(ids), vectors.shape[1])
-        )
-        matrix[start : start + vectors.shape[0]] = vectors.astype(np.float16)
-        written = start + vectors.shape[0]
-        if on_progress is not None:
-            on_progress(written, len(ids))
+        todo = [start for start in range(done_at, len(ids), API_BATCH)]
 
-        def worker(start: int) -> tuple[int, np.ndarray]:
-            return fetch(client, start)
+        def worker(start: int) -> int:
+            # Absolute end row: the watermark must mean the same thing across resumes.
+            skips = embed_range(client, start, min(API_BATCH, len(ids) - start))
+            return min(start + API_BATCH, len(ids))
 
         checkpoint_at = API_BATCH * 25
         with ThreadPoolExecutor(max_workers=API_CONCURRENCY) as pool:
-            for start, vectors in pool.map(worker, todo[1:]):
-                matrix[start : start + vectors.shape[0]] = vectors.astype(np.float16)
-                written = start + vectors.shape[0]
+            for position, end_row in enumerate(pool.map(worker, todo)):
+                written = end_row
                 if on_progress is not None:
                     on_progress(written, len(ids))
-                if written - done_at >= checkpoint_at and written % checkpoint_at < API_BATCH:
+                rows_since_checkpoint = written - done_at
+                if rows_since_checkpoint >= checkpoint_at and (
+                    len(ids) - written >= checkpoint_at or written == len(ids)
+                ):
                     matrix.flush()
                     progress_path.write_text(
                         json.dumps({"model": model, "count": len(ids), "done": written}),
@@ -408,5 +441,10 @@ def build_api(
 
     matrix.flush()
     store.finalize(ids, model)
+    if skipped:
+        (store.directory / "skipped.json").write_text(
+            json.dumps({"model": model, "count": len(skipped), "paragraph_ids": skipped}),
+            encoding="utf-8",
+        )
     progress_path.unlink(missing_ok=True)
     return len(ids)
