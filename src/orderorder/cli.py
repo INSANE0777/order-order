@@ -52,6 +52,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 from sqlalchemy import func, select
+from sqlalchemy import text as sql_text
 
 from orderorder import __version__
 from orderorder.citations.grammar import extract_citations
@@ -63,7 +64,7 @@ from orderorder.drafting.attack import attack_draft
 from orderorder.drafting.plan import PlanError, read_plan
 from orderorder.drafting.render import to_markdown
 from orderorder.drafting.word import write_docx
-from orderorder.engine import authority, citator, contrary, embeddings, search
+from orderorder.engine import authority, chroma_store, citator, contrary, embeddings, search
 from orderorder.engine.graph import verify_text
 from orderorder.engine.locator import locate as locate_claim
 from orderorder.engine.memo import render_memo, write_memo
@@ -1005,6 +1006,80 @@ def citator_command(
         f"[green]{stats.edges:,} edges[/green] from {stats.judgments_read:,} judgments\n"
         f"[dim]{stats.treatments}[/dim]"
     )
+
+
+@app.command("chroma-import")
+def chroma_import_command() -> None:
+    """Copy the built paragraph vectors into a local Chroma database.
+
+    Same vectors, no re-embedding: the memmap store remains what ranking reads, and this is the
+    same matrix handed to a database that can answer filtered queries and be reached from outside
+    the process. Re-runnable -- rows already in Chroma are skipped.
+    """
+    init_db()
+    added = _chroma_import_progress()
+    if added == 0:
+        console.print(f"[green]already imported[/green]: {chroma_store.count():,} vectors in {chroma_store.chroma_dir()}")
+    else:
+        console.print(
+            f"[green]imported {added:,} vectors[/green] into {chroma_store.chroma_dir()} "
+            f"({chroma_store.count():,} total)"
+        )
+
+
+def _chroma_import_progress() -> int:
+    """Copy the memmap matrix into Chroma in batches, skipping rows already imported."""
+    import numpy as np
+
+    store = embeddings.default_store()
+    matrix, paragraph_ids, _index = store.open()
+    coll = chroma_store.collection()
+    existing = set(coll.get(include=[])["ids"])
+    added = 0
+    batch = chroma_store.max_batch()
+    for start in range(0, len(paragraph_ids), batch):
+        ids = paragraph_ids[start : start + batch]
+        todo = [(i, pid) for i, pid in enumerate(ids, start=start) if pid not in existing]
+        if not todo:
+            continue
+        vectors = np.asarray(matrix[[i for i, _ in todo]], dtype=np.float32)
+        coll.add(ids=[pid for _, pid in todo], embeddings=vectors)
+        added += len(todo)
+        if added % 40_960 < batch:
+            console.print(f"  [dim]{added:,} imported[/dim]")
+    return added
+
+
+@app.command("chroma-search")
+def chroma_search_command(
+    query: list[str] = typer.Argument(..., help="What to look for, in your own words."),
+    top: int = typer.Option(10, help="How many paragraphs to show."),
+) -> None:
+    """Query the Chroma vector database directly, without the lexical half."""
+    import textwrap
+
+    results = chroma_store.search(" ".join(query), top=top)
+    if not results:
+        console.print("[yellow]nothing in the database[/yellow]; run orderorder chroma-import")
+        raise typer.Exit(1)
+    init_db()
+    with get_session() as session:
+        for paragraph_id, similarity in results:
+            row = session.execute(
+                sql_text(
+                    "SELECT p.printed_label, v.judgment_id, substr(p.body, 1, 240) "
+                    "FROM paragraph p JOIN judgment_text_version v ON v.id = p.text_version_id "
+                    "WHERE p.id = :pid"
+                ),
+                {"pid": paragraph_id},
+            ).first()
+            if row is None:
+                continue
+            label, judgment_id, body = row
+            judgment = session.get(Judgment, judgment_id)
+            console.print(f"[bold]{judgment.canonical_key}[/bold] ¶{label} ({similarity:.3f})")
+            console.print(textwrap.fill(body.replace("\n", " "), 100))
+            console.print()
 
 
 @app.command("treatment")
