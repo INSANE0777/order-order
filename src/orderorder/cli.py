@@ -1012,6 +1012,13 @@ def embed_command(
         help="Which encoder to use. The default is static and does the corpus in minutes.",
     ),
     limit: int | None = typer.Option(None, help="Embed only the first N paragraphs, to try it out."),
+    api: bool = typer.Option(
+        False,
+        "--api",
+        help="Encode through the configured hosted endpoint (EMBEDDINGS_BASE_URL / "
+        "_API_KEY / _MODEL): BAAI/bge-m3 on Bitdeer, a self-hosted Qwen3-Embedding, any "
+        "/v1/embeddings server. Resumable; ~$3 for this corpus at bge-m3 prices.",
+    ),
 ) -> None:
     """Give every paragraph a vector, so search can match meaning and not only words.
 
@@ -1020,6 +1027,25 @@ def embed_command(
     words and a paraphrase shares none. This is the other half; the two are fused, not swapped.
     """
     init_db()
+    if api:
+        console.print(f"[dim]endpoint: {get_settings().embeddings_base_url or '(not configured)'}[/dim]")
+        console.print(f"[dim]model: {get_settings().embeddings_model}[/dim]")
+        with get_session() as session:
+            written = embeddings.build_api(
+                session,
+                on_progress=lambda done, total: (
+                    console.print(f"  [dim]{done:,}/{total:,}[/dim]")
+                    if done % 20_000 < 64 or done == total
+                    else None
+                ),
+            )
+        store = embeddings.default_store()
+        if not written:
+            console.print("[yellow]nothing to embed[/yellow]; ingest some judgment text first")
+            raise typer.Exit(1)
+        size = store.vectors_path.stat().st_size / 1e6
+        console.print(f"[green]{written:,} paragraphs embedded[/green] into {store.vectors_path} ({size:.0f} MB)")
+        return
     console.print(f"[dim]encoder: {model}[/dim]")
 
     def progress(done: int, total: int) -> None:
