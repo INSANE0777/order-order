@@ -138,7 +138,8 @@ def build_verify_graph(
         voice = attribute_voice(candidate, quote_start=quote_start, model=voice_model)
         # The judgment's digest, if built: its headnote corroborates the ratio label when the
         # model-free path cannot tell ratio from obiter on its own.
-        digest_row = session.get(JudgmentDigest, judgment.id)
+        judgment_id = state["resolution"].judgment_id
+        digest_row = session.get(JudgmentDigest, judgment_id) if judgment_id else None
         weight = classify_weight(
             candidate,
             state["proposition"],
