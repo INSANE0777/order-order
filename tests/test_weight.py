@@ -173,3 +173,36 @@ def test_the_disposition_wording_courts_actually_use_is_recognised() -> None:
     ]
     for text in endings:
         assert find_disposition([SegParagraph(1, "1", text, 0, len(text))]) is not None, text
+
+
+def test_the_digest_headnote_corroborates_ratio_when_the_model_cannot() -> None:
+    """The digest stage's whole purpose: the headnote's holdings answer ratio-vs-obiter for free."""
+    from orderorder.engine.weight import classify_weight
+
+    digest = {
+        "headnote": "The burden of proving inducement lies upon the party alleging it, and mere "
+        "inaccuracy in a recital is not enough to vitiate consent.",
+        "holdings": [{"label": "3", "text": "A misrepresentation vitiates consent only where it "
+                      "induced the contract and the burden of proving inducement lies on the allegers."}],
+    }
+    verdict = classify_weight(
+        Candidate(seq=3, printed_label="3", score=0.0, matched_terms=[],
+                  body="A misrepresentation vitiates consent only where it induced the contract, "
+                       "and the burden of proving inducement lies upon the party alleging it."),
+        "a misrepresentation vitiates consent only where it induced the contract",
+        voice=None, model=None, digest=digest,
+    )
+    assert verdict.label == "ratio"
+    assert verdict.method == "digest"
+
+
+def test_without_a_digest_the_unknown_stays_unknown() -> None:
+    from orderorder.engine.weight import classify_weight
+
+    verdict = classify_weight(
+        Candidate(seq=3, printed_label="3", score=0.0, matched_terms=[],
+                  body="Some passage of legal reasoning whose ratio status is genuinely unclear."),
+        "some claim", voice=None, model=None, digest=None,
+    )
+    assert verdict.label == "unclear"
+    assert verdict.method == "not_assessed"

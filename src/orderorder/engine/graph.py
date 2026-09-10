@@ -16,7 +16,7 @@ from langgraph.graph import END, StateGraph
 from sqlalchemy.orm import Session
 
 from orderorder.citations.grammar import Citation
-from orderorder.db.models import Judgment
+from orderorder.db.models import Judgment, JudgmentDigest
 from orderorder.engine.citator import TreatmentReport, treatment_of
 from orderorder.engine.facts import ApplicabilityVerdict, assess_applicability
 from orderorder.engine.hierarchy import HierarchyCheck, check_hierarchy
@@ -136,12 +136,16 @@ def build_verify_graph(
 
         quote_start = scope.char_start if scope and scope.quote_verified else None
         voice = attribute_voice(candidate, quote_start=quote_start, model=voice_model)
+        # The judgment's digest, if built: its headnote corroborates the ratio label when the
+        # model-free path cannot tell ratio from obiter on its own.
+        digest_row = session.get(JudgmentDigest, judgment.id)
         weight = classify_weight(
             candidate,
             state["proposition"],
             voice=voice,
             disposition=find_disposition(state.get("paragraphs") or []),
             model=weight_model,
+            digest=digest_row.digest if digest_row is not None else None,
         )
         return {"voice": voice, "weight": weight}
 

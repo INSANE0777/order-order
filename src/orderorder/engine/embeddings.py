@@ -268,13 +268,20 @@ class ContextOverflow(Exception):
         self.texts = texts
 
 
+class DailyCapReached(RuntimeError):
+    """The endpoint says today's free quota is spent. Deterministic for the rest of the day --
+    the build checkpoints its watermark and stops, and tomorrow's run resumes from there."""
+
+
 def _api_encode_batch(
     client: httpx.Client, base_url: str, api_key: str, model: str, texts: list[str]
 ) -> np.ndarray:
-    """One POST, one batch. Retries transient failures; a 402 or 401 is not transient, and a
-    context overflow is deterministic -- it comes back as a ContextOverflow the caller bisects."""
+    """One POST, one batch. Transient failures retry with backoff; a per-minute rate window is
+    rode out with a full-window sleep, because a free endpoint's 20 requests/minute is not an
+    error, it is the speed of that road. A 402/401 fails loudly, and a daily-cap refusal raises
+    DailyCapReached -- deterministic until tomorrow, so the caller stops instead of hammering."""
     last_error: Exception | None = None
-    for attempt in range(4):
+    for attempt in range(6):
         try:
             response = client.post(
                 f"{base_url.rstrip('/')}/embeddings",
@@ -286,6 +293,18 @@ def _api_encode_batch(
                     f"the embedding endpoint refused the request ({response.status_code}): "
                     f"{response.json().get('error', {}).get('message', 'unauthorized')}"
                 )
+            if response.status_code == 429:
+                message = str(response.json())
+                if "per-day" in message or "daily" in message.lower():
+                    raise DailyCapReached(
+                        "the endpoint's daily free quota is spent; the watermark is saved -- "
+                        "resume tomorrow"
+                    )
+                last_error = httpx.HTTPStatusError(
+                    message, request=response.request, response=response
+                )
+                time.sleep(65)
+                continue
             if response.status_code == 500:
                 message = str(response.json())
                 if "context" in message.lower():
@@ -296,7 +315,7 @@ def _api_encode_batch(
             )
             norms = np.linalg.norm(vectors, axis=1, keepdims=True)
             return vectors / np.where(norms == 0, 1.0, norms)
-        except (RuntimeError, ContextOverflow):
+        except (RuntimeError, ContextOverflow, DailyCapReached):
             raise
         except (httpx.TransportError, httpx.HTTPStatusError) as error:
             last_error = error
@@ -471,22 +490,36 @@ def build_api(
             embed_range(client, start_row, end_row - start_row)
             return end_row
 
-        checkpoint_at = API_BATCH * 25
+        # Checkpoint every 25 completed batches by COUNT, not by row arithmetic: batch sizes are
+        # character-budgeted and uneven, and a modulo-on-rows condition can step over its own
+        # window forever, which silently disables the watermark -- discovered the hard way.
+        cap_error = None
+        completed = 0
         with ThreadPoolExecutor(max_workers=API_CONCURRENCY) as pool:
-            for position, end_row in enumerate(pool.map(worker, todo)):
-                written = end_row
-                if on_progress is not None:
-                    on_progress(written, len(ids))
-                rows_since_checkpoint = written - done_at
-                if rows_since_checkpoint >= checkpoint_at and (
-                    len(ids) - written >= checkpoint_at or written == len(ids)
-                ):
-                    matrix.flush()
-                    progress_path.write_text(
-                        json.dumps({"model": model, "count": len(ids), "done": written}),
-                        encoding="utf-8",
-                    )
-                    done_at = written
+            try:
+                for position, end_row in enumerate(pool.map(worker, todo)):
+                    written = end_row
+                    completed += 1
+                    if on_progress is not None:
+                        on_progress(written, len(ids))
+                    if completed % 25 == 0 or written == len(ids):
+                        matrix.flush()
+                        progress_path.write_text(
+                            json.dumps({"model": model, "count": len(ids), "done": written}),
+                            encoding="utf-8",
+                        )
+                        done_at = written
+            except DailyCapReached as error:
+                # The day's free quota is spent: save the watermark, stop cleanly. The in-order
+                # iteration guarantees every range before the failure is already written.
+                matrix.flush()
+                progress_path.write_text(
+                    json.dumps({"model": model, "count": len(ids), "done": written}),
+                    encoding="utf-8",
+                )
+                cap_error = error
+    if cap_error is not None:
+        raise RuntimeError(f"paused at row {written:,}: {cap_error}")
 
     matrix.flush()
     store.finalize(ids, model)

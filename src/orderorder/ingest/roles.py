@@ -177,6 +177,9 @@ ANALYSIS_CUES = re.compile(
       | a\s+(?:careful\s+|close\s+|plain\s+)?(?:perusal|reading)\s+of
       | from\s+a\s+(?:careful\s+|perusal|conjunctive\s+reading)
       | (?:this\s+court|we)\s+(?:has\s+|have\s+)?(?:had\s+occasion|examined|considered)\s+(?:the\s+)?(?:question|issue|contention)
+      | before\s+(?:proceeding\s+to\s+consider|dealing\s+with)\s+the\s+(?:respective\s+)?contentions
+      | before\s+we\s+proceed\s+(?:further\s+)?to\s+consider
+      | we\s+may\s+(?:first\s+)?notice\s+that
     )
     """
 )
@@ -211,6 +214,8 @@ PRECEDENT_RELIED_CUES = re.compile(
       | follows\s+from
       | binding\s+(?:on|precedent)
       | it\s+is\s+settled\s+by
+      | (?:these|the\s+said)\s+(?:aspects|principles|propositions)\s+\w+\s+\n?\s+(?:highlighted|laid|settled|reiterated|noticed)\s+in
+      | (?:highlighted|reiterated|noticed|observed)\s+by\s+this\s+court\s+in
     )
     """
 )

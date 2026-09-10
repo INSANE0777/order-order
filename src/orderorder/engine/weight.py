@@ -111,6 +111,21 @@ def find_disposition(paragraphs: list[SegParagraph]) -> SegParagraph | None:
     return None
 
 
+def _headnote_corroborates(body: str, digest: dict) -> bool:
+    """Does the digest's holdings text closely overlap this passage? A token-set check on the
+    headnote plus holding snippets -- fuzzy, which is why a match corroborates but an absence
+    never contradicts."""
+    from rapidfuzz import fuzz, utils
+
+    holdings_text = " ".join(
+        [digest.get("headnote", "") or ""]
+        + [h.get("text", "") for h in (digest.get("holdings") or [])]
+    )
+    if len(holdings_text) < 80 or len(body) < 80:
+        return False
+    return fuzz.token_set_ratio(body[:1200], holdings_text, processor=utils.default_process) >= 75
+
+
 def classify_weight(
     candidate: Candidate,
     claim: str,
@@ -118,8 +133,15 @@ def classify_weight(
     voice: VoiceVerdict | None = None,
     disposition: SegParagraph | None = None,
     model: StructuredModel | None = None,
+    digest: dict | None = None,
 ) -> WeightVerdict:
-    """Classify the relied-on paragraph as ratio, obiter or unclear."""
+    """Classify the relied-on paragraph as ratio, obiter or unclear.
+
+    `digest` is the judgment's cached digest (ingest digest): its headnote is the publisher's own
+    answer to whether a passage carried the decision, so when the rule path cannot tell and the
+    headnote's holdings closely match the passage, that corroboration decides -- recorded as its
+    own method, never silently blended into a rule or model answer.
+    """
     # Ratio and obiter are both things a court holds. Counsel's argument is neither, and answering the
     # question at all would imply the passage was the court speaking when it was not.
     if voice is not None and not (voice.is_the_court or voice.is_dissent):
@@ -146,6 +168,16 @@ def classify_weight(
         )
 
     if model is None:
+        # The headnote corroboration: the publisher's holdings matching this passage is evidence a
+        # rule can read, and it is exactly the evidence the digest stage was built to supply.
+        if digest is not None and _headnote_corroborates(candidate.body, digest):
+            return WeightVerdict(
+                label="ratio",
+                method="digest",
+                confidence=0.7,
+                reason="the judgment's headnote states a holding that matches this passage, so it "
+                "was part of what the court decided",
+            )
         return WeightVerdict(
             label="unclear",
             method="not_assessed",
