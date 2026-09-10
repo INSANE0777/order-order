@@ -2494,7 +2494,6 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
-    { name = "chromadb" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "langchain" },
@@ -2526,6 +2525,11 @@ dependencies = [
     { name = "uvicorn", extra = ["standard"] },
 ]
 
+[package.optional-dependencies]
+chroma = [
+    { name = "chromadb" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
@@ -2535,7 +2539,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.19.1" },
-    { name = "chromadb", specifier = ">=1.5.9" },
+    { name = "chromadb", marker = "extra == 'chroma'", specifier = ">=1.5.9" },
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "langchain", specifier = ">=1.4.0" },
@@ -2566,6 +2570,7 @@ requires-dist = [
     { name = "typer", specifier = ">=0.27.2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.4" },
 ]
+provides-extras = ["chroma"]
 
 [package.metadata.requires-dev]
 dev = [

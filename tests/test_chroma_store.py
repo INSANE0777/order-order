@@ -13,6 +13,9 @@ import pytest
 
 from orderorder.engine import chroma_store, embeddings
 
+# chromadb lives behind the optional `chroma` extra; without it these tests have nothing to run.
+pytest.importorskip("chromadb", reason="the chroma extra is not installed")
+
 
 @pytest.fixture
 def tiny_store(tmp_path):

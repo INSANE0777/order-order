@@ -7,7 +7,6 @@ requires-python = ">=3.12"
 license = { text = "Proprietary" }
 dependencies = [
     "alembic>=1.19.1",
-    "chromadb>=1.5.9",
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
     "langchain>=1.4.0",
@@ -38,6 +37,15 @@ dependencies = [
     "typer>=0.27.2",
     "uvicorn[standard]>=0.52.4",
 ]
+
+# The Chroma vector store is an optional backend: ranking reads the memmap, and chromadb is only
+# needed by `orderorder chroma-import` / `chroma-search`. It is an extra rather than a dependency
+# because 1.5.9 -- the newest release -- carries five open PYSEC advisories (2026-311, -3813,
+# -3814, -3815) with no fixed version published yet, and the audit job correctly fails the build
+# on locked production dependencies. Install it explicitly when you want the database:
+#   uv sync --extra chroma
+[project.optional-dependencies]
+chroma = ["chromadb>=1.5.9"]
 
 [project.scripts]
 orderorder = "orderorder.cli:app"
