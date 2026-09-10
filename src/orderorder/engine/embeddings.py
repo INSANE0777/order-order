@@ -243,6 +243,11 @@ API_BATCH = 64
 # slots just queue at the server while holding their own buffers.
 API_CONCURRENCY = 4
 API_TIMEOUT = 120.0
+# Batches are cut by character budget, not by count: 64 analysis paragraphs run ~45,000 tokens,
+# and a request whose total exceeds what the slots can grind inside the client timeout dies
+# exactly the way the first full run did. ~80,000 characters is ~20,000 tokens, which the four
+# slots process in about ten seconds at the measured ~500 tokens/s/slot.
+MAX_BATCH_CHARS = 80_000
 # Above this many characters a paragraph cannot fit the endpoint's context anyway (100k chars ≈
 # 25k tokens against a 32k server context), and asking for it hangs the server for minutes. The
 # corpus's longest such block is 197,166 characters; there are ~37 over the line.
@@ -420,6 +425,20 @@ def build_api(
         store.vectors_path, mode="w+", dtype=np.float16, shape=(len(ids), probe.shape[1])
     )
 
+    # Batches cut by character budget: a run of short paragraphs packs 64; a run of analysis
+    # blocks packs three. Every request stays inside what the slots can finish well before the
+    # client timeout, which is what the first full run learned the hard way.
+    batches: list[tuple[int, int]] = []
+    start = done_at
+    while start < len(ids):
+        chars = 0
+        end = start
+        while end < len(ids) and (end == start or chars < MAX_BATCH_CHARS):
+            chars += len(rows[end][1])
+            end += 1
+        batches.append((start, end))
+        start = end
+
     def embed_range(client: httpx.Client, start: int, n: int) -> int:
         """Embed rows [start, start+n) straight into the matrix; returns how many were skipped.
 
@@ -444,12 +463,13 @@ def build_api(
         return 0
 
     with httpx.Client(timeout=API_TIMEOUT) as client:
-        todo = [start for start in range(done_at, len(ids), API_BATCH)]
+        todo = [(s0, s1) for s0, s1 in batches if s0 >= done_at]
 
-        def worker(start: int) -> int:
+        def worker(bounds: tuple[int, int]) -> int:
             # Absolute end row: the watermark must mean the same thing across resumes.
-            skips = embed_range(client, start, min(API_BATCH, len(ids) - start))
-            return min(start + API_BATCH, len(ids))
+            start_row, end_row = bounds
+            embed_range(client, start_row, end_row - start_row)
+            return end_row
 
         checkpoint_at = API_BATCH * 25
         with ThreadPoolExecutor(max_workers=API_CONCURRENCY) as pool:
