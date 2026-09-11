@@ -17,6 +17,7 @@ runs whatever model produced the answer.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from orderorder.engine.challenge import Challenge, challenge
@@ -39,6 +40,22 @@ MIN_CONFIDENCE_FOR_SUPPORT = 0.35
 # rewrite; the constant is the slack.
 NARROWED_WORD_SLACK = 2.0
 NARROWED_WORD_FLOOR = 40
+
+# What makes a narrowing MATERIAL: it adds a restriction the claim did not carry, or it shifts the
+# modality of the assertion. The prompt asks the model for a narrowed rewrite as a field, and a
+# well-behaved model fills it with a natural restatement -- dropping only the attribution frame
+# ("The Supreme Court has held that ..." -> "The BCR scheme was an upgradation C scheme ...") --
+# which is not a narrowing at all. Measured on the September 2026 holdout: reading every offered
+# rewrite as a contradiction flagged 32 of 40 clean citations (80% false positives). A restatement
+# keeps full support; only the markers below -- a restriction added, or a modality shifted -- make
+# the contradiction reading stand.
+RESTRICTION_MARKER = re.compile(
+    r"""(?ix)\b(?: only | if | unless | where | provided | except
+        | to\s+the\s+extent | in\s+so\s+far\s+as | on\s+the\s+facts
+        | on\s+these\s+facts | in\s+the\s+facts\s+of | on\s+its\s+own\s+facts )\b"""
+)
+MUST_MODALITY = re.compile(r"(?ix)\b(?: must | shall | is\s+required | mandatory | has\s+to )\b")
+MAY_MODALITY = re.compile(r"(?ix)\b(?: may | might | could | discretionary | at\s+liberty )\b")
 
 
 @dataclass
@@ -135,12 +152,13 @@ def _check_narrowing(verdict: ScopeVerdict, assessment: ScopeAssessment) -> None
         )
         return
 
-    if assessment.support == "full":
+    if assessment.support == "full" and assessment.dropped_conditions:
         verdict.support = "partial"
         verdict.needs_review = True
         verdict.review_reason = (
-            "the model answered 'full' and then offered a narrower version of the claim, which it "
-            "would not do if the paragraph stated the claim as broadly; recorded as partial"
+            "the model listed conditions the brief drops ("
+            + "; ".join(assessment.dropped_conditions[:2])
+            + "), which it would not do if the paragraph stated the claim as broadly; recorded as partial"
         )
 
 

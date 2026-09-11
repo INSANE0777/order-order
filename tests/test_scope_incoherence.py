@@ -117,20 +117,31 @@ def test_the_limit_scales_with_the_claim(candidates) -> None:
 # --- full, and narrowed, at the same time -----------------------------------------------------------
 
 
-def test_full_support_offered_with_a_narrowing_is_recorded_as_partial(candidates) -> None:
-    """If the paragraph states the claim as broadly as the brief, there is nothing to narrow."""
+def test_full_support_with_a_bare_narrowing_stays_full(candidates) -> None:
+    """A rewrite that drops only the attribution frame is a restatement, not a contradiction.
+
+    Measured on the September 2026 holdout: reading every offered rewrite as a contradiction
+    flagged 32 of 40 clean citations (80% false positives) -- the model fills the rewrite field
+    routinely, so only an enumerated dropped-condition list downgrades."""
     rewrite = "A subsequent purchaser with prior knowledge is relevant to the adjudication"
     verdict = _assess(candidates, support="full", narrowed_proposition=rewrite)
+    assert verdict.support == "full"
+    assert verdict.is_supported
+    assert verdict.narrowed_proposition == rewrite
+    assert not verdict.needs_review
+
+
+def test_enumerated_dropped_conditions_still_downgrade(candidates) -> None:
+    """When the model names what the brief drops, that is evidence, and it downgrades."""
+    rewrite = "A subsequent purchaser with prior knowledge is relevant to the adjudication"
+    verdict = _assess(
+        candidates,
+        support="full",
+        narrowed_proposition=rewrite,
+        dropped_conditions=["holding a prior agreement to sell"],
+    )
     assert verdict.support == "partial"
     assert verdict.needs_review
-    assert "would not do if the paragraph stated the claim as broadly" in (verdict.review_reason or "")
-
-
-def test_the_narrowing_survives_the_downgrade(candidates) -> None:
-    """The advocate needs the narrower sentence, which is the whole value of catching this."""
-    rewrite = "A subsequent purchaser with prior knowledge is relevant to the adjudication"
-    verdict = _assess(candidates, support="full", narrowed_proposition=rewrite)
-    assert verdict.narrowed_proposition == rewrite
 
 
 def test_full_support_with_no_narrowing_is_left_alone(candidates) -> None:
