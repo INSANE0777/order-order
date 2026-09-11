@@ -795,6 +795,9 @@ def eval_search(
     dense: bool = typer.Option(
         False, "--dense", help="Fuse the vector ranking in too. Off because it measures worse."
     ),
+    role_boost: bool = typer.Option(
+        False, "--role-boost", help="Lift labelled holdings at near-ties. Measured trade: +6 fragment, -6 paraphrase with the static encoder; re-measure with a strong encoder."
+    ),
     queries: str | None = typer.Option(
         None, "--queries", help="A query set built earlier, such as one from `eval paraphrase`."
     ),
