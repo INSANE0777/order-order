@@ -1079,6 +1079,9 @@ a { color: var(--accent); text-underline-offset: 3px; }
   position: relative;
   margin-top: 64px;
   overflow: hidden;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
   background:
     radial-gradient(circle at 72% 78%, rgba(43, 52, 214, 0.42) 0%, transparent 48%),
     radial-gradient(circle at 26% 88%, rgba(23, 28, 130, 0.55) 0%, transparent 58%),
@@ -1185,7 +1188,7 @@ a { color: var(--accent); text-underline-offset: 3px; }
   color: var(--muted);
 }
 .footer-mark { width: 56px; height: 56px; }
-.footer-spacer { position: relative; z-index: 5; min-height: 240px; }
+.footer-spacer { position: relative; z-index: 5; flex: 1; min-height: 260px; }
 
 @media (max-width: 850px) {
   .footer-card { clip-path: none; -webkit-clip-path: none; }
