@@ -1073,24 +1073,135 @@ li.bind:last-child { border-bottom: 0; }
 .attack span { color: var(--muted); font-size: 12.75px; }
 a { color: var(--accent); text-underline-offset: 3px; }
 
-/* ---------- footer ---------- */
+/* ---------- footer: the cosmos ---------- */
 
-footer { margin-top: 48px; color: #f3ece5; }
-.steps { display: block; width: 100%; height: 64px; fill: #2b34d6; }
-.foot {
-  background: #2b34d6;
-  padding: 36px 40px 56px;
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
-  gap: 40px;
-  font-size: 13px;
-  line-height: 1.65;
+.footer-cosmos {
+  position: relative;
+  margin-top: 64px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 70% 80%, rgba(43, 52, 214, 0.30) 0%, transparent 50%),
+    radial-gradient(circle at 30% 90%, rgba(26, 33, 153, 0.34) 0%, transparent 60%),
+    radial-gradient(circle at 50% 50%, rgba(11, 14, 80, 0.42) 0%, transparent 70%),
+    var(--ink);
+  color: #f3ece5;
 }
-.foot p { margin: 0; opacity: .88; }
-.foot .foot-lead { font-family: var(--display); font-size: 22px; line-height: 1.25; opacity: 1; }
-.foot strong { font-weight: 600; }
-.foot em { font-style: italic; }
-@media (max-width: 760px) { .foot { grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 28px 22px 44px; } }
+#footer-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  mix-blend-mode: screen;
+  opacity: 0.75;
+  pointer-events: none;
+}
+.footer-clipdef { position: absolute; width: 0; height: 0; }
+.footer-card {
+  position: relative;
+  z-index: 10;
+  background: var(--bg);
+  color: var(--ink);
+  clip-path: url(#footer-clip);
+  -webkit-clip-path: url(#footer-clip);
+  padding: 52px 56px 40px;
+}
+@media (prefers-color-scheme: dark) {
+  .footer-card { background: var(--surface); border-bottom: 1px solid var(--line); }
+  .footer-cosmos { color: var(--ink); }
+}
+.footer-content {
+  max-width: 1040px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 44px;
+}
+.footer-topnav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.footer-brand { display: flex; align-items: center; gap: 10px; }
+.footer-brandname {
+  font-family: var(--display);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+.footer-brand .mark { width: 32px; height: 32px; }
+.footer-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(200px, 1fr));
+  gap: 40px;
+}
+.footer-col { min-width: 0; }
+.footer-coltitle {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 19px;
+  margin: 0 0 16px;
+}
+.footer-links {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+}
+.footer-links button, .footer-links a, .footer-links span {
+  font: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  color: var(--ink-2);
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: color .15s ease;
+}
+.footer-links span { cursor: default; }
+.footer-links button:hover, .footer-links a:hover { color: var(--accent); }
+.footer-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-top: 32px;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.footer-legal {
+  display: flex;
+  gap: 26px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.footer-ribbonwrap { display: flex; align-items: center; gap: 48px; }
+.footer-copy {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .12em;
+  color: var(--muted);
+}
+.footer-mark { width: 56px; height: 56px; }
+.footer-spacer { position: relative; z-index: 5; min-height: 180px; }
+
+@media (max-width: 850px) {
+  .footer-card { clip-path: none; -webkit-clip-path: none; padding: 36px 22px 28px; }
+  .footer-columns { grid-template-columns: 1fr; gap: 26px; }
+  .footer-bottom { flex-direction: column; align-items: flex-start; }
+  .footer-ribbonwrap { width: 100%; justify-content: space-between; gap: 20px; }
+  .footer-spacer { min-height: 120px; }
+}
 
 ::selection { background: var(--accent-soft); }
 

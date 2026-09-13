@@ -99,6 +99,24 @@ if (SURFACES.includes(location.hash.slice(1))) showTab(location.hash.slice(1), t
 // The URL is the surface, so the browser's back button and a hash typed by hand both count.
 addEventListener("hashchange", () => { if (SURFACES.includes(location.hash.slice(1))) showTab(location.hash.slice(1)); });
 
+// ---------- the footer links ----------
+// The footer's surface links are the same tabs by another door: they switch the surface and put the
+// reader back at the top, where the surface lives. The CTA is the whole product in one button:
+// check surface, brief focused, cursor waiting.
+const footerTo = (which) => {
+  showTab(which);
+  scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+};
+["check", "find", "draft"].forEach((name) => {
+  const b = $("footer-" + name);
+  if (b) b.onclick = () => footerTo(name);
+});
+if ($("footer-cta")) $("footer-cta").onclick = () => {
+  footerTo("check");
+  const brief = $("brief");
+  if (brief) brief.focus();
+};
+
 function showPanel(which) {
   for (const [tab, panel] of [["t-detail","detail"],["t-judgment","judgment"],["t-memo","memo"]]) {
     const on = panel === which;
