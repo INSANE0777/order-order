@@ -548,32 +548,11 @@ def create_app(
     # for a caller to traverse. There are only ever going to be three.
     @app.get("/app.css")
     def stylesheet() -> FileResponse:
-        # no-cache, not no-store: the browser revalidates every load and carries the 304 when the
-        # file has not moved -- which is what lets a changed stylesheet appear the moment it is
-        # changed, without ever serving a stale copy from the heuristic cache.
-        return FileResponse(STATIC / "app.css", media_type="text/css", headers={"Cache-Control": "no-cache"})
+        return FileResponse(STATIC / "app.css", media_type="text/css")
 
     @app.get("/app.js")
     def script() -> FileResponse:
-        return FileResponse(STATIC / "app.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"})
-
-    @app.get("/vendor/gsap.min.js")
-    def vendor_gsap() -> FileResponse:
-        """GSAP, self-hosted: the strict CSP has no CDN in it, so the library is served the same
-        way the app's own files are. It manipulates styles through the CSSOM, which style-src does
-        not govern, so the animations need no unsafe-inline anywhere."""
-        return FileResponse(STATIC / "vendor" / "gsap.min.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"})
-
-    @app.get("/vendor/ScrollTrigger.min.js")
-    def vendor_scrolltrigger() -> FileResponse:
-        return FileResponse(STATIC / "vendor" / "ScrollTrigger.min.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"})
-
-    @app.get("/landing.js")
-    def landing_script() -> FileResponse:
-        """The landing story: scroll reveals, count-ups and stamp staggers. Decorative, not load
-        bearing -- the page works with this file missing, which is what the reduced-motion fallback
-        and the test for the static exports both rely on."""
-        return FileResponse(STATIC / "landing.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"})
+        return FileResponse(STATIC / "app.js", media_type="text/javascript")
 
     @app.get("/fonts/{name}")
     def font(name: str) -> FileResponse:

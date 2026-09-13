@@ -137,80 +137,6 @@
         <div id="memo" hidden><p class="none">Choose a citation to read what the other side will say.</p></div>
       </div>
     </div>
-
-    <!-- ============ the story the landing tells ============ -->
-    <div class="story">
-
-      <section class="modes">
-        <div class="story-head">
-          <h2>Twelve ways a citation lies.</h2>
-          <p>Each of these is a real failure mode — invented cases, mis-typed citations, a dissent
-            quoted as the law. Each has a detector, and each detector’s catch rate is measured against a
-            planted holdout. The ones still waiting on a model say so rather than guess.</p>
-        </div>
-        <ol class="stamps">
-          <li class="stamp"><span class="stamp-no">01</span><h3>Phantom</h3><p>A case that does not exist, invented by a model or a memory.</p><span class="chip caught">100% caught</span></li>
-          <li class="stamp"><span class="stamp-no">02</span><h3>Mis-cite</h3><p>The right case behind the wrong citation string.</p><span class="chip caught">95% caught</span></li>
-          <li class="stamp"><span class="stamp-no">03</span><h3>Wrong court</h3><p>Attributed to a court that did not decide it.</p><span class="chip caught">100% caught</span></li>
-          <li class="stamp"><span class="stamp-no">04</span><h3>Not there</h3><p>The paragraph does not contain the proposition.</p><span class="chip caught">85% caught</span></li>
-          <li class="stamp"><span class="stamp-no">05</span><h3>Wrong voice</h3><p>Counsel’s submission offered as the court’s holding.</p><span class="chip caught">96% caught</span></li>
-          <li class="stamp"><span class="stamp-no">06</span><h3>Dissent as majority</h3><p>The losing judgment cited as the law.</p><span class="chip model">model-checked</span></li>
-          <li class="stamp"><span class="stamp-no">07</span><h3>Obiter as ratio</h3><p>A remark on the side offered as the holding.</p><span class="chip caught">100% caught</span></li>
-          <li class="stamp"><span class="stamp-no">08</span><h3>Dropped condition</h3><p>“Only where”, quietly becoming “where”.</p><span class="chip model">model-checked</span></li>
-          <li class="stamp"><span class="stamp-no">09</span><h3>Selective quotation</h3><p>A quote cut short of its proviso.</p><span class="chip caught">100% caught</span></li>
-          <li class="stamp"><span class="stamp-no">10</span><h3>Dead law</h3><p>Overruled, and cited as good.</p><span class="chip caught">100% caught</span></li>
-          <li class="stamp"><span class="stamp-no">11</span><h3>Wrong facts</h3><p>A case that does not govern this fact pattern.</p><span class="chip model">model-checked</span></li>
-          <li class="stamp"><span class="stamp-no">12</span><h3>Wrong pinpoint</h3><p>The paragraph number, off by a few.</p><span class="chip caught">100% caught</span></li>
-        </ol>
-      </section>
-
-      <section class="numbers">
-        <div class="story-head">
-          <h2>The corpus, in numbers.</h2>
-          <p>Every judgment of the Supreme Court of India since 1950, indexed paragraph by
-            paragraph — on the record, not in a model’s memory.</p>
-        </div>
-        <div class="figures">
-          <div class="figure"><span class="numeral" data-count="38032">38,032</span><span class="figure-label">judgments, 1950–2025</span></div>
-          <div class="figure"><span class="numeral" data-count="707647">707,647</span><span class="figure-label">paragraphs, full-text indexed</span></div>
-          <div class="figure"><span class="numeral" data-count="79508">79,508</span><span class="figure-label">citation aliases</span></div>
-          <div class="figure"><span class="numeral" data-count="64828">64,828</span><span class="figure-label">citator edges</span></div>
-        </div>
-      </section>
-
-      <section class="quote-none">
-        <div class="story-head">
-          <h2>Quote or nothing.</h2>
-          <p>A citation is never “probably fine”. It comes back in one of three states, and the
-            engine refuses to collapse them into each other.</p>
-        </div>
-        <div class="states">
-          <div class="state supported"><h3>Supported</h3><p>The paragraph contains the proposition, in the
-            court’s own words, verified against the stored text.</p></div>
-          <div class="state unsupported"><h3>Checked, and not supported</h3><p>The judgment was read and the
-            paragraph does not carry the claim. No softening of the verdict.</p></div>
-          <div class="state unchecked"><h3>Not checked</h3><p>No model configured, a provider down, a
-            retrieval miss — reported as what it is, never disguised as either of the others.</p></div>
-        </div>
-      </section>
-
-      <section class="measured">
-        <div class="story-head">
-          <h2>Measured, not asserted.</h2>
-          <p>Recall against a planted holdout on the full corpus — every number reproducible with
-            <em>orderorder eval run</em>.</p>
-        </div>
-        <div class="bars">
-          <div class="bar"><span class="bar-label">phantom</span><span class="bar-track"><i class="bar-fill w100"></i></span><span class="bar-value">100%</span></div>
-          <div class="bar"><span class="bar-label">wrong court</span><span class="bar-track"><i class="bar-fill w100"></i></span><span class="bar-value">100%</span></div>
-          <div class="bar"><span class="bar-label">dead law</span><span class="bar-track"><i class="bar-fill w100"></i></span><span class="bar-value">100%</span></div>
-          <div class="bar"><span class="bar-label">pinpoint</span><span class="bar-track"><i class="bar-fill w100"></i></span><span class="bar-value">100%</span></div>
-          <div class="bar"><span class="bar-label">voice</span><span class="bar-track"><i class="bar-fill w96"></i></span><span class="bar-value">96%</span></div>
-          <div class="bar"><span class="bar-label">mis-cite</span><span class="bar-track"><i class="bar-fill w95"></i></span><span class="bar-value">95%</span></div>
-          <div class="bar"><span class="bar-label">not there</span><span class="bar-track"><i class="bar-fill w85"></i></span><span class="bar-value">85%</span></div>
-        </div>
-      </section>
-    </div>
   </section>
 
   <!-- ============ find an authority ============ -->
@@ -323,64 +249,20 @@
   </section>
 </main>
 
-<footer class="footer-cosmos">
-  <canvas id="footer-canvas" aria-hidden="true"></canvas>
-
-
-  <div class="footer-content">
-      <div class="footer-columns">
-        <div class="footer-col">
-          <h3 class="footer-coltitle"><svg class="footer-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M1.5 12.5h3.4v3H1.5zM5.6 7.5H9v8H5.6zM9.7 2h3.4v13.5H9.7z"/></svg>Surfaces</h3>
-          <ul class="footer-links">
-            <li><button id="footer-check">Check a brief</button></li>
-            <li><button id="footer-find">Find an authority</button></li>
-            <li><button id="footer-draft">Draft a submission</button></li>
-          </ul>
-        </div>
-
-        <div class="footer-col">
-          <h3 class="footer-coltitle"><svg class="footer-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 1.2 9.5 5l4 .3-3.1 2.6 1 3.9L8 9.9l-3.4 1.9 1-3.9L2.5 5.3l4-.3z"/></svg>The engine</h3>
-          <ul class="footer-links">
-            <li><a href="/api/health" target="_blank" rel="noreferrer">Health check <span aria-hidden="true">↗</span></a></li>
-            <li><a href="/api/search?q=misrepresentation%20induced%20the%20contract" target="_blank" rel="noreferrer">Search API <span aria-hidden="true">↗</span></a></li>
-            <li><span>Twelve failure modes, measured</span></li>
-            <li><span>Quote or nothing</span></li>
-          </ul>
-        </div>
-
-        <div class="footer-col">
-          <h3 class="footer-coltitle"><svg class="footer-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3 1.5h7.2l2.8 2.8V14.5H3zM9.6 2.4v2.4H12z"/></svg>The corpus</h3>
-          <ul class="footer-links">
-            <li><span>38,032 judgments · 1950–2025</span></li>
-            <li><span>Indian Supreme Court Judgments dataset, AWS Open Data, CC-BY-4.0</span></li>
-            <li><span>Lookups powered by IKanoon where indicated</span></li>
-            <li><span>A research aid — the advocate remains responsible for every citation filed</span></li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="footer-bottom">
-        <div class="footer-legal">
-          <span>Citation integrity</span>
-          <span>Quote or nothing</span>
-          <span>Measured, not asserted</span>
-        </div>
-        <div class="footer-ribbonwrap">
-          <span class="footer-copy">© 2026 ORDERORDER</span>
-          <svg class="mark footer-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-            <rect class="mark-bg" width="32" height="32" rx="8"/>
-            <g class="s s1"><path class="front" d="M5 21h6v6H5z"/><path class="top" d="M5 21h6l4-4H9z"/><path class="side" d="M11 21l4-4v6l-4 4z"/></g>
-            <g class="s s2"><path class="front" d="M11 16h6v11h-6z"/><path class="top" d="M11 16h6l4-4h-6z"/><path class="side" d="M17 16l4-4v11l-4 4z"/></g>
-            <g class="s s3"><path class="front" d="M17 11h6v16h-6z"/><path class="top" d="M17 11h6l4-4h-6z"/><path class="side" d="M23 11l4-4v16l-4 4z"/></g>
-          </svg>
-        </div>
-      </div>
+<footer>
+  <svg class="steps" viewBox="0 0 1200 64" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+    <path d="M0 64 V44 H160 V30 H340 V16 H520 V44 H720 V24 H900 V8 H1080 V36 H1200 V64 Z"/>
+  </svg>
+  <div class="foot">
+    <p class="foot-lead"><strong>OrderOrder is a research aid.</strong> The advocate remains responsible for every citation filed.</p>
+    <p>Every claim it makes is one of three things and never collapses them: <em>supported</em>,
+      <em>checked and not supported</em>, or <em>not checked</em>. A missing model key, a provider outage or a
+      retrieval miss produces the third.</p>
+    <p>Judgment data from the Indian Supreme Court Judgments dataset on AWS Open Data, CC-BY-4.0.
+      Lookups powered by IKanoon where indicated.</p>
   </div>
 </footer>
 
-<script src="/vendor/gsap.min.js"></script>
-<script src="/vendor/ScrollTrigger.min.js"></script>
-<script src="/landing.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
