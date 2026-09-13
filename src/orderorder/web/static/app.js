@@ -55,8 +55,8 @@ function decided(iso) {
 })();
 
 // ---------- surfaces ----------
-const SURFACES = ["ask", "check", "find", "draft"];
-let surface = "ask", swapping = 0;
+const SURFACES = ["check", "find", "draft"];
+let surface = "check", swapping = 0;
 
 // Changing surface is a crossfade, not a cut. The words on the block that is leaving go first; then
 // the sections swap, and the new block starts in the old block's colour and turns into its own. Three
@@ -92,7 +92,6 @@ function showTab(which, instant) {
   document.body.dataset.leaving = "1";
   swapping = setTimeout(swap, 160);
 }
-$("tab-ask").onclick = () => showTab("ask");
 $("tab-check").onclick = () => showTab("check");
 $("tab-find").onclick = () => showTab("find");
 $("tab-draft").onclick = () => showTab("draft");
@@ -583,155 +582,3 @@ const DEMO = `WRITTEN SUBMISSIONS ON BEHALF OF THE APPELLANT
 5. The doctrine of delay and laches cannot be applied stricto senso to writ petitions invoking public interest jurisdiction, as this Court held in 2024 INSC 1027, para 17.
 
 6. A Constitution Bench of this Court has settled that the plaintiff cannot be compelled to implead a stranger to the contract: 2019 INSC 770, para 7.`;
-
-// ---------- ask the agent ----------
-//
-// The one surface where the model chooses what happens. Everything it can reach is a check the other
-// three surfaces already run, so the interesting thing to show is not the answer but which checks it
-// chose: the trail lights as each is called, and the line under the answer says what ran when it is
-// over. An answer with nothing lit came out of the model's memory, which the prompt forbids, and a
-// reader should be able to see that without being handed a log.
-
-let askRun = null, askStream = null, askText = "", askPaint = 0;
-
-const ASK_EXAMPLE =
-  "Is (2019) 4 SCC 118 still good law, and is there anything in the corpus against the proposition " +
-  "that a misrepresentation vitiates consent only where it induced the contract?";
-
-$("ask-demo").onclick = () => { $("question").value = ASK_EXAMPLE; $("question").focus(); };
-$("ask").onclick = startAsk;
-// Enter sends; newlines need a modifier. A question is one or two sentences, unlike the brief.
-$("question").addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey && !e.altKey) { e.preventDefault(); startAsk(); }
-});
-
-async function startAsk() {
-  const question = $("question").value.trim();
-  if (!question) { $("aprog").textContent = "ask something first"; return; }
-  if (askStream) { askStream.close(); askStream = null; }
-
-  askText = "";
-  $("ask").disabled = true;
-  $("aprog").textContent = "thinking…";
-  $("achecks").textContent = "";
-  $("amodel").hidden = true;
-  for (const li of document.querySelectorAll("#trail li")) li.classList.remove("on");
-  $("answer").innerHTML = '<div class="prose"></div>';
-  $("answer").classList.add("writing");
-
-  let started;
-  try {
-    const response = await fetch("/api/agent/runs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question }),
-    });
-    started = await response.json();
-    // 503 is the useful one: nothing is broken, no model is configured, and the detail says which
-    // variable to set. Showing the server's own sentence beats inventing a friendlier one.
-    if (!response.ok) throw new Error(started.detail || `the server answered ${response.status}`);
-  } catch (e) {
-    failAsk(e.message);
-    return;
-  }
-
-  askRun = started.run;
-  if (started.model && started.model.model) {
-    $("amodel").textContent = `${started.model.model} · via ${started.model.via}`;
-    $("amodel").hidden = false;
-  }
-  listenAsk(askRun);
-}
-
-function listenAsk(id) {
-  const stream = new EventSource(`/api/agent/runs/${id}/events`);
-  askStream = stream;
-
-  stream.addEventListener("tool", (e) => {
-    const d = JSON.parse(e.data);
-    const light = document.querySelector(`#trail li[data-tool="${d.name}"]`);
-    if (light) light.classList.add("on");
-    $("aprog").textContent = `${d.name.replace(/_/g, " ")}…`;
-    $("achecks").textContent = `${d.index} check${d.index === 1 ? "" : "s"} run`;
-  });
-
-  stream.addEventListener("text", (e) => {
-    askText += JSON.parse(e.data).text;
-    paintAnswer();
-  });
-
-  // `verify_brief` is minutes of silence, so the heartbeat is the only thing saying the run is alive.
-  stream.addEventListener("progress", (e) => {
-    const d = JSON.parse(e.data);
-    if (!d.characters && d.tools) $("aprog").textContent = "reading the corpus…";
-  });
-
-  stream.addEventListener("done", (e) => {
-    const d = JSON.parse(e.data);
-    stream.close();
-    askStream = null;
-    $("ask").disabled = false;
-    $("answer").classList.remove("writing");
-    $("aprog").textContent = "";
-
-    if (d.error) { failAsk(d.error); return; }
-    // The whole answer, in place of what was streamed: identical in the ordinary case, and right in
-    // the one where a delta was missed because the connection dropped and was re-established.
-    if (d.answer) { askText = d.answer; paintAnswer(); }
-    $("achecks").textContent = d.tools && d.tools.length
-      ? `${d.tools.length} check${d.tools.length === 1 ? "" : "s"} run · ${d.tools.join(" · ")}`
-      : "no check was run, so nothing in this answer was verified";
-  });
-
-  stream.onerror = () => {
-    // EventSource fires this on a normal close too, so only a stream still believed live is a fault.
-    if (askStream !== stream) return;
-    stream.close();
-    askStream = null;
-    $("ask").disabled = false;
-    $("answer").classList.remove("writing");
-    $("aprog").textContent = "the connection dropped; the run may still be going";
-  };
-}
-
-function failAsk(message) {
-  $("ask").disabled = false;
-  $("answer").classList.remove("writing");
-  $("answer").innerHTML = `<p class="none">${escape(message)}</p>`;
-  $("aprog").textContent = "";
-}
-
-// Repainting on every token is repainting sixty times a second for nothing; one frame is enough, and
-// the text is re-rendered whole rather than appended because a bold run or a list can arrive split
-// across two deltas and half a marker is not markup.
-function paintAnswer() {
-  if (askPaint) return;
-  askPaint = requestAnimationFrame(() => {
-    askPaint = 0;
-    const box = $("answer").querySelector(".prose");
-    if (box) box.innerHTML = prose(askText);
-  });
-}
-
-// The small part of Markdown the agent actually uses. Escaped first and formatted second, so nothing
-// the model emits -- or quotes out of a judgment -- can become markup.
-function prose(text) {
-  return escape(text).split(/\n{2,}/).map(block => {
-    const t = block.trim();
-    if (!t) return "";
-    if (/^#{1,6}\s/.test(t)) return `<h4>${inline(t.replace(/^#{1,6}\s*/, ""))}</h4>`;
-    const lines = t.split("\n");
-    if (lines.every(l => /^\s*([-*]|\d+\.)\s+/.test(l))) {
-      const items = lines.map(l => `<li>${inline(l.replace(/^\s*([-*]|\d+\.)\s+/, ""))}</li>`).join("");
-      return /^\s*\d+\./.test(lines[0]) ? `<ol>${items}</ol>` : `<ul>${items}</ul>`;
-    }
-    return `<p>${inline(t).replace(/\n/g, "<br>")}</p>`;
-  }).join("");
-}
-
-function inline(s) {
-  return s
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s.,;:)]|$)/g, "$1<em>$2</em>");
-}
