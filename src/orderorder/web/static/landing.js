@@ -117,7 +117,7 @@
     };
   });
   var stars = Array.from({ length: 90 }, function () {
-    return { x: Math.random() * width, y: Math.random() * height, size: Math.random() * 1.7, alpha: Math.random() };
+    return { x: Math.random() * width, y: Math.random() * height, size: Math.random() * 1.9 + 0.6, alpha: Math.random() };
   });
 
   function frame() {
@@ -138,10 +138,16 @@
       ctx.fill();
     });
     stars.forEach(function (s) {
-      s.alpha += (Math.random() - 0.5) * 0.02;
-      if (s.alpha < 0.1) s.alpha = 0.1;
-      if (s.alpha > 0.6) s.alpha = 0.6;
-      ctx.fillStyle = "rgba(243, 236, 229, " + s.alpha * 0.55 + ")";
+      s.alpha += (Math.random() - 0.5) * 0.05;
+      if (s.alpha < 0.2) s.alpha = 0.2;
+      if (s.alpha > 0.95) s.alpha = 0.95;
+      // the halo: a wide, faint breath around the core is what reads as a glow at a distance
+      ctx.fillStyle = "rgba(214, 222, 255, " + s.alpha * 0.16 + ")";
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.size * 3, 0, Math.PI * 2);
+      ctx.fill();
+      // and the core, bright, cream
+      ctx.fillStyle = "rgba(243, 236, 229, " + s.alpha * 0.95 + ")";
       ctx.beginPath();
       ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
       ctx.fill();

@@ -326,8 +326,6 @@
 <footer class="footer-cosmos">
   <canvas id="footer-canvas" aria-hidden="true"></canvas>
 
-  <!-- The clip that cuts the tab out of the card's bottom edge; a def in the page, referenced by
-       the stylesheet, so the shape survives without a single style attribute. -->
   <svg class="footer-clipdef" aria-hidden="true" focusable="false">
     <defs>
       <clipPath id="footer-clip" clipPathUnits="objectBoundingBox">
@@ -341,22 +339,9 @@
 
   <div class="footer-card">
     <div class="footer-content">
-      <div class="footer-topnav">
-        <div class="footer-brand">
-          <svg class="mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-            <rect class="mark-bg" width="32" height="32" rx="8"/>
-            <g class="s s1"><path class="front" d="M5 21h6v6H5z"/><path class="top" d="M5 21h6l4-4H9z"/><path class="side" d="M11 21l4-4v6l-4 4z"/></g>
-            <g class="s s2"><path class="front" d="M11 16h6v11h-6z"/><path class="top" d="M11 16h6l4-4h-6z"/><path class="side" d="M17 16l4-4v11l-4 4z"/></g>
-            <g class="s s3"><path class="front" d="M17 11h6v16h-6z"/><path class="top" d="M17 11h6l4-4h-6z"/><path class="side" d="M23 11l4-4v16l-4 4z"/></g>
-          </svg>
-          <span class="footer-brandname">OrderOrder</span>
-        </div>
-        <button id="footer-cta" class="primary">Check a brief</button>
-      </div>
-
       <div class="footer-columns">
         <div class="footer-col">
-          <h3 class="footer-coltitle">Surfaces</h3>
+          <h3 class="footer-coltitle"><svg class="footer-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M1.5 12.5h3.4v3H1.5zM5.6 7.5H9v8H5.6zM9.7 2h3.4v13.5H9.7z"/></svg>Surfaces</h3>
           <ul class="footer-links">
             <li><button id="footer-check">Check a brief</button></li>
             <li><button id="footer-find">Find an authority</button></li>
@@ -365,7 +350,7 @@
         </div>
 
         <div class="footer-col">
-          <h3 class="footer-coltitle">The engine</h3>
+          <h3 class="footer-coltitle"><svg class="footer-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 1.2 9.5 5l4 .3-3.1 2.6 1 3.9L8 9.9l-3.4 1.9 1-3.9L2.5 5.3l4-.3z"/></svg>The engine</h3>
           <ul class="footer-links">
             <li><a href="/api/health" target="_blank" rel="noreferrer">Health check <span aria-hidden="true">↗</span></a></li>
             <li><a href="/api/search?q=misrepresentation%20induced%20the%20contract" target="_blank" rel="noreferrer">Search API <span aria-hidden="true">↗</span></a></li>
@@ -375,7 +360,7 @@
         </div>
 
         <div class="footer-col">
-          <h3 class="footer-coltitle">The corpus</h3>
+          <h3 class="footer-coltitle"><svg class="footer-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3 1.5h7.2l2.8 2.8V14.5H3zM9.6 2.4v2.4H12z"/></svg>The corpus</h3>
           <ul class="footer-links">
             <li><span>38,032 judgments · 1950–2025</span></li>
             <li><span>Indian Supreme Court Judgments dataset, AWS Open Data, CC-BY-4.0</span></li>
