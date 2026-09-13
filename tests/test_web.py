@@ -66,7 +66,7 @@ def _check(client, **kwargs) -> dict:
 def test_the_page_is_served(client) -> None:
     page = client.get("/")
     assert page.status_code == 200
-    assert "OrderOrder" in page.text
+    assert "Ruchi" in page.text
 
 
 def test_the_status_line_says_what_is_held(client) -> None:

@@ -1,4 +1,4 @@
-# OrderOrder — System Architecture
+# Ruchi — System Architecture
 
 | | |
 |---|---|
@@ -6,7 +6,7 @@
 | **Date** | 9 September 2026 (first written 4 September) |
 | **Companion documents** | [PRD.md](PRD.md) · [TECH_STACK.md](TECH_STACK.md) · [ROADMAP.md](ROADMAP.md) · [DEPLOYMENT.md](DEPLOYMENT.md) |
 
-This document specifies how OrderOrder is built: the ingestion pipeline and knowledge base, the verification engine that checks one citation at a time, the drafting engine that reuses it, the retrieval hierarchy, the data model, the verdict schema, deployment, and the evaluation harness. Diagram numbers are referenced from the other documents.
+This document specifies how Ruchi is built: the ingestion pipeline and knowledge base, the verification engine that checks one citation at a time, the drafting engine that reuses it, the retrieval hierarchy, the data model, the verdict schema, deployment, and the evaluation harness. Diagram numbers are referenced from the other documents.
 
 **How to read it against the code.** Most of this specification is now built and measured; §11.4 is the
 measurement and it is the section to trust when the two disagree. Where a component was specified and
@@ -26,7 +26,7 @@ is ready, what will stop you, and the security posture item by item.
 | Closed world | Prompts contain only retrieved paragraphs and digests. The resolver, not the model, decides which judgment a citation refers to. Prompts require the answer `not_found` when the supplied text does not contain the claim. |
 | Three verdicts | Existence, location and support are separate pipeline stages with separate typed results and separate gold labels. |
 | Adversarial | The memo prompt is written as opposing counsel's instructions; the grading rubric rewards weaknesses found. |
-| Lawyer decides | No stage has side effects outside OrderOrder's own store; every export carries the disclaimer and the model version. |
+| Lawyer decides | No stage has side effects outside Ruchi's own store; every export carries the disclaimer and the model version. |
 | Auditable | Each verdict stores paragraph IDs, text version, quotes with offsets, source URL, retrieval trace, model and prompt version. |
 | Temperature is not safety | Sampling is configuration. Correctness comes from retrieval quality, string verification and schema-constrained decoding. |
 | Abstain | Every stage returns a typed result that includes `needs_review` with a reason code; the UI shows it as a first-class state. |
@@ -44,7 +44,7 @@ flowchart LR
         U2["Litigator / in-house counsel"]
     end
 
-    subgraph orderorder["OrderOrder (self-hosted)"]
+    subgraph orderorder["Ruchi (self-hosted)"]
         WEB["Web page<br/>one static document, served by the API"]
         API["API<br/>FastAPI"]
         AGT["Agent loop<br/>Strands Agents SDK<br/>eight tools, one per check"]

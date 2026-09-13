@@ -1,4 +1,4 @@
-# OrderOrder — Tech Stack
+# Ruchi — Tech Stack
 
 | | |
 |---|---|
@@ -65,7 +65,7 @@ is in the last column and, at more length, in the section referenced.
 | LangChain, LangGraph, langgraph-checkpoint-postgres, langgraph-checkpoint-sqlite, langchain-groq, langchain-google-genai, langchain-cerebras, langchain-ollama, langchain-openai | MIT | Use — **installed** |
 | **strands-agents** (the agent layer), boto3/botocore (its Bedrock provider) | Apache-2.0 | Use — **installed** |
 | **LiteLLM** (the agent's non-Bedrock fallback, pulled by `strands-agents[litellm]`) | MIT | Use — **installed** |
-| **OrderOrder itself** | Apache-2.0 ([LICENSE](../LICENSE)) | The repository was unlicensed and `pyproject.toml` said `Proprietary`, which is not a licence and left everyone who could read the public repository with no right to do anything with it. Apache-2.0 rather than MIT for the express patent grant and the contribution terms, both of which matter more to a company built on this than the extra paragraphs cost |
+| **Ruchi itself** | Apache-2.0 ([LICENSE](../LICENSE)) | The repository was unlicensed and `pyproject.toml` said `Proprietary`, which is not a licence and left everyone who could read the public repository with no right to do anything with it. Apache-2.0 rather than MIT for the express patent grant and the contribution terms, both of which matter more to a company built on this than the extra paragraphs cost |
 | FastAPI, Pydantic, SQLAlchemy, Alembic, Typer, rich, rapidfuzz, pypdfium2, python-docx, model2vec, sentence-transformers, uvicorn, httpx, tenacity | MIT / BSD / Apache-2.0 | Use — **installed** |
 | langchain-postgres, langchain-docling, langchain-huggingface, Docling, Next.js | MIT | Cleared, and **not installed**: the pieces they served are built otherwise (§2, §7, §8) |
 | PaddleOCR, PaddleOCR-VL weights, pgvector, TEI, Qwen3.5, Qwen3-Embedding, bge models, gpt-oss, OpenNyAI code and NER | Apache-2.0 (pgvector: PostgreSQL licence) | Use |

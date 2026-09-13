@@ -1,6 +1,6 @@
 WRITTEN SUBMISSIONS ON BEHALF OF THE APPELLANT
 
-(Demo brief for OrderOrder. Every citation points at a judgment held in the
+(Demo brief for Ruchi. Every citation points at a judgment held in the
 knowledge base. Six of the eight are wrong in a different way, and each way is a
 numbered failure mode from docs/PRD.md. The expected verdicts are recorded in
 demo/expected.md.)

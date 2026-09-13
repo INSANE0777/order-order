@@ -202,7 +202,7 @@ def create_app(
     # Here as well as in `serve`, because uvicorn can be pointed at the module-level app directly and
     # a deployment that did that would otherwise run silent. Calling it twice changes nothing.
     logs.configure()
-    app = FastAPI(title="OrderOrder", version=__version__, docs_url="/api/docs")
+    app = FastAPI(title="Ruchi", version=__version__, docs_url="/api/docs")
 
     limiter = limits.RateLimiter()
 

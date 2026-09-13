@@ -1,8 +1,8 @@
-# OrderOrder — Product Requirements Document
+# Ruchi — Product Requirements Document
 
 | | |
 |---|---|
-| **Product name** | OrderOrder (trademark and domain clearance outstanding, see §15.5) |
+| **Product name** | Ruchi (trademark and domain clearance outstanding, see §15.5) |
 | **Version** | 0.2 |
 | **Date** | 10 September 2026 (0.1 written 4 September) |
 | **Owners** | Developer (product, engineering, infrastructure); law-student co-founder (domain rules, evaluation data, users) |
@@ -20,7 +20,7 @@
 
 ## 1. Summary
 
-OrderOrder is a self-hosted citation-integrity engine for Indian case law. It reads a brief, moot-court memorial, written submission or research paper, finds every case-law citation, and answers three questions **separately** for each one:
+Ruchi is a self-hosted citation-integrity engine for Indian case law. It reads a brief, moot-court memorial, written submission or research paper, finds every case-law citation, and answers three questions **separately** for each one:
 
 1. **Does the case exist?** (and is the citation string correct)
 2. **Which paragraph is being relied on?** (pinpointed inside a judgment that may run to 300 pages)
@@ -123,7 +123,7 @@ These are not aspirations; each is testable and each maps to a mechanism in [ARC
 2. **Closed world.** The language model never recalls a case from memory. It only reads text that the retrieval layer pulled from the verified corpus. Citations it "remembers" are treated as unresolved until the resolver finds them.
 3. **Three verdicts, never one.** Existence, location and extent-of-support are reported separately. "The case exists" is never allowed to imply "the case says this".
 4. **Adversarial by default.** The output is written in the voice of opposing counsel. The product's job is to break the citation, not to reassure the author.
-5. **The lawyer decides.** OrderOrder produces memos, pinpoints and drafts. It files nothing, sends nothing, and states on every output that it is a research aid, not legal advice. This matches the human-verification requirement in the draft regulations.
+5. **The lawyer decides.** Ruchi produces memos, pinpoints and drafts. It files nothing, sends nothing, and states on every output that it is a research aid, not legal advice. This matches the human-verification requirement in the draft regulations.
 6. **Every verdict is auditable.** Canonical paragraph ID, reporter, text version, quote, character offsets and source URL travel with every verdict, so a reader can check the check.
 7. **Temperature is not a safety mechanism.** Low sampling temperature is a minor knob. Grounding, retrieval quality and string verification are what stop hallucination.
 8. **Abstain rather than guess.** Every stage may return "needs human review" with a reason. An honest "could not verify" is a valid, first-class outcome.
@@ -297,7 +297,7 @@ and they are added as A17, A18 and B12.
 
 ## 11. Data sources and legal basis
 
-| Source | What | Access | Licence / terms | Role in OrderOrder |
+| Source | What | Access | Licence / terms | Role in Ruchi |
 |---|---|---|---|---|
 | **AWS Open Data: Indian Supreme Court Judgments** | 1950-2025, JSON and parquet metadata, zipped judgment text in English and regional languages; bi-monthly refresh; maintained by Dattam Labs | S3 bucket `indian-supreme-court-judgments` (ap-south-1), no account needed | CC-BY-4.0 ([registry](https://registry.opendata.aws/indian-supreme-court-judgments/)) | **Primary knowledge-base corpus** |
 | **AWS Open Data: Indian High Court Judgments** | 25 High Courts; PDFs, JSON and parquet; quarterly refresh; the maintainer's repository reports ~17.8M judgments, ~1.25 TiB | S3 bucket `indian-high-court-judgments` | CC-BY-4.0 ([registry](https://registry.opendata.aws/indian-high-court-judgments/) · [repo](https://github.com/vanga/indian-high-court-judgments)) | Phase 1-3 corpus, court by court |
@@ -310,7 +310,7 @@ and they are added as A17, A18 and B12.
 | **Manupatra, SCC Online, AIR** | Proprietary reporters with editorial headnotes and citators | Subscription, no developer API; terms prohibit storing or reproducing content in other retrieval systems ([Manupatra terms](https://www.manupatrafast.com/reg/terms.pdf)) | Proprietary | **Not used.** Phase 2 bring-your-own-login lookups only, using the user's own session |
 | **IL-TUR** | Indian legal benchmark suite | Hugging Face | CC-BY-NC-SA-4.0 | **Not used** (non-commercial) |
 
-**The paragraph-numbering problem.** Whether SCC paragraph numbers match AIR, SCR or the official text is disputed in the literature ([one view](https://niyam.ai/blog/how-to-cite-indian-judgments) · [another](https://www.barandbench.com/news/ending-citation-chaos-neutral-citation-simplifies-legal-referencing-in-indian-courts)); older and originally unnumbered judgments were numbered by editors, and the Supreme Court's April 2023 direction that all courts number paragraphs is prospective practice, not a rule ([Verdictum](https://www.verdictum.in/court-updates/supreme-court/supreme-court-asks-all-courts-and-tribunals-to-number-paragraphs-1471837)). OrderOrder therefore assigns its own canonical paragraph IDs anchored to the official text, records the text version behind every pinpoint, and maintains a per-reporter mapping where it can be established. The Princeton benchmark identified inconsistent pagination in public databases as the hard ceiling on pincite verification; this is a first-class design item, not a footnote.
+**The paragraph-numbering problem.** Whether SCC paragraph numbers match AIR, SCR or the official text is disputed in the literature ([one view](https://niyam.ai/blog/how-to-cite-indian-judgments) · [another](https://www.barandbench.com/news/ending-citation-chaos-neutral-citation-simplifies-legal-referencing-in-indian-courts)); older and originally unnumbered judgments were numbered by editors, and the Supreme Court's April 2023 direction that all courts number paragraphs is prospective practice, not a rule ([Verdictum](https://www.verdictum.in/court-updates/supreme-court/supreme-court-asks-all-courts-and-tribunals-to-number-paragraphs-1471837)). Ruchi therefore assigns its own canonical paragraph IDs anchored to the official text, records the text version behind every pinpoint, and maintains a per-reporter mapping where it can be established. The Princeton benchmark identified inconsistent pagination in public databases as the hard ceiling on pincite verification; this is a first-class design item, not a footnote.
 
 ---
 
@@ -365,10 +365,10 @@ The demo memorial's eight citations produce the eight expected verdicts, each wi
 | **Lexis+ AI / Protégé India** (2026) | Case analysis and workflows; claims built-in verification and citation management | Not public | Unclear; no published accuracy |
 | **CaseMine AMICUS** | Generative assistant, precedent discovery | $49-150/month | Source-linked; no verification claim |
 | **Jhana.ai**, **Lexlegis.ai**, **Nyaay AI**, **Lucio** | Research and drafting assistants; Nyaay markets itself as "citation-first" | Not public | No published verification benchmark |
-| **Clearbrief** (US) | Checks that the source says what the brief claims; links facts to the record | Per seat | Yes, for US law; the closest analogue to OrderOrder |
+| **Clearbrief** (US) | Checks that the source says what the brief claims; links facts to the record | Per seat | Yes, for US law; the closest analogue to Ruchi |
 | **Adalat AI** | Courtroom speech-to-text in 4,000+ courtrooms | n/a | Adjacent, not competing |
 
-**Positioning.** Everyone sells "citation-backed answers". OrderOrder sells the opposite service: it assumes the citation is wrong until proven right, reports existence, location and extent separately, and writes the attack. Ratio-versus-obiter classification and extent-of-support checking have no off-the-shelf model anywhere, in India or abroad; they are a research gap and therefore the moat. Self-hosting is the second differentiator: no incumbent lets a firm keep privileged documents on its own hardware.
+**Positioning.** Everyone sells "citation-backed answers". Ruchi sells the opposite service: it assumes the citation is wrong until proven right, reports existence, location and extent separately, and writes the attack. Ratio-versus-obiter classification and extent-of-support checking have no off-the-shelf model anywhere, in India or abroad; they are a research gap and therefore the moat. Self-hosting is the second differentiator: no incumbent lets a firm keep privileged documents on its own hardware.
 
 ---
 
@@ -392,11 +392,11 @@ The demo memorial's eight citations produce the eight expected verdicts, each wi
 
 ## 15. Legal, compliance and ethics
 
-1. **Data protection.** The Digital Personal Data Protection Act 2023 and the DPDP Rules 2025 (notified 14 November 2025) phase in; principal substantive obligations apply from around May 2027 ([PIB](https://static.pib.gov.in/WriteReadData/specificdocs/documents/2025/nov/doc20251117695301.pdf)). There is no blanket localisation mandate, but the Government may restrict transfers by notification ([SFLC](https://sflc.in/dpdp-rules-2025-significant-data-fiduciaries-and-data-transfers/)). OrderOrder processes in India by default, minimises personal data, supports deletion, and keeps an audit log.
+1. **Data protection.** The Digital Personal Data Protection Act 2023 and the DPDP Rules 2025 (notified 14 November 2025) phase in; principal substantive obligations apply from around May 2027 ([PIB](https://static.pib.gov.in/WriteReadData/specificdocs/documents/2025/nov/doc20251117695301.pdf)). There is no blanket localisation mandate, but the Government may restrict transfers by notification ([SFLC](https://sflc.in/dpdp-rules-2025-significant-data-fiduciaries-and-data-transfers/)). Ruchi processes in India by default, minimises personal data, supports deletion, and keeps an audit log.
 2. **Privilege.** Advocate-client communications are protected under sections 132-134 of the Bharatiya Sakshya Adhiniyam 2023; the protection does not extend to salaried in-house counsel ([AZB](https://www.azbpartners.com/bank/legal-privilege-professional-secrecy-in-india/)). Sending a client brief to a third-party model without consent is a waiver risk; hence self-hosting by default in production and an explicit consent step for the cloud toggle. The hackathon build runs on free cloud tiers, which is acceptable only because it processes moot memorials and synthetic matters, never client documents.
-3. **Professional conduct.** Following *Pooja Ramesh Singh* the advocate remains responsible for every citation filed. OrderOrder's outputs say so on every page and never present a verdict as legal advice.
-4. **Court AI policies.** Kerala HC's 2025 policy and the Supreme Court's 2026 draft regulations permit assistive uses including citation verification, require human verification, and bar AI adjudication. OrderOrder is designed inside those lines and will track the final regulations.
-5. **Naming and marketing.** The product is OrderOrder, from the courtroom call to order; the repository is `order-order`. Still outstanding before launch: a trademark search, a domain, and a check that marketing to advocates does not trip Bar Council of India rules on advertising by advocates (the product markets itself, not any advocate).
+3. **Professional conduct.** Following *Pooja Ramesh Singh* the advocate remains responsible for every citation filed. Ruchi's outputs say so on every page and never present a verdict as legal advice.
+4. **Court AI policies.** Kerala HC's 2025 policy and the Supreme Court's 2026 draft regulations permit assistive uses including citation verification, require human verification, and bar AI adjudication. Ruchi is designed inside those lines and will track the final regulations.
+5. **Naming and marketing.** The product is Ruchi, from the courtroom call to order; the repository is `order-order`. Still outstanding before launch: a trademark search, a domain, and a check that marketing to advocates does not trip Bar Council of India rules on advertising by advocates (the product markets itself, not any advocate).
 6. **Attribution.** Indian Kanoon attribution wherever its data appears or feeds retrieval; CC-BY attribution for the AWS Open Data datasets in the app footer and documentation.
 7. **No training on user data.** User documents never train or fine-tune any model. Gold-set contributions are opt-in and anonymised.
 
@@ -424,7 +424,7 @@ Detail in [ROADMAP.md](ROADMAP.md).
 | Indian Kanoon's position on caching fetched documents, in writing | Developer | Phase 1 | Open; lookup only until confirmed |
 | Whether Gemma 4's licence permits commercial use as the research pass reported (re-verify) | Developer | Before model choice | Moot for now — nothing in the built path runs on it |
 | Empirical check of SCC vs official paragraph numbering on a 50-judgment sample | Co-founder | Phase 1 | Open. Mitigated meanwhile: pinpoints resolve against the official text and every verdict records which text version it used |
-| Trademark search and domain for the OrderOrder name | Both | Before public launch | Open |
+| Trademark search and domain for the Ruchi name | Both | Before public launch | Open |
 | Whether the abstention target of ≤ 20% is the right target | Both | Phase 1 | New. Measured at 68%, and the argument for it being correct is in §12.1 |
 
 ---

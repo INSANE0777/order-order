@@ -25,7 +25,7 @@ SRC="$REPO/src"
 # Windows Python cannot read a /c/... path, and Git Bash is where this is usually sourced.
 command -v cygpath >/dev/null 2>&1 && SRC="$(cygpath -w "$SRC")"
 export PYTHONPATH="$SRC"
-echo "OrderOrder dev environment: data and caches under $DATA"
+echo "Ruchi dev environment: data and caches under $DATA"
 echo "                            source read from $SRC"
 echo "Next: uv sync        (installs into $DATA/venv)"
 echo "      uv run orderorder --help"

@@ -40,7 +40,7 @@ NOTE = "note"
 # What every export carries. `docs/PRD.md` §5: the lawyer decides, and a document that leaves this off
 # invites exactly the reliance the engine is built to prevent.
 DISCLAIMER = (
-    "Prepared with OrderOrder. Every citation below was checked against a stored copy of the judgment "
+    "Prepared with Ruchi. Every citation below was checked against a stored copy of the judgment "
     "and the verified words are set out in the appendix. Nothing here is legal advice, no check is a "
     "substitute for reading the judgment, and the draft must be settled by counsel before it is filed."
 )

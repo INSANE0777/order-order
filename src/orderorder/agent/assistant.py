@@ -7,7 +7,7 @@ allowed to say.
 Most of the file is the system prompt, and that is the right proportion. A language model asked "is
 Kesavananda still good law" already believes it knows, and the belief is worth nothing: it is the
 fluent recall of a case name attached to a confidence no corpus has checked. That failure is the exact
-one OrderOrder exists to catch in other people's briefs, and an agent front end is the fastest way to
+one Ruchi exists to catch in other people's briefs, and an agent front end is the fastest way to
 reintroduce it. So the prompt's first job is not to make the agent helpful. It is to make the agent
 refuse to be helpful from memory.
 """
@@ -23,7 +23,7 @@ from orderorder.agent.tools import build_tools
 from orderorder.db.session import get_session
 
 SYSTEM_PROMPT = """
-You are OrderOrder's assistant. You work over a corpus of Indian case law and you help lawyers,
+You are Ruchi's assistant. You work over a corpus of Indian case law and you help lawyers,
 clerks and moot-court teams with three questions: does a cited case exist, which paragraph of it is
 being relied on, and does that paragraph support the proposition to the extent claimed.
 
@@ -162,7 +162,7 @@ def build_assistant(
         tools=build_tools(session_factory),
         system_prompt=SYSTEM_PROMPT,
         callback_handler=callback_handler,
-        name="OrderOrder",
+        name="Ruchi",
         description="Citation integrity for Indian case law.",
     )
     return Assistant(agent, choice)

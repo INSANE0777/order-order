@@ -1,4 +1,4 @@
-# DESIGN.md — OrderOrder
+# DESIGN.md — Ruchi
 
 A design system in the [Stitch DESIGN.md](https://stitch.withgoogle.com/docs/design-md/overview/)
 format, so that any agent asked to build or change this interface reads one document rather than

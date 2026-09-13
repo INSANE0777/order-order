@@ -1,4 +1,4 @@
-"""Command line for OrderOrder.
+"""Command line for Ruchi.
 
 The engine runs in two directions and both are here, along with everything needed to fill the
 knowledge base they run against and to measure what they do.
@@ -133,7 +133,7 @@ def doctor(
 ) -> None:
     """Check Python, the data directory, the database and which model providers have keys."""
     settings = get_settings()
-    table = Table(title="OrderOrder environment", show_header=True, header_style="bold")
+    table = Table(title="Ruchi environment", show_header=True, header_style="bold")
     table.add_column("Check")
     table.add_column("Value")
     table.add_column("Status")
@@ -986,7 +986,7 @@ def serve_command(
     # A model that has started refusing every call produces a page full of honest "not assessed" and
     # no other sign. `ORDERORDER_LOG_LEVEL` turns the volume up or down; this is where it starts.
     logs.configure()
-    console.print(f"[green]OrderOrder[/green] on [bold]http://{host}:{port}[/bold]  (ctrl-c to stop)")
+    console.print(f"[green]Ruchi[/green] on [bold]http://{host}:{port}[/bold]  (ctrl-c to stop)")
     uvicorn.run("orderorder.web.api:app", host=host, port=port, reload=reload, log_level="warning")
 
 

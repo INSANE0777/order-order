@@ -23,7 +23,7 @@ $env:PYTHONIOENCODING       = "utf-8"
 # does not. `pyproject.toml` pins this for pytest; this is the same fix for the CLI.
 $repo = Split-Path -Parent $PSScriptRoot
 $env:PYTHONPATH = Join-Path $repo "src"
-Write-Host "OrderOrder dev environment: data and caches under $data"
+Write-Host "Ruchi dev environment: data and caches under $data"
 Write-Host "                            source read from $env:PYTHONPATH"
 Write-Host "Next: uv sync        (installs into $data\venv)"
 Write-Host "      uv run orderorder --help"
