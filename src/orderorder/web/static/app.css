@@ -1177,3 +1177,58 @@ h1, h2 { text-wrap: balance; }
   button.pick { grid-template-columns: 30px minmax(0, 1fr); }
   .pick-findings { grid-column: 2; }
 }
+
+/* ---------- the document card's three panels ---------- */
+
+/* The panel's parts arrive in the order they are read rather than all at once. The index already
+ * does this to its rows (§The index, 60ms); the verdict is the same argument made downward — the
+ * grade and the citation, then the case, then the claim, then what was found against it. */
+#detail > *:nth-child(1) { animation-delay: 0s; }
+#detail > *:nth-child(2) { animation-delay: .055s; }
+#detail > *:nth-child(3) { animation-delay: .11s; }
+#detail > *:nth-child(4) { animation-delay: .165s; }
+#detail > *:nth-child(5) { animation-delay: .22s; }
+#detail > *:nth-child(6) { animation-delay: .275s; }
+#detail > *:nth-child(7) { animation-delay: .33s; }
+#detail > *:nth-child(n+8) { animation-delay: .385s; }
+
+/* The grade lands as a stamp here for the same reason it lands on its row in the index: it is the
+ * finding, and it should arrive rather than appear. Same keyframe, same 550ms. */
+#detail .g { animation: stamp .55s var(--ease-out) .06s both; }
+
+/* Changing panel replays the entrance. A separate keyframe from `rise`, shorter and shallower,
+ * because this is a turn of the page rather than a first arrival -- and because an animation only
+ * restarts when its name changes, which is what the reflow in `showPanel` is for. */
+@keyframes turn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+#detail.turning > *, #judgment.turning > *, #memo.turning > * {
+  animation: turn .34s var(--ease-out) both;
+}
+#detail.turning > *:nth-child(2) { animation-delay: .04s; }
+#detail.turning > *:nth-child(3) { animation-delay: .08s; }
+#detail.turning > *:nth-child(4) { animation-delay: .12s; }
+#detail.turning > *:nth-child(n+5) { animation-delay: .16s; }
+#judgment.turning > *:nth-child(2) { animation-delay: .05s; }
+
+/* The verified sentence is ruled rather than found already ruled: the 2px cobalt line draws itself
+ * left to right, once, after the paragraph has settled. It is the only place on the page where the
+ * motion *is* the claim -- this sentence was matched, character for character, against the stored
+ * judgment -- so it is drawn at reading speed and never repeated.
+ *
+ * The rule is a background layer rather than the inset shadow it used to be, because a shadow cannot
+ * be drawn on and a background-size can. */
+mark {
+  background-color: var(--accent-soft);
+  background-image: linear-gradient(var(--accent), var(--accent));
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  background-size: 100% 2px;
+  box-shadow: none;
+  animation: rule .55s var(--ease-out) .3s both;
+}
+@keyframes rule { from { background-size: 0 2px; } to { background-size: 100% 2px; } }
+
+/* The paragraph the verdict rests on takes its tint rather than starting with it. The cobalt bar
+ * stays put: a border cannot be drawn on without a second element, and one line drawing itself is
+ * the point being made -- two would be decoration. */
+.p.here { animation: tint .6s var(--ease-out) .12s both; }
+@keyframes tint { from { background-color: transparent; } to { background-color: var(--accent-soft); } }

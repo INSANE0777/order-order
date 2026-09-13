@@ -103,7 +103,13 @@ function showPanel(which) {
   for (const [tab, panel] of [["t-detail","detail"],["t-judgment","judgment"],["t-memo","memo"]]) {
     const on = panel === which;
     $(tab).classList.toggle("on", on);
-    $(panel).hidden = !on;
+    const box = $(panel);
+    box.hidden = !on;
+    // The panel that is now open replays its entrance. Taking the class off, forcing a reflow and
+    // putting it back is the same trick the surface thumb uses: an animation restarts when its name
+    // changes, and a class that was already there has not changed anything.
+    if (on) { box.classList.remove("turning"); void box.offsetWidth; box.classList.add("turning"); }
+    else box.classList.remove("turning");
   }
 }
 $("t-detail").onclick = () => showPanel("detail");
