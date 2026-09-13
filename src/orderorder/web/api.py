@@ -554,6 +554,24 @@ def create_app(
     def script() -> FileResponse:
         return FileResponse(STATIC / "app.js", media_type="text/javascript")
 
+    @app.get("/vendor/gsap.min.js")
+    def vendor_gsap() -> FileResponse:
+        """GSAP, self-hosted: the strict CSP has no CDN in it, so the library is served the same
+        way the app's own files are. It manipulates styles through the CSSOM, which style-src does
+        not govern, so the animations need no unsafe-inline anywhere."""
+        return FileResponse(STATIC / "vendor" / "gsap.min.js", media_type="text/javascript")
+
+    @app.get("/vendor/ScrollTrigger.min.js")
+    def vendor_scrolltrigger() -> FileResponse:
+        return FileResponse(STATIC / "vendor" / "ScrollTrigger.min.js", media_type="text/javascript")
+
+    @app.get("/landing.js")
+    def landing_script() -> FileResponse:
+        """The landing story: scroll reveals, count-ups and stamp staggers. Decorative, not load
+        bearing -- the page works with this file missing, which is what the reduced-motion fallback
+        and the test for the static exports both rely on."""
+        return FileResponse(STATIC / "landing.js", media_type="text/javascript")
+
     @app.get("/fonts/{name}")
     def font(name: str) -> FileResponse:
         """The four self-hosted Geist faces, served by name from a fixed list.

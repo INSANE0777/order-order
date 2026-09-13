@@ -1177,3 +1177,204 @@ h1, h2 { text-wrap: balance; }
   button.pick { grid-template-columns: 30px minmax(0, 1fr); }
   .pick-findings { grid-column: 2; }
 }
+
+
+/* ============ the story the landing tells ============ */
+
+.story {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.story-head h2 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(28px, 4.2vw, 44px);
+  line-height: 1.08;
+  letter-spacing: -.01em;
+  margin: 0 0 14px;
+}
+.story-head p {
+  font-size: 17px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  max-width: 56ch;
+  margin: 0;
+}
+
+/* --- the twelve failure modes, as stamps --- */
+.modes { padding: 72px 0 56px; }
+.stamps {
+  list-style: none;
+  margin: 40px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  gap: 14px;
+}
+.stamp {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transform: rotate(-.6deg);
+  transition: transform .35s var(--ease-out), border-color .35s;
+}
+.stamp:nth-child(2n)  { transform: rotate(.7deg); }
+.stamp:nth-child(3n)  { transform: rotate(-.35deg); }
+.stamp:nth-child(5n)  { transform: rotate(.5deg); }
+.stamp:hover { transform: rotate(0) translateY(-3px); border-color: var(--accent); }
+.stamp-no {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .14em;
+  color: var(--coral);
+}
+.stamp h3 {
+  font-family: var(--display);
+  font-size: 19px;
+  font-weight: 700;
+  margin: 0;
+}
+.stamp p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  flex: 1;
+}
+.chip {
+  align-self: flex-start;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+.chip.caught { color: var(--accent); border-color: var(--accent-soft); background: var(--accent-soft); }
+.chip.model  { color: var(--muted); background: transparent; }
+
+/* --- the corpus in numbers, an ink band --- */
+.numbers {
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: 18px;
+  padding: 64px 48px;
+  margin: 24px 0;
+}
+@media (prefers-color-scheme: dark) {
+  .numbers { background: var(--bg); color: var(--ink); border: 1px solid var(--line); }
+}
+.numbers .story-head p { color: var(--faint); }
+.figures {
+  margin-top: 40px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 32px 40px;
+}
+.numbers .numeral {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(40px, 5.4vw, 60px);
+  line-height: 1;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  display: block;
+}
+.figure { min-width: 0; }
+.figure-label {
+  display: block;
+  margin-top: 10px;
+  font-size: 13px;
+  letter-spacing: .06em;
+  color: var(--faint);
+  font-family: var(--mono);
+}
+
+/* --- quote or nothing, the three states --- */
+.quote-none { padding: 64px 0 48px; }
+.states {
+  margin-top: 40px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+.state {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--edge);
+  border-radius: 10px;
+  padding: 22px 22px 18px;
+}
+.state h3 {
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 10px;
+}
+.state p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--ink-2); }
+.state.supported   { border-top-color: var(--accent); }
+.state.unsupported { border-top-color: var(--coral); }
+.state.unchecked   { border-top-color: var(--edge); }
+
+/* --- measured recall, as bars --- */
+.measured { padding: 16px 0 88px; }
+.bars {
+  margin-top: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 720px;
+}
+.bar {
+  display: grid;
+  grid-template-columns: 110px 1fr 56px;
+  align-items: center;
+  gap: 16px;
+}
+.bar-label {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  letter-spacing: .05em;
+  color: var(--ink-2);
+  text-align: right;
+}
+.bar-track {
+  background: var(--accent-soft);
+  border-radius: 4px;
+  height: 14px;
+  overflow: hidden;
+}
+.bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+}
+.bar-value {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.w100 { width: 100%; }
+.w96  { width: 96%; }
+.w95  { width: 95%; }
+.w85  { width: 85%; }
+
+@media (max-width: 720px) {
+  .numbers { padding: 44px 26px; }
+  .bar { grid-template-columns: 88px 1fr 48px; gap: 10px; }
+  .story { padding: 0 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stamp { transition: none; }
+}

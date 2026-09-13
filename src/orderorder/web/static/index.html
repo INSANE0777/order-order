@@ -137,6 +137,80 @@
         <div id="memo" hidden><p class="none">Choose a citation to read what the other side will say.</p></div>
       </div>
     </div>
+
+    <!-- ============ the story the landing tells ============ -->
+    <div class="story">
+
+      <section class="modes">
+        <div class="story-head">
+          <h2>Twelve ways a citation lies.</h2>
+          <p>Each of these is a real failure mode — invented cases, mis-typed citations, a dissent
+            quoted as the law. Each has a detector, and each detector’s catch rate is measured against a
+            planted holdout. The ones still waiting on a model say so rather than guess.</p>
+        </div>
+        <ol class="stamps">
+          <li class="stamp"><span class="stamp-no">01</span><h3>Phantom</h3><p>A case that does not exist, invented by a model or a memory.</p><span class="chip caught">100% caught</span></li>
+          <li class="stamp"><span class="stamp-no">02</span><h3>Mis-cite</h3><p>The right case behind the wrong citation string.</p><span class="chip caught">95% caught</span></li>
+          <li class="stamp"><span class="stamp-no">03</span><h3>Wrong court</h3><p>Attributed to a court that did not decide it.</p><span class="chip caught">100% caught</span></li>
+          <li class="stamp"><span class="stamp-no">04</span><h3>Not there</h3><p>The paragraph does not contain the proposition.</p><span class="chip caught">85% caught</span></li>
+          <li class="stamp"><span class="stamp-no">05</span><h3>Wrong voice</h3><p>Counsel’s submission offered as the court’s holding.</p><span class="chip caught">96% caught</span></li>
+          <li class="stamp"><span class="stamp-no">06</span><h3>Dissent as majority</h3><p>The losing judgment cited as the law.</p><span class="chip model">model-checked</span></li>
+          <li class="stamp"><span class="stamp-no">07</span><h3>Obiter as ratio</h3><p>A remark on the side offered as the holding.</p><span class="chip caught">100% caught</span></li>
+          <li class="stamp"><span class="stamp-no">08</span><h3>Dropped condition</h3><p>“Only where”, quietly becoming “where”.</p><span class="chip model">model-checked</span></li>
+          <li class="stamp"><span class="stamp-no">09</span><h3>Selective quotation</h3><p>A quote cut short of its proviso.</p><span class="chip caught">100% caught</span></li>
+          <li class="stamp"><span class="stamp-no">10</span><h3>Dead law</h3><p>Overruled, and cited as good.</p><span class="chip caught">100% caught</span></li>
+          <li class="stamp"><span class="stamp-no">11</span><h3>Wrong facts</h3><p>A case that does not govern this fact pattern.</p><span class="chip model">model-checked</span></li>
+          <li class="stamp"><span class="stamp-no">12</span><h3>Wrong pinpoint</h3><p>The paragraph number, off by a few.</p><span class="chip caught">100% caught</span></li>
+        </ol>
+      </section>
+
+      <section class="numbers">
+        <div class="story-head">
+          <h2>The corpus, in numbers.</h2>
+          <p>Every judgment of the Supreme Court of India since 1950, indexed paragraph by
+            paragraph — on the record, not in a model’s memory.</p>
+        </div>
+        <div class="figures">
+          <div class="figure"><span class="numeral" data-count="38032">38,032</span><span class="figure-label">judgments, 1950–2025</span></div>
+          <div class="figure"><span class="numeral" data-count="707647">707,647</span><span class="figure-label">paragraphs, full-text indexed</span></div>
+          <div class="figure"><span class="numeral" data-count="79508">79,508</span><span class="figure-label">citation aliases</span></div>
+          <div class="figure"><span class="numeral" data-count="64828">64,828</span><span class="figure-label">citator edges</span></div>
+        </div>
+      </section>
+
+      <section class="quote-none">
+        <div class="story-head">
+          <h2>Quote or nothing.</h2>
+          <p>A citation is never “probably fine”. It comes back in one of three states, and the
+            engine refuses to collapse them into each other.</p>
+        </div>
+        <div class="states">
+          <div class="state supported"><h3>Supported</h3><p>The paragraph contains the proposition, in the
+            court’s own words, verified against the stored text.</p></div>
+          <div class="state unsupported"><h3>Checked, and not supported</h3><p>The judgment was read and the
+            paragraph does not carry the claim. No softening of the verdict.</p></div>
+          <div class="state unchecked"><h3>Not checked</h3><p>No model configured, a provider down, a
+            retrieval miss — reported as what it is, never disguised as either of the others.</p></div>
+        </div>
+      </section>
+
+      <section class="measured">
+        <div class="story-head">
+          <h2>Measured, not asserted.</h2>
+          <p>Recall against a planted holdout on the full corpus — every number reproducible with
+            <em>orderorder eval run</em>.</p>
+        </div>
+        <div class="bars">
+          <div class="bar"><span class="bar-label">phantom</span><span class="bar-track"><i class="bar-fill w100"></i></span><span class="bar-value">100%</span></div>
+          <div class="bar"><span class="bar-label">wrong court</span><span class="bar-track"><i class="bar-fill w100"></i></span><span class="bar-value">100%</span></div>
+          <div class="bar"><span class="bar-label">dead law</span><span class="bar-track"><i class="bar-fill w100"></i></span><span class="bar-value">100%</span></div>
+          <div class="bar"><span class="bar-label">pinpoint</span><span class="bar-track"><i class="bar-fill w100"></i></span><span class="bar-value">100%</span></div>
+          <div class="bar"><span class="bar-label">voice</span><span class="bar-track"><i class="bar-fill w96"></i></span><span class="bar-value">96%</span></div>
+          <div class="bar"><span class="bar-label">mis-cite</span><span class="bar-track"><i class="bar-fill w95"></i></span><span class="bar-value">95%</span></div>
+          <div class="bar"><span class="bar-label">not there</span><span class="bar-track"><i class="bar-fill w85"></i></span><span class="bar-value">85%</span></div>
+        </div>
+      </section>
+    </div>
   </section>
 
   <!-- ============ find an authority ============ -->
@@ -263,6 +337,9 @@
   </div>
 </footer>
 
+<script src="/vendor/gsap.min.js"></script>
+<script src="/vendor/ScrollTrigger.min.js"></script>
+<script src="/landing.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
