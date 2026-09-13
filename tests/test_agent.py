@@ -329,3 +329,126 @@ def test_the_status_line_says_which_model_the_agent_is_on(client) -> None:
     agent = client.get("/api/health").json()["agent"]
     assert "configured" in agent
     assert agent["via"] if agent["configured"] else agent["reason"]
+
+
+# --- watching a run ------------------------------------------------------------------------------
+
+
+def _stub_agent(monkeypatch, *, script=None, fail=None):
+    """Put a scripted agent behind the routes, so the streaming can be tested without a provider.
+
+    The callback the route hands over is the real one -- `AskJob.handler` -- so what is stubbed is the
+    model's behaviour and nothing else: the event shapes, the deduplication on `toolUseId`, the job
+    and the stream are all the production code.
+    """
+    from types import SimpleNamespace
+
+    from orderorder.agent.model import ModelChoice
+    from orderorder.web import api
+
+    choice = ModelChoice(object(), "some/model", "bedrock", "the test said so")
+    monkeypatch.setattr(api, "choose_model", lambda: choice)
+
+    beats = script or [
+        ("tool", "resolve_citation"),
+        ("text", "It resolves to TEST:0001:1. "),
+        ("tool", "check_treatment"),
+        ("text", "Nothing in the corpus has been found against it."),
+    ]
+
+    def build(session_factory=None, *, model=None, callback_handler=None):
+        def ask(question: str) -> str:
+            if fail:
+                raise RuntimeError(fail)
+            for index, (kind, value) in enumerate(beats):
+                if kind == "tool":
+                    callback_handler(current_tool_use={"toolUseId": f"t{index}", "name": value})
+                    # Twice, as a real stream does: one event per chunk of the same tool call. The
+                    # second must not light a second check.
+                    callback_handler(current_tool_use={"toolUseId": f"t{index}", "name": value})
+                else:
+                    callback_handler(data=value)
+            return "".join(v for k, v in beats if k == "text")
+
+        return SimpleNamespace(ask=ask, model=model)
+
+    monkeypatch.setattr(api, "build_assistant", build)
+    return choice
+
+
+def _events(client, run: str) -> list[tuple[str, dict]]:
+    """Read the whole server-sent stream and parse it back into (event, payload)."""
+    import json as _json
+
+    body = client.get(f"/api/agent/runs/{run}/events").text
+    out = []
+    for block in body.split("\n\n"):
+        lines = [line for line in block.splitlines() if line]
+        if len(lines) == 2 and lines[0].startswith("event: "):
+            out.append((lines[0][len("event: ") :], _json.loads(lines[1][len("data: ") :])))
+    return out
+
+
+def test_a_run_starts_and_names_the_model_before_anything_is_streamed(client, monkeypatch) -> None:
+    """The model is chosen on this request, so an unconfigured one is a 503 and not a broken stream."""
+    _stub_agent(monkeypatch)
+    started = client.post("/api/agent/runs", json={"question": "is it good law?"}).json()
+    assert started["run"]
+    assert started["model"] == {"model": "some/model", "via": "bedrock", "reason": "the test said so"}
+
+
+def test_the_stream_carries_each_check_as_it_is_chosen_then_the_answer(client, monkeypatch) -> None:
+    _stub_agent(monkeypatch)
+    run = client.post("/api/agent/runs", json={"question": "is it good law?"}).json()["run"]
+
+    events = _events(client, run)
+    kinds = [name for name, _ in events]
+    assert "tool" in kinds and "text" in kinds and kinds[-1] == "done"
+
+    tools = [payload["name"] for name, payload in events if name == "tool"]
+    assert tools == ["resolve_citation", "check_treatment"], "a repeated toolUseId lit twice"
+    assert [payload["index"] for name, payload in events if name == "tool"] == [1, 2]
+
+    done = events[-1][1]
+    assert done["error"] is None
+    assert done["tools"] == ["resolve_citation", "check_treatment"]
+    assert done["answer"].startswith("It resolves")
+
+
+def test_a_run_that_fails_says_so_on_the_stream_rather_than_hanging(client, monkeypatch) -> None:
+    """The page re-enables its button on `done`, so a failed run has to reach it as a `done`."""
+    _stub_agent(monkeypatch, fail="the provider refused")
+    run = client.post("/api/agent/runs", json={"question": "anything"}).json()["run"]
+
+    done = _events(client, run)[-1]
+    assert done[0] == "done"
+    assert "the provider refused" in done[1]["error"]
+
+
+def test_a_run_can_be_read_back_after_the_stream_is_gone(client, monkeypatch) -> None:
+    """A dropped connection should cost the reader the animation, not the answer."""
+    _stub_agent(monkeypatch)
+    run = client.post("/api/agent/runs", json={"question": "is it good law?"}).json()["run"]
+    _events(client, run)
+
+    state = client.get(f"/api/agent/runs/{run}").json()
+    assert state["finished"] is True
+    assert state["tools"] == ["resolve_citation", "check_treatment"]
+    assert state["answer"].endswith("found against it.")
+
+
+def test_an_empty_question_is_refused_before_a_run_is_made(client, monkeypatch) -> None:
+    _stub_agent(monkeypatch)
+    assert client.post("/api/agent/runs", json={"question": "  "}).status_code == 400
+
+
+def test_no_model_is_a_503_on_the_run_rather_than_an_error_mid_stream(client, monkeypatch) -> None:
+    from orderorder.web import api
+
+    def refuse():
+        raise NoModelConfigured("no model: set AWS_ACCESS_KEY_ID or GROQ_API_KEY")
+
+    monkeypatch.setattr(api, "choose_model", refuse)
+    response = client.post("/api/agent/runs", json={"question": "is it good law?"})
+    assert response.status_code == 503
+    assert "GROQ_API_KEY" in response.json()["detail"]

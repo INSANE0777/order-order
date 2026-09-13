@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="/app.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232b34d6'/><path d='M9 24V17h5v-5h5V7h5' fill='none' stroke='%23f3ece5' stroke-width='3.2' stroke-linejoin='round'/></svg>">
 </head>
-<body data-surface="check">
+<body data-surface="ask">
 
 <a class="skip" href="#main">Skip to content</a>
 
@@ -44,7 +44,8 @@
 
   <div class="tabs" role="tablist" aria-label="Surface">
     <span class="thumb" aria-hidden="true"></span>
-    <button id="tab-check" class="on" role="tab" aria-selected="true" aria-controls="view-check" aria-label="Check a brief">Check</button>
+    <button id="tab-ask" class="on" role="tab" aria-selected="true" aria-controls="view-ask" aria-label="Ask the agent">Ask</button>
+    <button id="tab-check" role="tab" aria-selected="false" aria-controls="view-check" aria-label="Check a brief">Check</button>
     <button id="tab-find" role="tab" aria-selected="false" aria-controls="view-find" aria-label="Find an authority">Find</button>
     <button id="tab-draft" role="tab" aria-selected="false" aria-controls="view-draft" aria-label="Draft a submission">Draft</button>
   </div>
@@ -55,7 +56,59 @@
 <main id="main">
 
   <!-- ============ check a brief ============ -->
-  <section id="view-check" role="tabpanel" aria-labelledby="tab-check">
+  <!-- ============ ask the agent ============ -->
+  <!-- The trail is this surface's object, and unlike the bundle and the shelf it is not decorative:
+       it is the eight checks, and one lights as the agent chooses it. A reader watching a citation
+       question light `resolve` and then `treatment` can see what was actually run, which is the only
+       way to tell an answer that was verified from an answer that was remembered. -->
+  <section id="view-ask" role="tabpanel" aria-labelledby="tab-ask">
+    <div class="hero">
+      <div class="block cream">
+        <h2 class="display">Ask it as you would ask <em>counsel.</em></h2>
+        <p class="lede">Every other surface here is one check, and you have to know which one you want.
+          This one takes the question as it is actually asked — is any of this true? — and chooses. What it
+          cannot do is answer: it may assert nothing that one of the checks below did not return, and the
+          checks are the same ones the rest of this page runs.</p>
+
+        <ol class="trail" id="trail">
+          <li data-tool="corpus_status"><i></i>corpus status</li>
+          <li data-tool="resolve_citation"><i></i>resolve citation</li>
+          <li data-tool="check_treatment"><i></i>check treatment</li>
+          <li data-tool="locate_paragraph"><i></i>locate paragraph</li>
+          <li data-tool="verify_brief"><i></i>verify brief</li>
+          <li data-tool="find_authority"><i></i>find authority</li>
+          <li data-tool="find_contrary_authority"><i></i>find contrary</li>
+          <li data-tool="bind_proposition"><i></i>bind proposition</li>
+        </ol>
+      </div>
+
+      <div class="folder">
+        <div class="folder-tab"><label for="question">The question</label></div>
+        <div class="folder-body">
+          <textarea id="question" spellcheck="false"
+            placeholder="Is (2019) 4 SCC 118 still good law, and is anything in the corpus against it?"></textarea>
+          <div class="controls">
+            <button id="ask" class="primary">Ask<span class="arrow" aria-hidden="true">→</span></button>
+            <button id="ask-demo" class="quiet">Load an example</button>
+            <span id="aprog" class="hint" role="status" aria-live="polite"></span>
+          </div>
+          <p class="hint" id="amodel" hidden></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="work single">
+      <div class="index">
+        <div class="index-head">
+          <h2>The answer</h2>
+          <span id="achecks" class="hint"></span>
+        </div>
+        <div id="answer"><p class="none">Nothing asked yet.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-check" role="tabpanel" aria-labelledby="tab-check" hidden>
     <div class="hero">
       <div class="block cobalt">
         <h2 class="display">Every citation, <em>verified.</em></h2>

@@ -130,6 +130,59 @@ class DraftJob(Watched):
         self.check_deadline()
 
 
+@dataclass
+class AskJob(Watched):
+    """One question put to the agent, and the answer as it is produced.
+
+    A third shape, because what accumulates is different. A verification job collects decided things
+    and the page renders each as it lands; this collects prose and the names of the checks that
+    produced it, and the page appends both. Keeping the deltas in one ordered list rather than two
+    means the page can render them in the order they actually happened -- the tool name arriving
+    before the sentence that rests on it, which is the whole reason to watch this rather than wait.
+    """
+
+    question: str = ""
+    model: dict = field(default_factory=dict)
+    events: list[tuple[str, dict]] = field(default_factory=list)
+    answer: str = ""
+    tools: list[str] = field(default_factory=list)
+    _seen: set[str] = field(default_factory=set, repr=False)
+
+    @property
+    def done(self) -> int:
+        return len(self.tools)
+
+    def handler(self, **event) -> None:
+        """What Strands calls on the worker thread as the agent works.
+
+        Passed to the agent as its `callback_handler`, so this is the only place the SDK's event
+        shapes are read. Tool starts are deduplicated on `toolUseId` rather than on the name: an
+        agent that checks two citations calls `resolve_citation` twice, and both are worth showing.
+        """
+        chunk = event.get("data")
+        if chunk:
+            self.add_text(chunk)
+        use = event.get("current_tool_use") or {}
+        name, ref = use.get("name"), use.get("toolUseId")
+        if name and ref and ref not in self._seen:
+            self._seen.add(ref)
+            self.add_tool(name)
+
+    def _say(self, name: str, payload: dict) -> None:
+        self.events.append((name, payload))
+        self._wake()
+
+    def add_text(self, chunk: str) -> None:
+        self.answer += chunk
+        self._say("text", {"text": chunk})
+        self.check_deadline()
+
+    def add_tool(self, name: str) -> None:
+        self.tools.append(name)
+        self._say("tool", {"name": name, "index": len(self.tools)})
+        self.check_deadline()
+
+
 class JobStore:
     """The jobs this process is holding. Oldest are dropped once there are too many."""
 
@@ -143,6 +196,9 @@ class JobStore:
 
     def create_draft(self, plan, source: str) -> DraftJob:
         return self._keep(DraftJob(id=uuid.uuid4().hex[:12], plan=plan, source=source))
+
+    def create_ask(self, question: str) -> AskJob:
+        return self._keep(AskJob(id=uuid.uuid4().hex[:12], question=question))
 
     def _keep(self, job):
         with self._lock:
@@ -169,6 +225,30 @@ class JobStore:
 
     def __len__(self) -> int:
         return len(self._jobs)
+
+
+def watch_ask(job: AskJob, *, poll: float = 1.0) -> Iterator[tuple[str, dict]]:
+    """Yield (event, payload) for a question until the agent has finished answering it.
+
+    The heartbeat earns its keep more here than anywhere else. The agent goes silent for the whole of
+    a `verify_brief` call -- minutes, on a real brief -- and without a byte on the wire a proxy closes
+    the connection, leaving the reader with half an answer and no way to know it had been cut off.
+    """
+    sent = 0
+    while True:
+        while sent < len(job.events):
+            yield job.events[sent]
+            sent += 1
+        if job.finished:
+            yield "done", {
+                "answer": job.answer,
+                "tools": job.tools,
+                "model": job.model,
+                "error": job.error,
+            }
+            return
+        yield "progress", {"tools": len(job.tools), "characters": len(job.answer)}
+        job.wait(poll)
 
 
 def watch_draft(job: DraftJob, *, poll: float = 1.0) -> Iterator[tuple[str, dict]]:
