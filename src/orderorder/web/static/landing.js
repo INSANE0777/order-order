@@ -113,7 +113,7 @@
       x: Math.random() * width, y: Math.random() * height,
       radius: Math.random() * 90 + 50,
       vx: (Math.random() - 0.5) * 0.25, vy: (Math.random() - 0.5) * 0.25,
-      alpha: Math.random() * 0.3 + 0.08,
+      alpha: Math.random() * 0.18 + 0.04,
     };
   });
   var stars = Array.from({ length: 90 }, function () {
@@ -129,8 +129,8 @@
       if (p.y < -120) p.y = height + 120;
       if (p.y > height + 120) p.y = -120;
       var g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius);
-      g.addColorStop(0, "rgba(90, 102, 255, " + p.alpha + ")");
-      g.addColorStop(0.5, "rgba(43, 52, 214, " + p.alpha * 0.6 + ")");
+      g.addColorStop(0, "rgba(43, 52, 214, " + p.alpha + ")");
+      g.addColorStop(0.5, "rgba(20, 26, 110, " + p.alpha * 0.5 + ")");
       g.addColorStop(1, "rgba(0, 0, 0, 0)");
       ctx.fillStyle = g;
       ctx.beginPath();
@@ -140,8 +140,8 @@
     stars.forEach(function (s) {
       s.alpha += (Math.random() - 0.5) * 0.02;
       if (s.alpha < 0.1) s.alpha = 0.1;
-      if (s.alpha > 0.85) s.alpha = 0.85;
-      ctx.fillStyle = "rgba(243, 236, 229, " + s.alpha * 0.8 + ")";
+      if (s.alpha > 0.6) s.alpha = 0.6;
+      ctx.fillStyle = "rgba(243, 236, 229, " + s.alpha * 0.55 + ")";
       ctx.beginPath();
       ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
       ctx.fill();
