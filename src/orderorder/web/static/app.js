@@ -111,11 +111,6 @@ const footerTo = (which) => {
   const b = $("footer-" + name);
   if (b) b.onclick = () => footerTo(name);
 });
-if ($("footer-cta")) $("footer-cta").onclick = () => {
-  footerTo("check");
-  const brief = $("brief");
-  if (brief) brief.focus();
-};
 
 function showPanel(which) {
   for (const [tab, panel] of [["t-detail","detail"],["t-judgment","judgment"],["t-memo","memo"]]) {
