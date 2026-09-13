@@ -64,9 +64,9 @@ def check_binding(host: str, token: str | None) -> None:
     )
 
 
-def token_required(request: Request, token: str | None) -> None:
-    """Raise 401 unless the request carries the token. A no-op when no token is configured."""
-    if not token or request.url.path in OPEN_PATHS:
+def token_required(request: Request, token: str | None, has_user_session: bool = False) -> None:
+    """Raise 401 unless the request carries the token or a valid user session. A no-op when no token is configured."""
+    if not token or request.url.path in OPEN_PATHS or has_user_session:
         return
 
     supplied = request.headers.get(HEADER, "")

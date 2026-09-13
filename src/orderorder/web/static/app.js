@@ -1,6 +1,36 @@
 const $ = (id) => document.getElementById(id);
 let job = null, verdicts = [], chosen = null;
 
+// ---------- auth session check ----------
+fetch("/api/auth/me").then(r => {
+  if (!r.ok) {
+    if (window.location.pathname.startsWith("/dashboard")) {
+      window.location.href = "/login?next=/dashboard";
+    }
+    return null;
+  }
+  return r.json();
+}).then(data => {
+  if (data && data.user) {
+    const profile = $("user-profile");
+    const nameEl = $("user-name");
+    if (profile && nameEl) {
+      nameEl.textContent = data.user.full_name || data.user.email;
+      profile.hidden = false;
+    }
+  }
+}).catch(() => {});
+
+const logoutBtn = $("btn-logout");
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (_) {}
+    window.location.href = "/";
+  });
+}
+
 // ---------- status ----------
 fetch("/api/health").then(r => r.json()).then(h => {
   const bits = [`${h.judgments_with_text.toLocaleString()} judgments`];

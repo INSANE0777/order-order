@@ -195,7 +195,7 @@ body {
 }
 body[data-scrolled="1"] .nav { border-bottom-color: var(--line); }
 
-.brand { margin: 0; display: flex; align-items: center; gap: 11px; }
+.brand { margin: 0; display: flex; align-items: center; gap: 11px; text-decoration: none; }
 /* The mark is the staircase: three steps in the projection the verdict panel uses, cream faces and one
  * deep side, on the brand's cobalt. Brand colours, so it is the same in both themes. */
 .brand .mark { width: 30px; height: 30px; display: block; flex: none; }
@@ -257,8 +257,13 @@ body[data-surface="draft"] .tabs .thumb { translate: 200% 0; }
 .tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* What is loaded, said once, in the type that says numbers: no pill, no dot. */
-#status {
+.nav-right {
   justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+#status {
   font-family: var(--mono);
   font-size: 11.5px;
   letter-spacing: .01em;
@@ -266,6 +271,34 @@ body[data-surface="draft"] .tabs .thumb { translate: 200% 0; }
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.user-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+}
+.user-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+.btn-logout {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: underline;
+  transition: color .2s var(--ease);
+}
+.btn-logout:hover { color: var(--coral); }
 
 main { max-width: 1400px; margin: 0 auto; padding: 14px 40px 96px; }
 

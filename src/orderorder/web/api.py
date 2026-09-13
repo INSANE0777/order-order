@@ -30,14 +30,26 @@ import threading
 from collections.abc import Iterator
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, UploadFile
-from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException, Request, Response, UploadFile
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from orderorder import __version__, logs
-from orderorder.db.models import Judgment, JudgmentTextVersion
-from orderorder.db.session import get_session
+from orderorder.config import get_settings
+from orderorder.db.models import Judgment, JudgmentTextVersion, User, UserSession
+from orderorder.db.session import get_session, init_db
+from orderorder.web.security import (
+    EMAIL_REGEX,
+    SESSION_COOKIE_NAME,
+    create_user_session,
+    get_current_user,
+    hash_password,
+    normalize_email,
+    revoke_session,
+    validate_password_strength,
+    verify_password,
+)
 from orderorder.drafting.assemble import assemble
 from orderorder.drafting.attack import attack_draft
 from orderorder.drafting.plan import PlanError, parse_plan
@@ -184,6 +196,17 @@ class VerifyRequest(BaseModel):
     )
 
 
+class RegisterRequest(BaseModel):
+    email: str = Field(description="Advocate or firm email address.")
+    password: str = Field(description="Account password (min 8 characters).")
+    full_name: str = Field(default="", description="Advocate or researcher name.")
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(description="Registered email address.")
+    password: str = Field(description="Account password.")
+
+
 def create_app(
     *, store: JobStore | None = None, session_factory=get_session, token: str | None = None
 ) -> FastAPI:
@@ -193,11 +216,21 @@ def create_app(
     app = FastAPI(title="OrderOrder", version=__version__, docs_url="/api/docs")
 
     limiter = limits.RateLimiter()
+    # `is not None`, not `or`: a JobStore defines __len__, so an empty one is falsy and `or` would
+    # quietly hand back a different store than the caller passed in.
+    jobs = store if store is not None else JobStore()
+    open_session = session_factory
+
+    # Ensure tables (including user and user_session) are ready
+    try:
+        init_db(get_settings().db_url)
+    except Exception as exc:
+        log.warning("database init note: %s", exc)
 
     # One place, checked before anything else runs. A token configured per-route is a token somebody
     # forgets on the route added next week, and the route added next week is the upload endpoint.
     @app.middleware("http")
-    async def _guard(request, call_next):
+    async def _guard(request: Request, call_next):
         from fastapi.responses import JSONResponse
         from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -217,8 +250,18 @@ def create_app(
         if declared and declared.isdigit() and int(declared) > limits.MAX_BODY_BYTES:
             return refuse(413, f"a request body may be up to {limits.MAX_BODY_BYTES // 1_000_000} MB")
 
+        has_session = False
         try:
-            token_required(request, token)
+            with open_session() as s:
+                user = get_current_user(request, s)
+                if user:
+                    has_session = True
+                    request.state.user = user
+        except Exception:
+            pass
+
+        try:
+            token_required(request, token, has_user_session=has_session)
         except StarletteHTTPException as refused:
             # Count the failure, then refuse. Counting first means a client that is already over the
             # limit is told to wait rather than told its token was wrong, which is one less signal.
@@ -241,10 +284,6 @@ def create_app(
         for header, value in SECURITY_HEADERS.items():
             response.headers.setdefault(header, value)
         return response
-    # `is not None`, not `or`: a JobStore defines __len__, so an empty one is falsy and `or` would
-    # quietly hand back a different store than the caller passed in.
-    jobs = store if store is not None else JobStore()
-    open_session = session_factory
 
     @app.get("/api/health")
     def health() -> dict:
@@ -538,14 +577,140 @@ def create_app(
                 ],
             }
 
+    @app.post("/api/auth/register")
+    def register(req: RegisterRequest, request: Request, response: Response) -> dict:
+        email = normalize_email(req.email)
+        if not EMAIL_REGEX.match(email):
+            raise HTTPException(400, "a valid email address is required")
+        err = validate_password_strength(req.password)
+        if err:
+            raise HTTPException(400, err)
+
+        with open_session() as session:
+            existing = session.scalar(select(User).where(User.email == email))
+            if existing:
+                raise HTTPException(400, "an account with that email already exists")
+
+            user = User(
+                email=email,
+                hashed_password=hash_password(req.password),
+                full_name=req.full_name.strip() if req.full_name else email.split("@")[0],
+            )
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+
+            ip = request.client.host if request.client else None
+            ua = request.headers.get("user-agent")
+            sess = create_user_session(session, user.id, ip, ua)
+
+            response.set_cookie(
+                key=SESSION_COOKIE_NAME,
+                value=sess.session_token,
+                max_age=7 * 86400,
+                httponly=True,
+                samesite="lax",
+                path="/",
+                secure=request.url.scheme == "https",
+            )
+            return {
+                "ok": True,
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "full_name": user.full_name,
+                },
+            }
+
+    @app.post("/api/auth/login")
+    def login(req: LoginRequest, request: Request, response: Response) -> dict:
+        email = normalize_email(req.email)
+        with open_session() as session:
+            user = session.scalar(select(User).where(User.email == email))
+            if not user or not user.is_active or not verify_password(req.password, user.hashed_password):
+                raise HTTPException(401, "invalid email or password")
+
+            ip = request.client.host if request.client else None
+            ua = request.headers.get("user-agent")
+            sess = create_user_session(session, user.id, ip, ua)
+
+            response.set_cookie(
+                key=SESSION_COOKIE_NAME,
+                value=sess.session_token,
+                max_age=7 * 86400,
+                httponly=True,
+                samesite="lax",
+                path="/",
+                secure=request.url.scheme == "https",
+            )
+            return {
+                "ok": True,
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "full_name": user.full_name,
+                },
+            }
+
+    @app.post("/api/auth/logout")
+    def logout(request: Request, response: Response) -> dict:
+        token_val = request.cookies.get(SESSION_COOKIE_NAME)
+        if token_val:
+            with open_session() as session:
+                revoke_session(session, token_val)
+        response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
+        return {"ok": True}
+
+    @app.get("/api/auth/me")
+    def current_user(request: Request) -> dict:
+        with open_session() as session:
+            user = get_current_user(request, session)
+            if not user:
+                raise HTTPException(401, "not authenticated")
+            return {
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "full_name": user.full_name,
+                }
+            }
+
     @app.get("/")
-    def index() -> FileResponse:
+    def landing() -> FileResponse:
+        return FileResponse(STATIC / "landing.html")
+
+    @app.get("/login")
+    def login_page() -> FileResponse:
+        return FileResponse(STATIC / "login.html")
+
+    @app.get("/dashboard")
+    def dashboard(request: Request):
+        with open_session() as session:
+            user = get_current_user(request, session)
+        if not user:
+            return RedirectResponse(url="/login?next=/dashboard", status_code=303)
         return FileResponse(STATIC / "index.html")
+
+    @app.get("/landing.css")
+    def landing_css() -> FileResponse:
+        return FileResponse(STATIC / "landing.css", media_type="text/css")
+
+    @app.get("/landing.js")
+    def landing_js() -> FileResponse:
+        return FileResponse(STATIC / "landing.js", media_type="text/javascript")
+
+    @app.get("/login.css")
+    def login_css() -> FileResponse:
+        return FileResponse(STATIC / "login.css", media_type="text/css")
+
+    @app.get("/login.js")
+    def login_js() -> FileResponse:
+        return FileResponse(STATIC / "login.js", media_type="text/javascript")
 
     # Named one by one rather than mounted as a directory. A `StaticFiles` mount serves whatever is
     # under the directory, which is a decision made once and then inherited by every file anybody
-    # drops there later; three explicit routes cannot serve a fourth file by accident and have no path
-    # for a caller to traverse. There are only ever going to be three.
+    # drops there later; explicit routes cannot serve an arbitrary file by accident and have no path
+    # for a caller to traverse.
     @app.get("/app.css")
     def stylesheet() -> FileResponse:
         return FileResponse(STATIC / "app.css", media_type="text/css")
@@ -554,18 +719,25 @@ def create_app(
     def script() -> FileResponse:
         return FileResponse(STATIC / "app.js", media_type="text/javascript")
 
+    VENDOR_FILES = frozenset(
+        {
+            "lenis.min.js",
+            "lenis.css",
+            "gsap.min.js",
+            "ScrollTrigger.min.js",
+        }
+    )
+
+    @app.get("/vendor/{name}")
+    def vendor_file(name: str) -> FileResponse:
+        if name not in VENDOR_FILES:
+            raise HTTPException(404, "no such vendor asset")
+        media = "text/css" if name.endswith(".css") else "text/javascript"
+        return FileResponse(STATIC / "vendor" / name, media_type=media)
+
     @app.get("/fonts/{name}")
     def font(name: str) -> FileResponse:
-        """The four self-hosted Geist faces, served by name from a fixed list.
-
-        Named rather than mounted, and matched against a set rather than joined onto a path: `name`
-        arrives from the URL, and `STATIC / name` with a `..` in it is the oldest file-serving bug
-        there is. A membership test cannot traverse anywhere.
-
-        Self-hosted because the Content-Security-Policy is `font-src 'self'`. Loading these from
-        Google would mean widening the policy to a third-party origin, and a typeface is not worth
-        that; 82 KB in the repository is the cheaper trade.
-        """
+        """The self-hosted typefaces, served by name from a fixed list."""
         if name not in FONT_FILES:
             raise HTTPException(404, "no such font")
         return FileResponse(STATIC / "fonts" / name, media_type="font/woff2")
