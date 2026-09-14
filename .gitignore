@@ -53,3 +53,8 @@ scratch/
 # Demo recordings. Large, and not something a public repository should carry.
 *.mp4
 *.mov
+
+# Submission artifacts generated alongside the repo, not part of it.
+/Ruchi - Architecture.md
+/Ruchi - Architecture.pdf
+/Ruchi - Blog Post.md
