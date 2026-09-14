@@ -31,7 +31,7 @@
 <a class="skip" href="#main">Skip to content</a>
 
 <header class="nav">
-  <h1 class="brand">
+  <a href="/" class="brand" aria-label="Return to Ruchi Overview">
     <!-- The staircase, in the same oblique projection as the one in the verdict panel. -->
     <svg class="mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
       <rect class="mark-bg" width="32" height="32" rx="8"/>
@@ -40,16 +40,25 @@
       <g class="s s3"><path class="front" d="M17 11h6v16h-6z"/><path class="top" d="M17 11h6l4-4h-6z"/><path class="side" d="M23 11l4-4v16l-4 4z"/></g>
     </svg>
     <span class="wordmark">Ruchi</span>
-  </h1>
+  </a>
 
   <div class="tabs" role="tablist" aria-label="Surface">
     <span class="thumb" aria-hidden="true"></span>
     <button id="tab-check" class="on" role="tab" aria-selected="true" aria-controls="view-check" aria-label="Check a brief">Check</button>
     <button id="tab-find" role="tab" aria-selected="false" aria-controls="view-find" aria-label="Find an authority">Find</button>
     <button id="tab-draft" role="tab" aria-selected="false" aria-controls="view-draft" aria-label="Draft a submission">Draft</button>
+    <!-- The fourth thing in the bar is a link and not a surface: it leaves this page rather than
+         swapping what is under it, so it never takes the thumb and it carries no role of its own. -->
+    <a href="/architecture" class="tab-more" aria-label="Read the architecture">Architecture</a>
   </div>
 
-  <div id="status" role="status" aria-live="polite">checking…</div>
+  <div class="nav-right">
+    <div id="status" role="status" aria-live="polite">checking…</div>
+    <div id="user-profile" class="user-pill" hidden>
+      <span id="user-name" class="user-name"></span>
+      <button id="btn-logout" class="btn-logout" title="Sign out">Sign out</button>
+    </div>
+  </div>
 </header>
 
 <main id="main">
@@ -170,6 +179,7 @@
             placeholder="A proposition you want an authority for…"></textarea>
           <div class="controls">
             <button id="search" class="primary">Search every judgment<span class="arrow" aria-hidden="true">→</span></button>
+            <button id="query-demo" class="quiet">Load the demo</button>
             <span id="sprog" class="hint" role="status" aria-live="polite"></span>
           </div>
         </div>

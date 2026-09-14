@@ -1,0 +1,517 @@
+<!doctype html>
+<!--
+  Ruchi — The Citation Integrity Engine for Indian Case Law.
+  Editorial Landing Page.
+  Built to the Redis Agency L'escalier identity: cobalt, coral, cream, and the 3D staircase.
+  CSP: script-src 'self', style-src 'self', font-src 'self'. Zero inline scripts or styles.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#f3ece5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1236" media="(prefers-color-scheme: dark)">
+<title>Ruchi — Citation Integrity for Indian Case Law</title>
+<link rel="stylesheet" href="/landing.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232b34d6'/><path d='M9 24V17h5v-5h5V7h5' fill='none' stroke='%23f3ece5' stroke-width='3.2' stroke-linejoin='round'/></svg>">
+</head>
+<body>
+
+<a class="skip" href="#hero">Skip to main content</a>
+
+<!-- ========== STICKY NAVIGATION ========== -->
+<header class="nav" id="top-nav">
+  <a href="/" class="brand" aria-label="Return to Ruchi Overview">
+    <!-- The staircase, in the same oblique projection as the one in the verdict panel. -->
+    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+      <rect class="mark-bg" width="32" height="32" rx="8"/>
+      <g class="s s1"><path class="front" d="M5 21h6v6H5z"/><path class="top" d="M5 21h6l4-4H9z"/><path class="side" d="M11 21l4-4v6l-4 4z"/></g>
+      <g class="s s2"><path class="front" d="M11 16h6v11h-6z"/><path class="top" d="M11 16h6l4-4h-6z"/><path class="side" d="M17 16l4-4v11l-4 4z"/></g>
+      <g class="s s3"><path class="front" d="M17 11h6v16h-6z"/><path class="top" d="M17 11h6l4-4h-6z"/><path class="side" d="M23 11l4-4v16l-4 4z"/></g>
+    </svg>
+    <span class="wordmark">Ruchi</span>
+  </a>
+
+  <div class="tabs" role="tablist" aria-label="Landing Navigation">
+    <span class="thumb" aria-hidden="true"></span>
+    <button id="tab-verify" class="on" role="tab" aria-selected="true" data-target="#demo" aria-label="Interactive Verification Demo">Verify</button>
+    <button id="tab-traps" role="tab" aria-selected="false" data-target="#traps" aria-label="12 Hallucination Traps">Traps</button>
+    <button id="tab-integrity" role="tab" aria-selected="false" data-target="#ladder" aria-label="Integrity Ladder and Scale">Integrity</button>
+  </div>
+
+  <div class="nav-right">
+    <div id="status" class="nav-status" role="status" aria-live="polite">
+      <span class="status-pulse" aria-hidden="true"></span>
+      <span id="status-text">corpus indexed</span>
+    </div>
+    <div id="user-profile" class="user-pill" hidden>
+      <span id="user-name" class="user-name"></span>
+      <a href="/" class="btn-workspace-link">Dashboard &rarr;</a>
+      <button id="btn-logout" class="btn-logout" title="Sign out">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ========== HERO SECTION ========== -->
+  <section class="hero-section" id="hero">
+    <div class="hero-grid">
+      <div class="hero-content">
+        <h1 class="hero-title">
+          Every citation filed.<br>
+          Every holding tested.<br>
+          <em>Zero hallucinated law.</em>
+        </h1>
+        <p class="hero-lede">
+          Language models invent paragraph pinpoints, quote advocate submissions as judicial rulings,
+          and cite benches overruled decades ago. Ruchi reads your brief against 38,000+ official
+          Supreme Court judgments, pins every line to its verbatim paragraph, and writes what opposing
+          counsel will say before you set foot in court.
+        </p>
+
+        <div class="hero-ctas">
+          <a href="/" class="btn-primary hero-btn">
+            Enter Verification Lab <span class="arrow" aria-hidden="true">→</span>
+          </a>
+        </div>
+
+        <div class="proof-bar">
+          <div class="proof-item">
+            <span class="proof-num">38,032</span>
+            <span class="proof-label">Supreme Court Opinions</span>
+          </div>
+          <div class="proof-divider" aria-hidden="true"></div>
+          <div class="proof-item">
+            <span class="proof-num">12</span>
+            <span class="proof-label">Deterministic Verification Gates</span>
+          </div>
+          <div class="proof-divider" aria-hidden="true"></div>
+          <div class="proof-item">
+            <span class="proof-num">3-State</span>
+            <span class="proof-label">Transparent Verdict Standard</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <div class="monolith-block" id="monolith" aria-hidden="true">
+          <div class="monolith-stack">
+            <div class="m-card c3">
+              <div class="m-header"><span>SCR [2019] 9 S.C.R. 593</span><span class="g D">D</span></div>
+              <p class="m-sample">“The plaintiff is dominus litis and cannot be compelled to add a party…”</p>
+              <div class="m-tag flagged">Mode 5 · Not the Court’s Words</div>
+            </div>
+            <div class="m-card c2">
+              <div class="m-header"><span>SCR (1973) 4 SCC 225</span><span class="g A">A</span></div>
+              <p class="m-sample">“Parliament cannot alter the basic structure or framework of the Constitution.”</p>
+              <div class="m-tag clean">Mode 0 · Unanimous Binding Precedent</div>
+            </div>
+            <div class="m-card c1">
+              <div class="m-header"><span>INSC 2024 INSC 1027</span><span class="g C">C</span></div>
+              <p class="m-sample">“The doctrine of delay and laches cannot be applied strictly to public interest…”</p>
+              <div class="m-tag warn">Mode 4 · Obiter Dictum / Qualified Context</div>
+            </div>
+            <div class="monolith-clip"></div>
+          </div>
+          <div class="monolith-reflection"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== INTERACTIVE LIVE SCANNER SIMULATOR ========== -->
+  <div class="section-band bg-white" id="demo">
+    <section class="section" id="simulator">
+      <div class="section-head">
+        <span class="section-tag">DETERMINISTIC SIMULATION</span>
+        <h2 class="section-title">See the engine catch a courtroom trap.</h2>
+        <p class="section-desc">
+          Select a real citation below or type a proposition. Watch the verifier locate the paragraph,
+          isolate the speaking voice, and calculate the verdict on the 6-step staircase in real time.
+        </p>
+      </div>
+
+      <div class="sim-presets">
+        <button class="sim-preset on" data-preset="dominus">
+          <span class="p-num">01</span>
+          <span class="p-name">Advocate Submission Trap (2019 INSC 770)</span>
+        </button>
+        <button class="sim-preset" data-preset="kesavananda">
+          <span class="p-num">02</span>
+          <span class="p-name">Verbatim Constitutional Ratio (1973 SCC 225)</span>
+        </button>
+        <button class="sim-preset" data-preset="laches">
+          <span class="p-num">03</span>
+          <span class="p-name">Obiter Over-Extension (2024 INSC 1027)</span>
+        </button>
+      </div>
+
+      <div class="sim-workspace">
+        <div class="sim-panel input-panel">
+          <div class="panel-tab"><label for="sim-input">Brief Excerpt</label></div>
+          <div class="panel-body">
+            <textarea id="sim-input" spellcheck="false" readonly></textarea>
+            <div class="sim-controls">
+              <button id="sim-run" class="btn-primary">
+                Run Verification Pass <span class="arrow" aria-hidden="true">→</span>
+              </button>
+              <span id="sim-status" class="sim-hint">Ready to scan</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sim-panel output-panel">
+          <div class="panel-tab"><label>Live Verdict &amp; Staircase</label></div>
+          <div class="panel-body">
+            <div class="sim-top-bar">
+              <div class="sim-verdict-tag" id="sim-badge"><span class="g D">–</span> <b id="sim-grade-text">Pending</b></div>
+              <!-- 6-step isometric staircase -->
+              <div class="stair" id="sim-stair" data-grade="" aria-hidden="true">
+                <div class="step s1"><i class="top"></i><i class="side"></i><i class="front"></i></div>
+                <div class="step s2"><i class="top"></i><i class="side"></i><i class="front"></i></div>
+                <div class="step s3"><i class="top"></i><i class="side"></i><i class="front"></i></div>
+                <div class="step s4"><i class="top"></i><i class="side"></i><i class="front"></i></div>
+                <div class="step s5"><i class="top"></i><i class="side"></i><i class="front"></i></div>
+                <div class="step s6"><i class="top"></i><i class="side"></i><i class="front"></i></div>
+                <span class="marker"></span>
+              </div>
+            </div>
+
+            <div id="sim-results">
+              <div class="sim-card">
+                <div class="sim-card-head">Official Court Holding</div>
+                <blockquote id="sim-quote">Run the verification pass to inspect the actual judgment paragraph.</blockquote>
+              </div>
+              <div class="sim-card" id="sim-finding-card">
+                <div class="sim-card-head">Integrity Finding</div>
+                <div id="sim-finding">Nothing checked yet.</div>
+              </div>
+              <div class="sim-card" id="sim-attack-card">
+                <div class="sim-card-head">What Opposing Counsel Will Say</div>
+                <div id="sim-attack">Awaiting scan.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ========== THE 12 WAYS A CITATION LIES ========== -->
+  <section class="section" id="traps">
+    <div class="section-head">
+      <span class="section-tag">TAXONOMY OF FAILURE</span>
+      <h2 class="section-title">The twelve ways a citation lies.</h2>
+      <p class="section-desc">
+        A citation does not fail by being simply “wrong”. It fails in twelve structured ways,
+        each undetectable to traditional lexical search and fatal in courtroom arguments.
+      </p>
+    </div>
+
+    <div class="traps-grid">
+      <div class="trap-card" data-mode="1">
+        <div class="trap-header">
+          <span class="trap-num">MODE 01</span>
+          <span class="trap-chip bad">Hallucination</span>
+        </div>
+        <h3 class="trap-title">Phantom Precedent</h3>
+        <p class="trap-body">The citation looks authentic with volume, reporter, and year, but the judgment does not exist in any official law report.</p>
+        <div class="trap-footer"><span>Detector:</span> Registry Exact Match</div>
+      </div>
+
+      <div class="trap-card" data-mode="2">
+        <div class="trap-header">
+          <span class="trap-num">MODE 02</span>
+          <span class="trap-chip bad">Voice Inversion</span>
+        </div>
+        <h3 class="trap-title">Submission as Holding</h3>
+        <p class="trap-body">Advocate’s argument recorded in the summary of submissions quoted as the binding ratio of the Bench.</p>
+        <div class="trap-footer"><span>Detector:</span> Rhetorical Role Parser</div>
+      </div>
+
+      <div class="trap-card" data-mode="3">
+        <div class="trap-header">
+          <span class="trap-num">MODE 03</span>
+          <span class="trap-chip bad">Fabrication</span>
+        </div>
+        <h3 class="trap-title">Fabricated Pinpoint</h3>
+        <p class="trap-body">The case exists, but the cited proposition does not appear anywhere near the indicated paragraph or page.</p>
+        <div class="trap-footer"><span>Detector:</span> Paragraph Verbatim Locator</div>
+      </div>
+
+      <div class="trap-card" data-mode="4">
+        <div class="trap-header">
+          <span class="trap-num">MODE 04</span>
+          <span class="trap-chip warn">Precedent</span>
+        </div>
+        <h3 class="trap-title">Overruled Authority</h3>
+        <p class="trap-body">The precedent was reversed by a larger bench or nullified by retrospective legislation.</p>
+        <div class="trap-footer"><span>Detector:</span> Citation Graph Citator</div>
+      </div>
+
+      <div class="trap-card" data-mode="5">
+        <div class="trap-header">
+          <span class="trap-num">MODE 05</span>
+          <span class="trap-chip warn">Weight</span>
+        </div>
+        <h3 class="trap-title">Ratio vs. Obiter</h3>
+        <p class="trap-body">A passing judicial observation claimed as a binding principle of law under Article 141 of the Constitution.</p>
+        <div class="trap-footer"><span>Detector:</span> Judicial Weight Classifier</div>
+      </div>
+
+      <div class="trap-card" data-mode="6">
+        <div class="trap-header">
+          <span class="trap-num">MODE 06</span>
+          <span class="trap-chip bad">Distortion</span>
+        </div>
+        <h3 class="trap-title">Distorted Quotation</h3>
+        <p class="trap-body">Key words, qualifications, or exceptions omitted from the quotation to change the ruling’s scope.</p>
+        <div class="trap-footer"><span>Detector:</span> Word-for-Word Diff Engine</div>
+      </div>
+
+      <div class="trap-card" data-mode="7">
+        <div class="trap-header">
+          <span class="trap-num">MODE 07</span>
+          <span class="trap-chip warn">Hierarchy</span>
+        </div>
+        <h3 class="trap-title">Bench Strength Defiance</h3>
+        <p class="trap-body">Citing a 2-judge bench decision that conflicts with an earlier, binding 5-judge Constitution Bench ruling.</p>
+        <div class="trap-footer"><span>Detector:</span> Bench Seniority Hierarchy</div>
+      </div>
+
+      <div class="trap-card" data-mode="8">
+        <div class="trap-header">
+          <span class="trap-num">MODE 08</span>
+          <span class="trap-chip bad">Attribution</span>
+        </div>
+        <h3 class="trap-title">Dissenting Voice Quoted</h3>
+        <p class="trap-body">Dissenting or concurring opinion presented as the holding of the court without disclosing the minority status.</p>
+        <div class="trap-footer"><span>Detector:</span> Majority/Dissent Splitter</div>
+      </div>
+
+      <div class="trap-card" data-mode="9">
+        <div class="trap-header">
+          <span class="trap-num">MODE 09</span>
+          <span class="trap-chip warn">Facts</span>
+        </div>
+        <h3 class="trap-title">Fact Distinction Inapplicability</h3>
+        <p class="trap-body">Relying on a precedent whose core statutory context or material facts preclude application to the dispute.</p>
+        <div class="trap-footer"><span>Detector:</span> Factual Scope Matcher</div>
+      </div>
+
+      <div class="trap-card" data-mode="10">
+        <div class="trap-header">
+          <span class="trap-num">MODE 10</span>
+          <span class="trap-chip bad">Statutory Drift</span>
+        </div>
+        <h3 class="trap-title">Superseded Statute</h3>
+        <p class="trap-body">Interpreting a statutory provision that was subsequently repealed, amended, or substituted by Parliament.</p>
+        <div class="trap-footer"><span>Detector:</span> Legislative Timeline Anchor</div>
+      </div>
+
+      <div class="trap-card" data-mode="11">
+        <div class="trap-header">
+          <span class="trap-num">MODE 11</span>
+          <span class="trap-chip bad">Selective Reading</span>
+        </div>
+        <h3 class="trap-title">Contrary Line Concealment</h3>
+        <p class="trap-body">Ignoring an immediately following proviso or exception in the subsequent paragraph of the same judgment.</p>
+        <div class="trap-footer"><span>Detector:</span> Bidirectional Clause Scanner</div>
+      </div>
+
+      <div class="trap-card" data-mode="12">
+        <div class="trap-header">
+          <span class="trap-num">MODE 12</span>
+          <span class="trap-chip warn">Hearsay</span>
+        </div>
+        <h3 class="trap-title">Secondary Source Distortion</h3>
+        <p class="trap-body">Quoting a headnote, digest, or commentary that misstated the ruling of the actual judgment.</p>
+        <div class="trap-footer"><span>Detector:</span> Primary Text Corroborator</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== THE 6-STEP INTEGRITY LADDER ========== -->
+  <div class="section-band bg-white">
+    <section class="section" id="ladder">
+      <div class="section-head">
+        <span class="section-tag">VERDICT HIERARCHY</span>
+        <h2 class="section-title">The six-step staircase.</h2>
+        <p class="section-desc">
+          Every citation tested lands on a deterministic grade from A to F.
+          Grades are never averaged or obscured. Unchecked checks stand off the stair entirely.
+        </p>
+      </div>
+
+      <div class="ladder-container">
+        <div class="ladder-step l-a">
+          <div class="ladder-badge g A">A</div>
+          <div class="ladder-info">
+            <h3>Grade A — Direct Binding Holding</h3>
+            <p>The court's verbatim ratio decidendi, rendered by the majority, verified in official SCR text, and unassailed by subsequent benches.</p>
+          </div>
+        </div>
+
+        <div class="ladder-step l-b">
+          <div class="ladder-badge g B">B</div>
+          <div class="ladder-info">
+            <h3>Grade B — Verifiable Support with Narrowed Scope</h3>
+            <p>The court supports the principle, though qualified by statutory conditions or factual reservations that must be pleaded accurately.</p>
+          </div>
+        </div>
+
+        <div class="ladder-step l-c">
+          <div class="ladder-badge g C">C</div>
+          <div class="ladder-info">
+            <h3>Grade C — Obiter Dictum / Persuasive Remark</h3>
+            <p>A non-binding observation not essential to the determination. Safe to argue only when expressly framed as persuasive authority.</p>
+          </div>
+        </div>
+
+        <div class="ladder-step l-d">
+          <div class="ladder-badge g D">D</div>
+          <div class="ladder-info">
+            <h3>Grade D — Misattributed Advocate Submission</h3>
+            <p>The sentence cited belongs to counsel’s arguments or summary of pleadings, rather than the judgment of the court.</p>
+          </div>
+        </div>
+
+        <div class="ladder-step l-e">
+          <div class="ladder-badge g E">E</div>
+          <div class="ladder-info">
+            <h3>Grade E — Overruled or Distinguishable Authority</h3>
+            <p>The authority has been declared per incuriam, explicitly overruled by a larger bench, or superseded by amendment.</p>
+          </div>
+        </div>
+
+        <div class="ladder-step l-f">
+          <div class="ladder-badge g F">F</div>
+          <div class="ladder-info">
+            <h3>Grade F — Phantom Citation or Severe Fabrication</h3>
+            <p>The citation cannot be resolved in official law reports, or the text carries no relation to the asserted legal proposition.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ========== DATA LINEAGE & ARCHITECTURE ========== -->
+  <section class="section" id="architecture">
+    <div class="section-head">
+      <span class="section-tag">DATA SOVEREIGNTY</span>
+      <h2 class="section-title">Official data. Zero cloud lock-in.</h2>
+      <p class="section-desc">
+        Built exclusively on official Indian Supreme Court SCR open data under CC-BY-4.0.
+        Self-hosted on hardware you control. Your briefs and matters never train external models.
+      </p>
+      <p class="section-note">
+        The agent layer is built with the <a href="https://strandsagents.com/" rel="noopener">Strands
+        Agents SDK</a> — one agent over eight tools, one per check above. It decides which check your
+        question needs; it never decides the answer.
+      </p>
+    </div>
+
+    <div class="arch-grid">
+      <div class="arch-card">
+        <div class="arch-svg-box">
+          <svg class="arch-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 21h18M3 10h18M5 10v11M9 10v11M15 10v11M19 10v11M12 3l9 7H3z"/></svg>
+        </div>
+        <h3>Supreme Court SCR Open Data</h3>
+        <p>Direct ingest from official AWS Open Data Supreme Court Judgments repository. Full verbatim opinions segmented at paragraph boundaries.</p>
+      </div>
+      <div class="arch-card">
+        <div class="arch-svg-box">
+          <svg class="arch-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h3>Triple-State Safety Standard</h3>
+        <p>Every claim is either Supported, Checked and Not Supported, or Not Checked. We never collapse missing keys or outages into false assurance.</p>
+      </div>
+      <div class="arch-card">
+        <div class="arch-svg-box">
+          <svg class="arch-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        </div>
+        <h3>Self-Hosted Engine</h3>
+        <p>Runs entirely inside your infrastructure with single-binary or container deployment. Memory-hard scrypt authentication and session security.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== CALL TO ACTION BANNER ========== -->
+  <section class="cta-section">
+    <svg class="cta-steps" viewBox="0 0 1200 64" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      <path d="M0 64 V44 H160 V30 H340 V16 H520 V44 H720 V24 H900 V8 H1080 V36 H1200 V64 Z"/>
+    </svg>
+    <div class="cta-container">
+      <div class="cta-content">
+        <h2 class="cta-title">Before you file, know what opposing counsel will find.</h2>
+        <p class="cta-sub">
+          Verify citations, search holdings across every paragraph of the Supreme Court,
+          and draft submissions with confirmed authority behind every sentence.
+        </p>
+        <div class="cta-buttons">
+          <a href="/" class="btn-primary cta-btn">Open the Tool <span class="arrow" aria-hidden="true">→</span></a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ========== FOOTER ========== -->
+<footer class="footer" id="footer">
+  <div class="foot-inner">
+    <div class="foot-col foot-main">
+      <h4>Location</h4>
+      <p class="foot-loc">
+        Supreme Court of India<br>
+        Tilak Marg, New Delhi 110001
+      </p>
+      <p class="foot-disclaimer">
+        Research aid for Indian appellate jurisprudence. The advocate remains responsible for every citation filed.
+      </p>
+    </div>
+    <div class="foot-col">
+      <h4>Platform</h4>
+      <ul>
+        <li><a href="/#check">Check a Brief</a></li>
+        <li><a href="/#find">Find an Authority</a></li>
+        <li><a href="/#draft">Draft a Submission</a></li>
+      </ul>
+    </div>
+    <div class="foot-col">
+      <h4>Data &amp; Integrity</h4>
+      <ul>
+        <li><a href="https://registry.opendata.aws/indian-supreme-court-judgments/" target="_blank" rel="noreferrer">AWS Open Data SCR</a></li>
+        <li><a href="https://indiankanoon.org" target="_blank" rel="noreferrer">Indian Kanoon Attribution</a></li>
+        <li><a href="#traps">The 12 Failure Modes</a></li>
+        <li><a href="#ladder">Grading Taxonomy</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="foot-bar">
+    <span>&copy; Ruchi 2026 &middot; Built for Indian appellate jurisprudence</span>
+    <span>Judgment data CC-BY-4.0 &middot; Self-hosted citation integrity</span>
+  </div>
+</footer>
+
+<div id="dossier-curtain" class="dossier-curtain" aria-hidden="true">
+  <div class="curtain-content">
+    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false" width="38" height="38">
+      <rect class="mark-bg" width="32" height="32" rx="8"/>
+      <g class="s s1"><path class="front" d="M5 21h6v6H5z"/><path class="top" d="M5 21h6l4-4H9z"/><path class="side" d="M11 21l4-4v6l-4 4z"/></g>
+      <g class="s s2"><path class="front" d="M11 16h6v11h-6z"/><path class="top" d="M11 16h6l4-4h-6z"/><path class="side" d="M17 16l4-4v11l-4 4z"/></g>
+      <g class="s s3"><path class="front" d="M17 11h6v16h-6z"/><path class="top" d="M17 11h6l4-4h-6z"/><path class="side" d="M23 11l4-4v16l-4 4z"/></g>
+    </svg>
+    <span class="curtain-label">Opening Chambers Authentication Dossier…</span>
+  </div>
+</div>
+
+<script src="/vendor/lenis.min.js"></script>
+<script src="/vendor/gsap.min.js"></script>
+<script src="/vendor/ScrollTrigger.min.js"></script>
+<script src="/landing.js"></script>
+</body>
+</html>

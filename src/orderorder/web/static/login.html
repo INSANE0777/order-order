@@ -1,0 +1,90 @@
+<!doctype html>
+<!--
+  Ruchi — Authentication Dossier.
+  Designed as a physical legal folder with self-hosted type and strict CSP compliance.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#f3ece5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1236" media="(prefers-color-scheme: dark)">
+<title>Sign In — Ruchi</title>
+<link rel="stylesheet" href="/login.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232b34d6'/><path d='M9 24V17h5v-5h5V7h5' fill='none' stroke='%23f3ece5' stroke-width='3.2' stroke-linejoin='round'/></svg>">
+</head>
+<body>
+
+<header class="auth-header">
+  <a href="/" class="brand-link" aria-label="Return to Ruchi Home">
+    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+      <rect class="mark-bg" width="32" height="32" rx="8"/>
+      <g class="s s1"><path class="front" d="M5 21h6v6H5z"/><path class="top" d="M5 21h6l4-4H9z"/><path class="side" d="M11 21l4-4v6l-4 4z"/></g>
+      <g class="s s2"><path class="front" d="M11 16h6v11h-6z"/><path class="top" d="M11 16h6l4-4h-6z"/><path class="side" d="M17 16l4-4v11l-4 4z"/></g>
+      <g class="s s3"><path class="front" d="M17 11h6v16h-6z"/><path class="top" d="M17 11h6l4-4h-6z"/><path class="side" d="M23 11l4-4v16l-4 4z"/></g>
+    </svg>
+    <span class="wordmark">Ruchi</span>
+  </a>
+
+  <a href="/" class="auth-back-btn" id="btn-back-landing" aria-label="Return to Overview">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13L5 8l5-5"/></svg>
+    <span>Overview</span>
+  </a>
+</header>
+
+<main class="auth-main">
+  <div class="auth-container">
+    <div class="folder" id="auth-folder">
+      <div class="folder-tab">
+        <span id="tab-label">AUTHENTICATION DOSSIER</span>
+      </div>
+
+      <div class="folder-body">
+        <div id="auth-seal" class="auth-seal" aria-hidden="true">AUTHENTICATED · CHAMBERS CERTIFIED</div>
+        <div class="auth-mode-switch">
+          <button id="mode-login" class="mode-btn on" type="button">Sign In</button>
+          <button id="mode-register" class="mode-btn" type="button">Create Account</button>
+        </div>
+
+        <h1 class="auth-title" id="auth-heading">Access your verification workspace.</h1>
+        <p class="auth-desc" id="auth-sub">Enter your credentials to manage briefs, cite checks, and drafted submissions.</p>
+
+        <div id="auth-alert" class="auth-alert" hidden role="alert"></div>
+
+        <form id="auth-form" novalidate>
+          <div class="form-group" id="group-name" hidden>
+            <label for="input-name">Advocate or Firm Name</label>
+            <input type="text" id="input-name" placeholder="e.g. Adv. Priya Sharma" autocomplete="name">
+          </div>
+
+          <div class="form-group">
+            <label for="input-email">Email Address</label>
+            <input type="email" id="input-email" required placeholder="advocate@chambers.in" autocomplete="email">
+          </div>
+
+          <div class="form-group">
+            <label for="input-password">Password</label>
+            <input type="password" id="input-password" required placeholder="••••••••••••" autocomplete="current-password">
+            <span class="form-hint" id="password-hint" hidden>Minimum 8 characters with cryptographic hashing.</span>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" id="btn-submit" class="btn-primary">
+              <span id="btn-text">Sign In</span> <span class="arrow" aria-hidden="true">→</span>
+            </button>
+          </div>
+        </form>
+
+        <div class="auth-foot">
+          <span>Protected by memory-hard scrypt hashing and secure sessions.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="/vendor/gsap.min.js"></script>
+<script src="/login.js"></script>
+</body>
+</html>

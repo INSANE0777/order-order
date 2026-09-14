@@ -1,6 +1,36 @@
 const $ = (id) => document.getElementById(id);
 let job = null, verdicts = [], chosen = null;
 
+// ---------- auth session check ----------
+fetch("/api/auth/me").then(r => {
+  if (!r.ok) {
+    if (window.location.pathname.startsWith("/dashboard")) {
+      window.location.href = "/login?next=/dashboard";
+    }
+    return null;
+  }
+  return r.json();
+}).then(data => {
+  if (data && data.user) {
+    const profile = $("user-profile");
+    const nameEl = $("user-name");
+    if (profile && nameEl) {
+      nameEl.textContent = data.user.full_name || data.user.email;
+      profile.hidden = false;
+    }
+  }
+}).catch(() => {});
+
+const logoutBtn = $("btn-logout");
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (_) {}
+    window.location.href = "/";
+  });
+}
+
 // ---------- status ----------
 fetch("/api/health").then(r => r.json()).then(h => {
   const bits = [`${h.judgments_with_text.toLocaleString()} judgments`];
@@ -361,6 +391,17 @@ async function download(url, name) {
 }
 
 // ---------- searching ----------
+// The Find surface's demo: a holding exactly as the corpus stores it -- paragraph 7.2 of
+// Munna Pandey v. State of Bihar, 2023 INSC 793 (INSC:2023:793), labelled ratio. Searched
+// verbatim it puts that judgment first, which is the honest demo: the tool finds what is on
+// the record. It loads and runs in one press, because a button that fills a box and waits
+// teaches nothing.
+const DEMO_QUERY = "This Hon’ble Court has consistently held that the circumstances not put to the Appellant cannot be relied upon to convict an accused";
+$("query-demo").onclick = async () => {
+  $("query").value = DEMO_QUERY;
+  $("search").click();
+};
+
 $("search").onclick = async () => {
   const q = $("query").value.trim();
   if (!q) return;

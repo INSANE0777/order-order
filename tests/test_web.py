@@ -389,3 +389,17 @@ def test_the_document_is_not_offered_before_it_is_assembled(client) -> None:
     with TestClient(create_app(store=store, session_factory=None)) as c:
         job = store.create_draft(plan=None, source="x")
         assert c.get(f"/api/draft/{job.id}/document").status_code == 409
+
+
+def test_the_default_surface_serves_the_tool_directly(client) -> None:
+    """No chambers: no landing before the tool, no sign-in, no guarded dashboard.
+
+    The working tool is the page at / -- a verifier that demands a login before it will check a
+    citation is a tool nobody runs twice. The landing and the chambers exist behind one flag and
+    are exercised in test_auth_flow with the flag on.
+    """
+    page = client.get("/")
+    assert page.status_code == 200
+    assert "tab-check" in page.text  # the working tool, not the marketing landing
+    assert client.get("/login").status_code == 404
+    assert client.get("/dashboard").status_code == 404
