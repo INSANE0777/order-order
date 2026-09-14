@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-  OrderOrder — The Citation Integrity Engine for Indian Case Law.
+  Ruchi — The Citation Integrity Engine for Indian Case Law.
   Editorial Landing Page.
   Built to the Redis Agency L'escalier identity: cobalt, coral, cream, and the 3D staircase.
   CSP: script-src 'self', style-src 'self', font-src 'self'. Zero inline scripts or styles.
@@ -12,7 +12,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#f3ece5" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0f1236" media="(prefers-color-scheme: dark)">
-<title>OrderOrder — Citation Integrity for Indian Case Law</title>
+<title>Ruchi — Citation Integrity for Indian Case Law</title>
 <link rel="stylesheet" href="/landing.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232b34d6'/><path d='M9 24V17h5v-5h5V7h5' fill='none' stroke='%23f3ece5' stroke-width='3.2' stroke-linejoin='round'/></svg>">
 </head>
@@ -22,7 +22,7 @@
 
 <!-- ========== STICKY NAVIGATION ========== -->
 <header class="nav" id="top-nav">
-  <a href="/" class="brand" aria-label="Return to OrderOrder Overview">
+  <a href="/" class="brand" aria-label="Return to Ruchi Overview">
     <!-- The staircase, in the same oblique projection as the one in the verdict panel. -->
     <svg class="mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
       <rect class="mark-bg" width="32" height="32" rx="8"/>
@@ -30,7 +30,7 @@
       <g class="s s2"><path class="front" d="M11 16h6v11h-6z"/><path class="top" d="M11 16h6l4-4h-6z"/><path class="side" d="M17 16l4-4v11l-4 4z"/></g>
       <g class="s s3"><path class="front" d="M17 11h6v16h-6z"/><path class="top" d="M17 11h6l4-4h-6z"/><path class="side" d="M23 11l4-4v16l-4 4z"/></g>
     </svg>
-    <span class="wordmark">OrderOrder</span>
+    <span class="wordmark">Ruchi</span>
   </a>
 
   <div class="tabs" role="tablist" aria-label="Landing Navigation">
@@ -47,10 +47,9 @@
     </div>
     <div id="user-profile" class="user-pill" hidden>
       <span id="user-name" class="user-name"></span>
-      <a href="/dashboard" class="btn-workspace-link">Dashboard &rarr;</a>
+      <a href="/" class="btn-workspace-link">Dashboard &rarr;</a>
       <button id="btn-logout" class="btn-logout" title="Sign out">Sign out</button>
     </div>
-    <a href="/login" id="nav-login" class="btn-nav-login">Sign In</a>
   </div>
 </header>
 
@@ -67,23 +66,23 @@
         </h1>
         <p class="hero-lede">
           Language models invent paragraph pinpoints, quote advocate submissions as judicial rulings,
-          and cite benches overruled decades ago. OrderOrder reads your brief against 9,400+ official
+          and cite benches overruled decades ago. Ruchi reads your brief against 38,000+ official
           Supreme Court judgments, pins every line to its verbatim paragraph, and writes what opposing
           counsel will say before you set foot in court.
         </p>
 
         <div class="hero-ctas">
-          <a href="/dashboard" class="btn-primary hero-btn">
+          <a href="/" class="btn-primary hero-btn">
             Enter Verification Lab <span class="arrow" aria-hidden="true">→</span>
           </a>
-          <a href="#simulator" class="btn-secondary hero-btn">
+          <a href="/" class="btn-secondary hero-btn">
             Try Live Scanner
           </a>
         </div>
 
         <div class="proof-bar">
           <div class="proof-item">
-            <span class="proof-num">9,424</span>
+            <span class="proof-num">38,032</span>
             <span class="proof-label">Supreme Court Opinions</span>
           </div>
           <div class="proof-divider" aria-hidden="true"></div>
@@ -450,8 +449,7 @@
           and draft submissions with confirmed authority behind every sentence.
         </p>
         <div class="cta-buttons">
-          <a href="/dashboard" class="btn-primary cta-btn">Open Dashboard <span class="arrow" aria-hidden="true">→</span></a>
-          <a href="/login" class="btn-secondary cta-btn">Sign In to Workspace</a>
+          <a href="/" class="btn-primary cta-btn">Open the Tool <span class="arrow" aria-hidden="true">→</span></a>
         </div>
       </div>
     </div>
@@ -461,16 +459,6 @@
 
 <!-- ========== FOOTER ========== -->
 <footer class="footer" id="footer">
-  <!-- Giant full-width interactive ASCII brandmark showpiece -->
-  <div class="footer-ascii-wrap" id="asciiStage" role="region" aria-label="Interactive ASCII Brandmark">
-    <canvas id="asciiCanvas"></canvas>
-
-    <!-- Clean fallback text for mobile viewports -->
-    <div class="ascii-fallback" aria-hidden="true">
-      <span class="ascii-fallback-wordmark">O R D E R &nbsp; O R D E R</span>
-    </div>
-  </div>
-
   <div class="foot-inner">
     <div class="foot-col foot-main">
       <h4>Location</h4>
@@ -485,10 +473,9 @@
     <div class="foot-col">
       <h4>Platform</h4>
       <ul>
-        <li><a href="/dashboard#check">Check a Brief</a></li>
-        <li><a href="/dashboard#find">Find an Authority</a></li>
-        <li><a href="/dashboard#draft">Draft a Submission</a></li>
-        <li><a href="/login">Chambers Access</a></li>
+        <li><a href="/#check">Check a Brief</a></li>
+        <li><a href="/#find">Find an Authority</a></li>
+        <li><a href="/#draft">Draft a Submission</a></li>
       </ul>
     </div>
     <div class="foot-col">
@@ -503,7 +490,7 @@
   </div>
 
   <div class="foot-bar">
-    <span>&copy; OrderOrder 2026 &middot; Built for Indian appellate jurisprudence</span>
+    <span>&copy; Ruchi 2026 &middot; Built for Indian appellate jurisprudence</span>
     <span>Judgment data CC-BY-4.0 &middot; Self-hosted citation integrity</span>
   </div>
 </footer>

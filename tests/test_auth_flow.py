@@ -16,7 +16,10 @@ from orderorder.web.security import (
 
 @pytest.fixture
 def client(corpus):
-    with TestClient(create_app(session_factory=corpus)) as c:
+    # The chambers surface -- landing, sign-in, guarded dashboard -- is off by default; these
+    # tests turn it on, so every route and the guard keep being exercised even while the default
+    # surface serves the working tool directly at /.
+    with TestClient(create_app(session_factory=corpus, chambers_auth=True)) as c:
         yield c
 
 
@@ -100,7 +103,7 @@ def test_landing_and_login_pages_served(client: TestClient):
     landing_resp = client.get("/")
     assert landing_resp.status_code == 200
     assert "text/html" in landing_resp.headers["content-type"]
-    assert "OrderOrder" in landing_resp.text
+    assert "Ruchi" in landing_resp.text
 
     login_resp = client.get("/login")
     assert login_resp.status_code == 200

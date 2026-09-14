@@ -1,4 +1,4 @@
-// OrderOrder — Authentication Client Script
+// Ruchi — Authentication Client Script
 // Multi-stage Accreditation Animation Chain & Strict CSP compliance.
 
 (() => {
@@ -51,13 +51,13 @@
       $("auth-sub").textContent = "Register with your professional email to access citation verification.";
       $("btn-text").textContent = "Create Account";
       $("tab-label").textContent = "REGISTRATION DOSSIER";
-      document.title = "Register — OrderOrder";
+      document.title = "Register — Ruchi";
     } else {
       $("auth-heading").textContent = "Access your verification workspace.";
       $("auth-sub").textContent = "Enter your credentials to manage briefs, cite checks, and drafted submissions.";
       $("btn-text").textContent = "Sign In";
       $("tab-label").textContent = "AUTHENTICATION DOSSIER";
-      document.title = "Sign In — OrderOrder";
+      document.title = "Sign In — Ruchi";
     }
 
     // Smooth text transition

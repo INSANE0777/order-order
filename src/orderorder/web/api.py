@@ -37,19 +37,8 @@ from sqlalchemy import select
 
 from orderorder import __version__, logs
 from orderorder.config import get_settings
-from orderorder.db.models import Judgment, JudgmentTextVersion, User, UserSession
+from orderorder.db.models import Judgment, JudgmentTextVersion, User
 from orderorder.db.session import get_session, init_db
-from orderorder.web.security import (
-    EMAIL_REGEX,
-    SESSION_COOKIE_NAME,
-    create_user_session,
-    get_current_user,
-    hash_password,
-    normalize_email,
-    revoke_session,
-    validate_password_strength,
-    verify_password,
-)
 from orderorder.drafting.assemble import assemble
 from orderorder.drafting.attack import attack_draft
 from orderorder.drafting.plan import PlanError, parse_plan
@@ -80,6 +69,17 @@ from orderorder.web.jobs import (
     binding_json,
     watch,
     watch_draft,
+)
+from orderorder.web.security import (
+    EMAIL_REGEX,
+    SESSION_COOKIE_NAME,
+    create_user_session,
+    get_current_user,
+    hash_password,
+    normalize_email,
+    revoke_session,
+    validate_password_strength,
+    verify_password,
 )
 
 log = logs.get_logger(__name__)
@@ -208,7 +208,8 @@ class LoginRequest(BaseModel):
 
 
 def create_app(
-    *, store: JobStore | None = None, session_factory=get_session, token: str | None = None
+    *, store: JobStore | None = None, session_factory=get_session, token: str | None = None,
+    chambers_auth: bool = False,
 ) -> FastAPI:
     # Here as well as in `serve`, because uvicorn can be pointed at the module-level app directly and
     # a deployment that did that would otherwise run silent. Calling it twice changes nothing.
@@ -675,21 +676,39 @@ def create_app(
                 }
             }
 
-    @app.get("/")
-    def landing() -> FileResponse:
+    # The working tool at /, unless the chambers surface is asked for. The landing, the sign-in and
+    # the guarded dashboard route are kept whole below and register only under the flag, so bringing
+    # the surface back is ORDERORDER_CHAMBERS_AUTH=1 and nothing else.
+    if chambers_auth:
+        @app.get("/")
+        def landing() -> FileResponse:
+            return FileResponse(STATIC / "landing.html")
+
+        @app.get("/login")
+        def login_page() -> FileResponse:
+            return FileResponse(STATIC / "login.html")
+
+        @app.get("/dashboard")
+        def dashboard(request: Request):
+            with open_session() as session:
+                user = get_current_user(request, session)
+            if not user:
+                return RedirectResponse(url="/login?next=/dashboard", status_code=303)
+            return FileResponse(STATIC / "index.html")
+    else:
+        @app.get("/")
+        def workspace() -> FileResponse:
+            return FileResponse(STATIC / "index.html")
+
+    @app.get("/architecture")
+    def architecture_page() -> FileResponse:
+        """The editorial landing page, at /architecture, unconditionally.
+
+        A page that explains the engine needs neither a session nor a flag; the nav link in the
+        working tool opens it in its own tab, and the flag above still governs only whether the
+        landing also sits at / with the sign-in beside it.
+        """
         return FileResponse(STATIC / "landing.html")
-
-    @app.get("/login")
-    def login_page() -> FileResponse:
-        return FileResponse(STATIC / "login.html")
-
-    @app.get("/dashboard")
-    def dashboard(request: Request):
-        with open_session() as session:
-            user = get_current_user(request, session)
-        if not user:
-            return RedirectResponse(url="/login?next=/dashboard", status_code=303)
-        return FileResponse(STATIC / "index.html")
 
     @app.get("/landing.css")
     def landing_css() -> FileResponse:
@@ -829,4 +848,7 @@ def _run(job: Job, request: VerifyRequest, open_session) -> None:
 
 # The module-level application uvicorn imports by name, so `--reload` can re-import it. The token
 # comes from the environment here because uvicorn constructs this one itself.
-app = create_app(token=os.environ.get(TOKEN_ENV) or None)
+app = create_app(
+    token=os.environ.get(TOKEN_ENV) or None,
+    chambers_auth=get_settings().chambers_auth,
+)

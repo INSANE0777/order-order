@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     # Storage. The corpus, caches and database volume live here; it grows to a few gigabytes, so
     # point ORDERORDER_DATA_DIR at somewhere with room rather than accepting the default.
     orderorder_data_dir: Path = Field(default=Path("data"))
+    # The chambers surface -- landing page at /, sign-in at /login, the working tool behind an
+    # auth-guarded /dashboard. Off by default: the working tool serves at / directly, because a
+    # verifier that demands a login before it will check a citation is a tool nobody runs twice.
+    # Set ORDERORDER_CHAMBERS_AUTH=1 to bring the landing, the sign-in and the guarded route back;
+    # nothing else changes and no code is anywhere else.
+    chambers_auth: bool = False
     database_url: str = ""
 
     # Language models as LangChain provider strings ("provider:model").
