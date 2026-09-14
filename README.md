@@ -10,7 +10,7 @@ writes what opposing counsel will say.
 
 | | |
 |---|---|
-| **Live** | [order.vihar.in](https://ruchi.vihar.in) |
+| **Live** | [ruchi.vihar.in](https://ruchi.vihar.in) |
 | **Corpus** | Supreme Court of India — 38,005 judgments with full text, 707,647 paragraphs, 1950–2025 |
 | **Data** | [AWS Open Data](https://registry.opendata.aws/indian-supreme-court-judgments/), CC-BY-4.0 |
 | **Licence** | [Apache-2.0](LICENSE) |
