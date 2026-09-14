@@ -65,6 +65,15 @@ services:
       BEDROCK_MODEL: "${BEDROCK_MODEL-}"
       BEDROCK_REGION: "${BEDROCK_REGION-}"
       AWS_BEARER_TOKEN_BEDROCK: "${AWS_BEARER_TOKEN_BEDROCK-}"
+      # Static credentials, for a box with no instance role to attach. Absent by default, and when
+      # absent botocore falls through to the role exactly as before -- naming them here costs nothing
+      # and the alternative is a key set on the host that the container never sees, which reads as
+      # "Bedrock is configured" everywhere except where it matters.
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID-}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY-}"
+      AWS_SESSION_TOKEN: "${AWS_SESSION_TOKEN-}"
+      AWS_REGION: "${AWS_REGION-}"
+      AWS_DEFAULT_REGION: "${AWS_DEFAULT_REGION-}"
     volumes:
       # The corpus is state and lives outside the image. Read-write because ingestion, the full-text
       # index and the vector store all write here.
