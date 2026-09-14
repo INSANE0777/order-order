@@ -42,14 +42,14 @@
     <span class="wordmark">Ruchi</span>
   </a>
 
-  <div class="tabs-wrap">
   <div class="tabs" role="tablist" aria-label="Surface">
     <span class="thumb" aria-hidden="true"></span>
     <button id="tab-check" class="on" role="tab" aria-selected="true" aria-controls="view-check" aria-label="Check a brief">Check</button>
     <button id="tab-find" role="tab" aria-selected="false" aria-controls="view-find" aria-label="Find an authority">Find</button>
     <button id="tab-draft" role="tab" aria-selected="false" aria-controls="view-draft" aria-label="Draft a submission">Draft</button>
-  </div>
-  <a href="/architecture" class="tab-more" target="_blank" rel="noopener">Architecture <span aria-hidden="true">↗</span></a>
+    <!-- The fourth thing in the bar is a link and not a surface: it leaves this page rather than
+         swapping what is under it, so it never takes the thumb and it carries no role of its own. -->
+    <a href="/architecture" class="tab-more" aria-label="Read the architecture">Architecture</a>
   </div>
 
   <div class="nav-right">

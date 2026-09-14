@@ -593,6 +593,23 @@ body[data-landing-tab="integrity"] .tabs .thumb { translate: 200% 0; }
   margin: 0;
   text-wrap: pretty;
 }
+/* A line of provenance under a section's description: smaller than the description, and the only
+   place on the landing that links off the page. */
+.section-note {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--faint);
+  margin: 14px 0 0;
+  text-wrap: pretty;
+}
+.section-note a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  transition: border-color .2s var(--ease);
+}
+.section-note a:hover { border-bottom-color: var(--accent); }
+
 .text-light { color: var(--bg) !important; }
 .text-faint { color: var(--faint) !important; }
 
