@@ -187,6 +187,7 @@ body {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
+  gap: 28px;
   height: 72px;
   padding: 0 40px;
   background: var(--bg);
@@ -246,7 +247,7 @@ body[data-surface="draft"] .tabs .thumb { translate: 200% 0; }
   font-weight: 600;
   letter-spacing: -.004em;
   color: var(--ink-2);
-  padding: 7px 24px;
+  padding: 7px 18px;
   border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
@@ -262,6 +263,7 @@ body[data-surface="draft"] .tabs .thumb { translate: 200% 0; }
   display: flex;
   align-items: center;
   gap: 16px;
+  min-width: 0;
 }
 /* Inside the bar the link is one of four, so it wears the buttons' shape from the rule above and
    needs only what an anchor does not already have: no underline, and its text centred in the same
@@ -279,6 +281,9 @@ body[data-surface="draft"] .tabs .thumb { translate: 200% 0; }
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .user-pill {
   display: inline-flex;
@@ -1195,6 +1200,10 @@ h1, h2 { text-wrap: balance; }
   .card { box-shadow: none; border: 0; padding: 0; }
   #para, pre { max-height: none; overflow: visible; }
   button.pick { break-inside: avoid; animation: none; }
+}
+
+@media (max-width: 1100px) {
+  #status { display: none; }
 }
 
 @media (max-width: 720px) {
