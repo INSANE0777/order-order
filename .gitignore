@@ -49,3 +49,7 @@ desktop.ini
 *.log
 tmp/
 scratch/
+
+# Demo recordings. Large, and not something a public repository should carry.
+*.mp4
+*.mov

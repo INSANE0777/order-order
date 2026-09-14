@@ -54,6 +54,21 @@ BEDROCK_PREFIX = "bedrock:"
 # that chose differently would make two identical questions produce two different audits.
 TEMPERATURE = 0.0
 
+# Except where the model refuses to be pinned. The GPT-5 family accepts only temperature=1 and
+# LiteLLM raises `UnsupportedParamsError` rather than dropping the parameter, so an agent configured
+# against one of them fails on every question rather than answering slightly less predictably.
+# Sending nothing leaves the provider on its own default, which is the honest thing to do for a model
+# that will not take the setting.
+FIXED_TEMPERATURE = ("gpt-5", "o1", "o3", "o4")
+
+
+def temperature_for(model_id: str) -> dict:
+    """The sampling parameters for this model: temperature zero, unless it will not accept one."""
+    lowered = model_id.lower()
+    if any(name in lowered for name in FIXED_TEMPERATURE):
+        return {}
+    return {"temperature": TEMPERATURE}
+
 
 class NoModelConfigured(RuntimeError):
     """Nothing the agent could think with. Raised where the agent is built, not at the first question."""
@@ -143,7 +158,7 @@ def _litellm(spec: ProviderSpec, *, reason: str) -> ModelChoice:
     model = LiteLLMModel(
         client_args=client_args or None,
         model_id=model_id,
-        params={"temperature": TEMPERATURE},
+        params=temperature_for(model_id),
     )
     return ModelChoice(model, model_id, "litellm", reason)
 

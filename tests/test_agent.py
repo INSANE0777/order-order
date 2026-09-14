@@ -452,3 +452,19 @@ def test_no_model_is_a_503_on_the_run_rather_than_an_error_mid_stream(client, mo
     response = client.post("/api/agent/runs", json={"question": "is it good law?"})
     assert response.status_code == 503
     assert "GROQ_API_KEY" in response.json()["detail"]
+
+
+def test_a_model_that_refuses_a_temperature_is_not_sent_one() -> None:
+    """The GPT-5 family accepts only temperature=1, and LiteLLM raises rather than dropping it.
+
+    Found in production: the agent answered every question with `UnsupportedParamsError` the moment
+    the provider chain was pointed at a gpt-5 model. Determinism is worth having where it can be had
+    and is not worth failing every request for.
+    """
+    from orderorder.agent.model import TEMPERATURE, temperature_for
+
+    assert temperature_for("groq/openai/gpt-oss-120b") == {"temperature": TEMPERATURE}
+    assert temperature_for("gemini/gemini-3.6-flash") == {"temperature": TEMPERATURE}
+    assert temperature_for("openai/openai.gpt-5.4") == {}
+    assert temperature_for("openai/GPT-5-codex") == {}
+    assert temperature_for("openai/o3-mini") == {}
