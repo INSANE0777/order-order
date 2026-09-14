@@ -629,3 +629,31 @@ const DEMO = `WRITTEN SUBMISSIONS ON BEHALF OF THE APPELLANT
 5. The doctrine of delay and laches cannot be applied stricto senso to writ petitions invoking public interest jurisdiction, as this Court held in 2024 INSC 1027, para 17.
 
 6. A Constitution Bench of this Court has settled that the plaintiff cannot be compelled to implead a stranger to the contract: 2019 INSC 770, para 7.`;
+
+// Leaving for the architecture page is still a change of surface, so the thumb goes there first and
+// the page follows. The anchor keeps working with no script at all -- this only intercepts the plain
+// left click, and hands every modified one (new tab, new window, download) back to the browser.
+//
+// The wait is the thumb's own transition, .42s in the stylesheet, so the two cannot drift apart: the
+// slide lands and then the page turns. Under prefers-reduced-motion there is nothing to wait for.
+(() => {
+  const link = $("tab-arch");
+  if (!link) return;
+  link.addEventListener("click", (event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+
+    for (const name of SURFACES) {
+      $("tab-" + name).classList.remove("on");
+      $("tab-" + name).setAttribute("aria-selected", "false");
+    }
+    link.classList.add("on");
+    document.body.dataset.surface = "architecture";
+
+    const thumb = document.querySelector(".tabs .thumb");
+    if (thumb) { thumb.classList.remove("moving"); void thumb.offsetWidth; thumb.classList.add("moving"); }
+
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    setTimeout(() => { location.href = link.getAttribute("href"); }, still ? 0 : 420);
+  });
+})();

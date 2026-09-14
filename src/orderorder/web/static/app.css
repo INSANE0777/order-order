@@ -235,6 +235,7 @@ body[data-scrolled="1"] .nav { border-bottom-color: var(--line); }
 }
 body[data-surface="find"]  .tabs .thumb { translate: 100% 0; }
 body[data-surface="draft"] .tabs .thumb { translate: 200% 0; }
+body[data-surface="architecture"] .tabs .thumb { translate: 300% 0; }
 .tabs .thumb.moving { animation: squash .42s var(--ease-out); }
 .tabs button, .tabs .tab-more {
   position: relative;
@@ -254,7 +255,7 @@ body[data-surface="draft"] .tabs .thumb { translate: 200% 0; }
   transition: color .3s var(--ease) .06s;
 }
 .tabs button:hover, .tabs .tab-more:hover { color: var(--ink); }
-.tabs button.on { color: var(--bg); }
+.tabs button.on, .tabs .tab-more.on { color: var(--bg); }
 .tabs button:focus-visible, .tabs .tab-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* What is loaded, said once, in the type that says numbers: no pill, no dot. */
