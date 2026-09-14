@@ -158,8 +158,8 @@ the interpreter and the virtualenv at one data directory, so the corpus and mode
 system drive. Set `ORDERORDER_DATA_DIR` to choose where; it defaults to `./data`.
 
 ```bash
-git clone https://github.com/dhruvv1402/order-order.git
-cd order-order
+git clone https://github.com/dhruvv1402/Ruchi.git
+cd Ruchi
 
 source scripts/dev-env.sh        # PowerShell:  . .\scripts\dev-env.ps1
 uv sync

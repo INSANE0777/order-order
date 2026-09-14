@@ -255,7 +255,7 @@ gantt
 | 2026-09-04 | Postgres + pgvector only; Qdrant deferred | Corpus fits; one system for a team of two | **Narrowed** — see 7.2 |
 | 2026-09-04 | Hackathon build is ₹0: free LLM API tiers behind LangChain fallbacks, free GPU notebooks for batch work, the development machine for the app | Development hardware is CPU-only; no budget now; the demo processes no privileged data | Yes |
 | 2026-09-04 | LangChain + LangGraph as the orchestration layer, replacing the earlier Pydantic AI plan | Provider swapping across free tiers, a state graph that matches the verdict state machine, ready integrations, LangSmith's free plan | Yes for the first two reasons; the integrations were not used |
-| 2026-09-04 | Named Ruchi, repository `order-order` | The courtroom call to order; replaced the first draft's working name | Yes |
+| 2026-09-04 | Named Ruchi, repository `Ruchi` (renamed from `order-order` on 15 September) | The courtroom call to order; replaced the first draft's working name | Yes |
 
 ### 7.2 Decided since, by building or by measuring
 
