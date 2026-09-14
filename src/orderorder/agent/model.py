@@ -139,7 +139,15 @@ def _bedrock(model_id: str, settings: Settings, *, reason: str) -> ModelChoice:
     from strands.models import BedrockModel
 
     region = _bedrock_region(settings)
-    model = BedrockModel(model_id=model_id, region_name=region, temperature=TEMPERATURE)
+    # A Bedrock API key is handed over explicitly when there is one. botocore reads
+    # AWS_BEARER_TOKEN_BEDROCK for itself in recent versions, but "recent" is doing work in that
+    # sentence and the box this deploys to is not the box it was written on. Passing it removes the
+    # question; where the credential comes from a role instead, there is nothing to pass and the
+    # chain resolves as before.
+    token = os.environ.get("AWS_BEARER_TOKEN_BEDROCK") or None
+    model = BedrockModel(
+        model_id=model_id, region_name=region, temperature=TEMPERATURE, api_key=token
+    )
     return ModelChoice(model, f"{model_id} [{region}]", "bedrock", reason)
 
 
