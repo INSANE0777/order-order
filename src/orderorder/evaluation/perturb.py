@@ -24,6 +24,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 
 from orderorder.db.models import CitationAlias, CitationEdge, Judgment, JudgmentTextVersion, Paragraph
@@ -145,18 +146,38 @@ def _item_id(citing_key: str, citing_para: str, cited_key: str, cited_para: str)
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
 
 
-def _match(claim_paragraphs: list[Paragraph], target_paragraphs: list[Paragraph]):
-    """The longest shared run between any paragraph of the citing and cited judgments."""
-    best = None
-    for claim_para in claim_paragraphs:
-        for target_para in target_paragraphs:
-            detail = _shared_run_detail(claim_para.body, target_para.body)
-            if detail is None:
-                continue
-            cs, ce, ts, te, words = detail
-            if best is None or words > best[0]:
-                best = (words, claim_para, target_para, cs, ce, ts, te)
-    return best
+def _fts_phrase(words: list[str]) -> str:
+    return '"' + " ".join(word.replace('"', "") for word in words) + '"'
+
+
+def _window(body: str) -> list[str] | None:
+    """Eight consecutive words from the middle of a paragraph, where the holding usually sits."""
+    tokens = WORD.findall(body)
+    if len(tokens) < SHINGLE_WORDS:
+        return None
+    start = max(0, (len(tokens) - SHINGLE_WORDS) // 2)
+    return [token.lower() for token in tokens[start : start + SHINGLE_WORDS]]
+
+
+def _search_bodies(session: Session, judgment_id: str, phrase: str, limit: int = 5) -> list[str]:
+    """Paragraph bodies of one judgment that contain the phrase, via the full-text index."""
+    rows = session.execute(
+        sql_text(
+            "SELECT body FROM paragraph_fts WHERE paragraph_fts MATCH :q AND judgment_id = :j LIMIT :n"
+        ),
+        {"q": phrase, "j": judgment_id, "n": limit},
+    ).all()
+    return [row[0] for row in rows]
+
+
+def _decade_counts(session: Session) -> dict[int, int]:
+    rows = session.execute(
+        sql_text(
+            "SELECT (CAST(substr(decided_on, 1, 4) AS INTEGER) / 10) * 10 AS decade, COUNT(*) "
+            "FROM judgment WHERE decided_on IS NOT NULL GROUP BY decade"
+        )
+    ).all()
+    return {int(decade): int(count) for decade, count in rows}
 
 
 def sample_base_items(
@@ -165,59 +186,101 @@ def sample_base_items(
     per_decade: int = 25,
     seed: int = 20261027,
     max_per_judgment: int = 2,
+    max_edges: int = 20000,
+    progress=None,
 ) -> tuple[list[BaseItem], dict[str, Any]]:
     """Draw real citations that reproduce a paragraph of the judgment they cite.
 
-    Deterministic: the candidate list is ordered before the seeded shuffle, so the same corpus and
-    seed always produce the same items in the same order.
+    Each edge costs a handful of full-text probes rather than a paragraph-by-paragraph
+    comparison: eight words from the middle of a cited paragraph are searched inside the citing
+    judgment, and only a hit that really contains them becomes an item. The walk stops as soon as
+    every decade holds three times its quota, so the work is bounded by the quota, not the corpus.
     """
     counts: Counter[str] = Counter()
-    edges = (
-        session.execute(
-            select(CitationEdge)
-            .where(CitationEdge.cited_id.is_not(None))
-            .order_by(CitationEdge.id)
+    present = _decade_counts(session)
+    target = {decade: per_decade * 3 for decade, count in present.items() if count >= per_decade}
+    if not target:
+        # A corpus too small to fill one decade still owes each decade it has a shot at.
+        target = {decade: max(count, 1) for decade, count in present.items()}
+    counts["decades_targeted"] = len(target)
+
+    edges = session.execute(
+        select(
+            CitationEdge.id,
+            CitationEdge.citing_id,
+            CitationEdge.cited_id,
+            CitationEdge.cited_alias,
         )
-        .scalars()
-        .all()
+        .where(CitationEdge.cited_id.is_not(None))
+        .order_by(CitationEdge.id)
+        .execution_options(yield_per=500)
     )
 
     candidates: list[BaseItem] = []
+    pool: Counter[int] = Counter()
     per_citing: Counter[str] = Counter()
-    for edge in edges:
+    examined = 0
+    for _edge_id, citing_id, cited_id, alias in edges:
+        if examined >= max_edges or (target and all(pool[d] >= n for d, n in target.items())):
+            break
+        examined += 1
+        if progress is not None and examined % 1000 == 0:
+            progress(examined, len(candidates), dict(pool))
         counts["edges_seen"] += 1
-        citing = session.get(Judgment, edge.citing_id)
-        cited = session.get(Judgment, edge.cited_id)
+        citing = session.get(Judgment, citing_id)
+        cited = session.get(Judgment, cited_id)
         if citing is None or cited is None:
             counts["missing_judgment"] += 1
-            continue
-        if per_citing[citing.id] >= max_per_judgment:
-            counts["judgment_cap"] += 1
             continue
         if cited.decided_on is None:
             counts["no_date"] += 1
             continue
+        decade = (cited.decided_on.year // 10) * 10
+        if decade not in target or pool[decade] >= target[decade]:
+            counts["decade_full"] += 1
+            continue
+        if per_citing[citing.id] >= max_per_judgment:
+            counts["judgment_cap"] += 1
+            continue
 
-        claim_version, claim_paragraphs = _paragraphs(session, citing.id)
         target_version, target_paragraphs = _paragraphs(session, cited.id)
-        if not claim_paragraphs or not target_paragraphs:
+        if not target_paragraphs:
             counts["no_text"] += 1
             continue
-        if target_version.ocr_derived or claim_version.ocr_derived:
+        if target_version.ocr_derived:
             counts["ocr"] += 1
             continue
 
-        match = _match(claim_paragraphs, target_paragraphs)
+        match = None
+        for paragraph in target_paragraphs[:60]:
+            window = _window(paragraph.body)
+            if window is None or len(paragraph.body) < MIN_CLAIM_CHARS:
+                continue
+            for body in _search_bodies(session, citing.id, _fts_phrase(window)):
+                detail = _shared_run_detail(body, paragraph.body)
+                if detail is None:
+                    continue
+                if match is None or detail[4] > match[0]:
+                    match = (
+                        detail[4],
+                        body,
+                        paragraph,
+                        detail[0],
+                        detail[1],
+                        detail[2],
+                        detail[3],
+                    )
         if match is None:
             counts["no_run"] += 1
             continue
-        words, claim_para, target_para, cs, _, ts, te = match
+
+        words, claim_body, target_paragraph, cs, _, ts, te = match
         if words < MIN_QUOTE_WORDS:
             counts["short_run"] += 1
             continue
 
-        start, end = sentence_around(claim_para.body, cs)
-        claim = claim_para.body[start:end].strip()
+        start, end = sentence_around(claim_body, cs)
+        claim = claim_body[start:end].strip()
         if not (MIN_CLAIM_CHARS <= len(claim) <= MAX_CLAIM_CHARS):
             counts["claim_length"] += 1
             continue
@@ -227,25 +290,31 @@ def sample_base_items(
 
         candidates.append(
             BaseItem(
-                item_id=_item_id(citing.canonical_key, claim_para.id, cited.canonical_key, target_para.id),
+                item_id=_item_id(
+                    citing.canonical_key,
+                    f"{citing.id}:{cs}",
+                    cited.canonical_key,
+                    target_paragraph.id,
+                ),
                 citing_key=citing.canonical_key,
-                citing_paragraph_id=claim_para.id,
+                citing_paragraph_id=f"{citing.id}:{cs}",
                 cited_key=cited.canonical_key,
                 cited_judgment_id=cited.id,
-                cited_paragraph_id=target_para.id,
-                cited_label=target_para.printed_label,
-                citation_raw=edge.cited_alias or cited.neutral_citation or cited.canonical_key,
+                cited_paragraph_id=target_paragraph.id,
+                cited_label=target_paragraph.printed_label,
+                citation_raw=alias or cited.neutral_citation or cited.canonical_key,
                 claim=claim,
-                quote=target_para.body[ts:te],
+                quote=target_paragraph.body[ts:te],
                 quote_start=ts,
                 quote_end=te,
                 quote_words=words,
-                decade=(cited.decided_on.year // 10) * 10,
+                decade=decade,
                 bench_strength=cited.bench_strength,
                 cited_paragraph_count=len(target_paragraphs),
             )
         )
         per_citing[citing.id] += 1
+        pool[decade] += 1
 
     ordered = sorted(candidates, key=lambda item: (item.decade, item.item_id))
     random.Random(seed).shuffle(ordered)
@@ -266,6 +335,7 @@ def sample_base_items(
         "seed": seed,
         "per_decade": per_decade,
         "max_per_judgment": max_per_judgment,
+        "max_edges": max_edges,
         "shingle_words": SHINGLE_WORDS,
         "min_quote_words": MIN_QUOTE_WORDS,
         "counts": dict(counts),
@@ -273,6 +343,7 @@ def sample_base_items(
         "items_sha256": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
     }
     return chosen, manifest
+
 
 # --- the paraphrase prompt --------------------------------------------------------------------
 
@@ -616,3 +687,36 @@ def run_arms(
     rows = list(done.values()) + fresh
     rows.sort(key=lambda row: (row["arm"], row["item_id"]))
     return rows
+
+
+# --- report -----------------------------------------------------------------------------------
+
+
+def format_perturb(summary: dict) -> list[str]:
+    """The study as a table of lines, in the shape the other evaluators print."""
+    lines = [f"{summary.get('rows', 0)} arm results", ""]
+    for arm in sorted(summary["arms"]):
+        cell = summary["arms"][arm]
+        lines.append(f"{arm:<32} n={cell['constructed']}")
+        lines.append(
+            f"  pass {cell['pass']} · wrong flag {cell['wrong_flag']} · caught {cell['caught']}"
+            f" · not caught {cell['not_caught']} · abstain {cell['abstain']} · error {cell['error']}"
+        )
+        if cell.get("suppressed"):
+            lines.append("  suppressed: fewer than ten items")
+        elif arm.endswith("clean"):
+            rate = cell["false_alarm"]
+            lines.append(
+                f"  false alarms {rate['point']:.0%} [{rate['low']:.0%}-{rate['high']:.0%}]"
+                f"  n={rate['n']}"
+            )
+        else:
+            decided = cell["decided_catch"]
+            all_in = cell["all_in_catch"]
+            lines.append(
+                f"  decided catch {decided['point']:.0%}"
+                f" [{decided['low']:.0%}-{decided['high']:.0%}]  n={decided['n']}"
+            )
+            lines.append(f"  all-in catch {all_in['point']:.0%}  n={all_in['n']}")
+        lines.append("")
+    return lines
