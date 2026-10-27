@@ -1,0 +1,32 @@
+70 items: 60 planted, 10 clean
+model configured: True
+
+recall by planted failure mode
+  [ 1] phantom                10/10    100%
+  [ 2] mis-cite               10/10    100%
+  [ 3] wrong court or bench   10/10    100%
+  [ 5] wrong voice            8/10     80%
+  [ 9] selective quotation    2/2    100%
+  [10] dead or wounded law    8/8    100%
+  [12] wrong pinpoint         10/10    100%
+
+false positives on clean citations : 1/10  10%
+quote grounding (must be 100%)     : 100%  ok
+abstention rate                    : 66%
+seconds per item                   : 6.1
+
+disagreements
+  FALSE POSITIVE  INSC:2015:719-clean
+    cited   2015 INSC 719, para 24
+    claim   For the purpose of imposition of punishment if the quantity of morphine in ·opium is taken as a decisive factor, Entry 92 becomes totally redundant.
+      -> [7] obiter, not the holding: The statement is drawn from a quotation of an earlier two-Judge Bench decision (Harjit Singh) that the present court is merely reciting as background; the paragraph concerns a charas/cannabis case, not opium, so the observation about Entry 92 and morphine quantity is not necessary to the outcome of the present appeals. (not counted: the gold set does not label this)
+      -> [4] not supported by this judgment: the quote the model gave does not appear in the judgment text, so the claim is recorded as unsupported
+  MISSED [5] wrong voice  INSC:2016:956-m5
+    cited   2016 INSC 956, para 15
+    claim   Lakhmi Ram - A 7, is the son of Baru, and therefore, the brother of the deceased Prem (in'the earlieroccurrence).
+    graded  A, existence found
+  MISSED [5] wrong voice  INSC:2015:1031-m5
+    cited   2015 INSC 1031, para 8
+    claim   The post mortem was held on the spot and thereafter the challan was laid before the C learned FirstAdditional Sessions Judge, Jabalpurwherein the judg
+    graded  B, existence found
+      -> said instead: [7] obiter, not the holding: Paragraph 8 is purely a narrative recitation of the procedural history of the case; the court's decision to dismiss the appeal (at paragraphs 18–19) rests entirely on its evaluation of the eyewitness evidence and A-11's conduct, not on the fact that a post mortem was held on the spot or that a challan was laid before the Sessions Judge.
