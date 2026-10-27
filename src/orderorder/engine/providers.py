@@ -85,6 +85,8 @@ STRUCTURED_METHOD = {
     "groq": "function_calling",
     "cerebras": "function_calling",
     "mistralai": "function_calling",
+    # Claude on Bedrock answers through tool use rather than a JSON-schema decoder.
+    "bedrock": "function_calling",
 }
 # Separates a provider string from the environment variable holding its key, so that one provider
 # can appear on the chain more than once against different accounts. `#` because no model identifier
@@ -99,7 +101,42 @@ PROVIDER_ENV = {
     "mistralai": "MISTRAL_API_KEY",
     "openai": "OPENAI_API_KEY",
     "ollama": None,  # runs locally, no key
+    "bedrock": None,  # signed rather than keyed; see bedrock_ready
 }
+
+# Bedrock is the one provider with no single variable to check. A bearer token, an access-key pair, a
+# profile, a task role and CI's web identity token all sign a request, and only botocore's own chain
+# can say whether one of them resolves. Any of these being set means one is configured without it.
+AWS_CREDENTIAL_ENV = (
+    "AWS_ACCESS_KEY_ID",
+    "AWS_PROFILE",
+    "AWS_BEARER_TOKEN_BEDROCK",
+    "AWS_WEB_IDENTITY_TOKEN_FILE",
+    "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
+)
+
+
+def bedrock_ready() -> bool:
+    """Whether a Bedrock call could be signed right now.
+
+    Asked of the whole credential chain rather than of one variable, because the three ways this
+    project actually runs differ: a laptop with keys in the environment, a container with a task role
+    and no variables at all, and CI with a web identity token. Checking `AWS_ACCESS_KEY_ID` alone
+    would send the deployed container down the fallback path while a perfectly good role sat unused.
+
+    Worst case this costs about a second: with no variables set and no config file, botocore's last
+    resort is the instance metadata service, whose default is a one-second timeout and one attempt.
+    """
+    if any(os.environ.get(name) for name in AWS_CREDENTIAL_ENV):
+        return True
+    try:
+        import botocore.session
+
+        return botocore.session.get_session().get_credentials() is not None
+    except Exception:
+        # An unreadable profile, a malformed config file, botocore absent. All of them mean the same
+        # thing here -- Bedrock is not available -- and none of them should stop the engine starting.
+        return False
 
 
 @runtime_checkable
@@ -137,6 +174,8 @@ class ProviderSpec:
             # otherwise arrive mid-run as a provider error, which reads as "checked and could not
             # confirm" when the truth is that nothing was ever configured.
             return ollama_has_model(self.model)
+        if self.provider == "bedrock":
+            return bedrock_ready()
         env = self.env_var
         return True if env is None else bool(os.environ.get(env))
 
@@ -207,6 +246,10 @@ def _build_one(spec: ProviderSpec, schema: type[BaseModel], **kwargs: Any):
     base_url = get_settings().llm_base_url
     if spec.provider == "openai" and base_url and "base_url" not in kwargs:
         kwargs["base_url"] = base_url
+
+    # Bedrock resolves its region the same way it resolves everything else: from configuration.
+    if spec.provider == "bedrock" and "region_name" not in kwargs:
+        kwargs["region_name"] = get_settings().bedrock_region
 
     # A request that never answers is worse than one that fails, because nothing downstream can tell
     # the difference between slow and stopped. A gateway in front of a routed model does hang: a batch
@@ -285,6 +328,9 @@ def describe_providers() -> list[tuple[str, str, bool]]:
         spec = parse_spec(text)
         if spec is None:
             continue
-        requirement = spec.env_var or ("server + model pulled" if spec.provider == "ollama" else "-")
+        requirement = spec.env_var or {
+            "ollama": "server + model pulled",
+            "bedrock": "AWS credential chain",
+        }.get(spec.provider, "-")
         rows.append((spec.as_string, requirement, spec.is_available))
     return rows

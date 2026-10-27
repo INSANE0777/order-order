@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from orderorder.config import Settings, get_settings
-from orderorder.engine.providers import ProviderSpec, available_specs, parse_spec
+from orderorder.engine.providers import ProviderSpec, available_specs, bedrock_ready, parse_spec
 
 # How engine/providers.py spells a provider, and how LiteLLM spells the same one. Only the providers
 # that chain can actually hold are listed; anything else is passed through as written, which gets the
@@ -35,17 +35,6 @@ LITELLM_PREFIX = {
     "anthropic": "anthropic",
     "ollama": "ollama",
 }
-
-# Any one of these means a credential is configured without boto3 resolving anything. The list is
-# deliberately not exhaustive: a container running under a task role sets none of them, which is what
-# the chain lookup in `bedrock_ready` is for.
-AWS_CREDENTIAL_ENV = (
-    "AWS_ACCESS_KEY_ID",
-    "AWS_PROFILE",
-    "AWS_BEARER_TOKEN_BEDROCK",
-    "AWS_WEB_IDENTITY_TOKEN_FILE",
-    "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
-)
 
 BEDROCK_PREFIX = "bedrock:"
 
@@ -88,29 +77,6 @@ class ModelChoice:
 
     def as_json(self) -> dict:
         return {"model": self.model_id, "via": self.via, "reason": self.reason}
-
-
-def bedrock_ready() -> bool:
-    """Whether a Bedrock call could be signed right now.
-
-    Asked of the whole credential chain rather than of one variable, because the three ways this
-    project actually runs differ: a laptop with keys in `.env`, a container with a task role and no
-    variables at all, and CI with a web identity token. Checking `AWS_ACCESS_KEY_ID` alone would send
-    the deployed container down the fallback path while a perfectly good role sat unused.
-
-    Worst case this costs about a second: with no variables set and no config file, botocore's last
-    resort is the instance metadata service, whose default is a one-second timeout and one attempt.
-    """
-    if any(os.environ.get(name) for name in AWS_CREDENTIAL_ENV):
-        return True
-    try:
-        import botocore.session
-
-        return botocore.session.get_session().get_credentials() is not None
-    except Exception:
-        # An unreadable profile, a malformed config file, botocore absent. All of them mean the same
-        # thing here -- Bedrock is not available -- and none of them should stop the agent starting.
-        return False
 
 
 def litellm_model_id(spec: ProviderSpec) -> str:
