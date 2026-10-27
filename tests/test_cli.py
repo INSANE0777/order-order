@@ -71,3 +71,38 @@ def test_a_judgment_title_cannot_break_the_console(corpus, monkeypatch, tmp_path
 
     assert result.exit_code == 0, result.output
     assert "[/unless]" in result.output
+
+
+def test_perturb_report_rebuilds_a_table_with_no_model(tmp_path, monkeypatch) -> None:
+    """The replay gate: every number comes back from the cache, with no key in the environment."""
+    import json
+
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("AWS_BEARER_TOKEN_BEDROCK", raising=False)
+    rows = []
+    for index in range(12):
+        rows.append(
+            {
+                "arm": "verbatim_wrong_paragraph",
+                "item_id": f"i{index}",
+                "existence": "found",
+                "support": "none",
+                "quote_verified": False,
+                "needs_review": False,
+                "findings": [{"mode": 12 if index < 9 else 8, "label": "x"}],
+                "error": None,
+            }
+        )
+    cache = tmp_path / "responses.jsonl"
+    cache.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+    out = tmp_path / "table.txt"
+
+    result = runner.invoke(
+        cli.app, ["eval", "perturb", "report", "--cache", str(cache), "--out", str(out)]
+    )
+
+    assert result.exit_code == 0, result.output
+    text = out.read_text(encoding="utf-8")
+    assert "verbatim_wrong_paragraph" in text
+    assert "decided catch 75%" in text
+    assert "n=12" in text

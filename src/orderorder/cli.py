@@ -1866,3 +1866,195 @@ def main() -> None:  # pragma: no cover
 
 if __name__ == "__main__":  # pragma: no cover
     main()
+
+# --- the perturbation study -------------------------------------------------------------------
+
+perturb_app = typer.Typer(
+    help="Measure whether a broken citation is caught, on real citations from the corpus.",
+    no_args_is_help=True,
+)
+eval_app.add_typer(perturb_app, name="perturb")
+
+
+def _read_jsonl(path: Path) -> list[dict]:
+    import json
+
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def _write_jsonl(path: Path, rows: list) -> None:
+    import json
+    from dataclasses import asdict, is_dataclass
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        for row in rows:
+            payload = asdict(row) if is_dataclass(row) else row
+            handle.write(json.dumps(payload, sort_keys=True) + "\n")
+
+
+@perturb_app.command("sample")
+def perturb_sample(
+    per_decade: int = typer.Option(25, help="Items per decade of the cited judgment."),
+    seed: int = typer.Option(20261027, help="Sampling seed."),
+    out: str = typer.Option("evals/perturb", help="Directory for items.jsonl and manifest.json."),
+) -> None:
+    """Draw real citations that reproduce a paragraph of the judgment they cite."""
+    import hashlib
+    import json
+
+    from orderorder.evaluation.perturb import sample_base_items
+
+    with get_session() as session:
+        items, manifest = sample_base_items(session, per_decade=per_decade, seed=seed)
+    database = get_settings().data_dir / "orderorder.sqlite3"
+    if database.exists():
+        digest = hashlib.sha256()
+        with database.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(8 << 20), b""):
+                digest.update(chunk)
+        manifest["corpus_sha256"] = digest.hexdigest()
+    directory = Path(out)
+    _write_jsonl(directory / "items.jsonl", items)
+    (directory / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    console.print(f"[bold]{len(items)}[/bold] items from {manifest['counts']['edges_seen']} edges")
+    for reason, count in sorted(manifest["counts"].items()):
+        console.print(f"  [dim]{reason:<18}{count}[/dim]")
+    console.print(f"[dim]written to {directory}[/dim]")
+
+
+@perturb_app.command("paraphrase")
+def perturb_paraphrase(
+    items: str = typer.Option("evals/perturb/items.jsonl", help="Base items to restate."),
+    out: str = typer.Option("evals/perturb/paraphrases.jsonl", help="Where to write the restatements."),
+) -> None:
+    """Restate each claim without copying the judgment it is drawn from."""
+
+    from orderorder.engine.providers import build_structured
+    from orderorder.evaluation.perturb import BaseItem, ParaphraseOut, make_paraphrases
+
+    model = build_structured(ParaphraseOut)
+    if model is None:
+        console.print("[red]no language model configured[/red]: a paraphrase needs one.")
+        raise typer.Exit(1)
+    base = [BaseItem(**row) for row in _read_jsonl(Path(items))]
+    reject: list[dict] = []
+    paraphrases = make_paraphrases(base, model, reject_log=reject)
+    _write_jsonl(Path(out), paraphrases)
+    _write_jsonl(Path(out).with_name("paraphrase-rejects.jsonl"), reject)
+    console.print(f"[bold]{len(paraphrases)}[/bold] restatements, {len(reject)} rejected")
+    console.print(f"[dim]written to {out}[/dim]")
+
+
+@perturb_app.command("run")
+def perturb_run(
+    items: str = typer.Option("evals/perturb/items.jsonl", help="Base items."),
+    paraphrases: str = typer.Option("evals/perturb/paraphrases.jsonl", help="Restatements."),
+    cache: str = typer.Option("evals/perturb/responses.jsonl", help="Where each result lands."),
+    arms: str = typer.Option("", help="Comma-separated arms; empty means all."),
+    workers: int = typer.Option(4, help="Parallel verifications."),
+    limit: int = typer.Option(0, help="Run only the first N items."),
+) -> None:
+    """Put every arm through the verifier with one pinned model."""
+    from orderorder.citations.grammar import parse_citation
+    from orderorder.engine.graph import verify_citation
+    from orderorder.engine.providers import build_structured
+    from orderorder.engine.schemas import (
+        ApplicabilityAssessment,
+        ScopeAssessment,
+        VoiceAssessment,
+        WeightAssessment,
+    )
+    from orderorder.evaluation.perturb import ArmItem, BaseItem, Paraphrase, build_arms, run_arms
+
+    base = [BaseItem(**row) for row in _read_jsonl(Path(items))]
+    restated = [Paraphrase(**row) for row in _read_jsonl(Path(paraphrases))] if Path(paraphrases).exists() else []
+    if limit:
+        base = base[:limit]
+    scope_model = build_structured(ScopeAssessment)
+    if scope_model is None:
+        console.print("[red]no language model configured[/red]: the study needs one.")
+        raise typer.Exit(1)
+    others = {
+        "voice_model": build_structured(VoiceAssessment),
+        "weight_model": build_structured(WeightAssessment),
+        "facts_model": build_structured(ApplicabilityAssessment),
+    }
+
+    with get_session() as session:
+        planned = build_arms(session, base, restated)
+    wanted = {name.strip() for name in arms.split(",") if name.strip()}
+    if wanted:
+        planned = [arm for arm in planned if arm.arm in wanted]
+    console.print(f"[bold]{len(planned)}[/bold] arm items, {workers} workers")
+
+    def verify(arm: ArmItem) -> dict:
+        citation = parse_citation(arm.citation)
+        if citation is None:
+            return {"error": f"unparsable citation: {arm.citation}"}
+        with get_session() as session:
+            verdict = verify_citation(session, citation, arm.claim, scope_model, top_k=6, **others)
+        return {
+            "existence": verdict.existence,
+            "support": verdict.support,
+            "quote_verified": verdict.quote_verified,
+            "quote_match_type": verdict.quote_match_type,
+            "needs_review": verdict.needs_review,
+            "confidence": verdict.confidence,
+            "findings": [{"mode": f.mode, "label": f.label} for f in verdict.findings],
+            "model_id": getattr(scope_model, "model_id", get_settings().llm_primary),
+        }
+
+    run_arms(
+        planned,
+        verify_fn=verify,
+        cache_path=Path(cache),
+        workers=workers,
+        model_id=getattr(scope_model, "model_id", None) or get_settings().llm_primary,
+    )
+    console.print(f"[dim]written to {cache}[/dim]")
+
+
+@perturb_app.command("report")
+def perturb_report(
+    cache: str = typer.Option("evals/perturb/responses.jsonl", help="Results to summarise."),
+    out: str = typer.Option("evals/perturb/table.txt", help="Where to write the table."),
+    detail: str = typer.Option("", help="Print one worked item for this arm."),
+) -> None:
+    """Rebuild the table from the cache, with no model and no network."""
+    from orderorder.evaluation.perturb import ArmItem, format_perturb, summarise
+
+    rows = _read_jsonl(Path(cache))
+    if not rows:
+        console.print(f"[red]no results at {cache}[/red]")
+        raise typer.Exit(1)
+    arms = [
+        ArmItem(arm=row["arm"], item_id=row["item_id"], claim="", citation="", expected_modes=())
+        for row in rows
+    ]
+    lines = format_perturb(summarise(arms, rows))
+    if detail:
+        worked = next((row for row in rows if row["arm"] == detail), None)
+        if worked:
+            lines += ["", f"worked item — {detail}", *[f"  {k}: {v}" for k, v in sorted(worked.items())]]
+    console.print("\n".join(lines))
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    Path(out).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    console.print(f"[dim]written to {out}[/dim]")
+
+
+@perturb_app.command("show")
+def perturb_show(
+    item_id: str = typer.Argument(..., help="Item id from items.jsonl."),
+    items: str = typer.Option("evals/perturb/items.jsonl", help="Base items."),
+) -> None:
+    """Print one base item: the claim, the citation, and where the quote really lives."""
+    row = next((r for r in _read_jsonl(Path(items)) if r["item_id"] == item_id), None)
+    if row is None:
+        console.print(f"[red]no item {item_id}[/red]")
+        raise typer.Exit(1)
+    console.print(f"[bold]{escape(row['citing_key'])}[/bold] → {escape(row['cited_key'])}"
+                  f" para {escape(str(row['cited_label']))}")
+    console.print(f"  claim: {escape(row['claim'])}")
+    console.print(f"  quote: {escape(row['quote'])}  ({row['quote_words']} words)")
+    console.print(f"  citation: {escape(row['citation_raw'])}")
