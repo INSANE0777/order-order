@@ -426,3 +426,22 @@ changes as a result.
 <!-- Provenance: Indicates initial structural drafting via EGM. -->
 
 *Drafted with EGM*
+
+## Amendments after implementation review (2026-10-28)
+
+Three statements in v2 were overtaken by what the corpus and the code made possible. They are
+changed here rather than left to drift.
+
+1. **Stage 1 searches one window per paragraph, not every shingle.** Sliding eight-word windows
+   across every paragraph of every cited judgment costs a full-text query per window; at 64,828
+   edges that does not finish. The sampler takes one eight-word window from the middle of up to
+   sixty paragraphs of the cited judgment, searches those inside the citing judgment, and stops
+   after `max_edges`. Both bounds are recorded in the manifest, so the sample's frame is auditable.
+2. **Stage 3 chooses the wrong judgment from the same brief, not by BM25 rank.** A judgment the
+   citing judgment also cites is topically coherent by construction and needs no ranking model;
+   `distractor_rank` is recorded as null and `distractor_source` as `sibling_citation`. The BM25
+   band is withdrawn.
+3. **Stage 2 checks the paraphrase against the claim sentence and the quoted run.** The full
+   paragraph body is not carried on the item; the two texts that matter — the sentence being
+   restated and the words that must not be copied — are. A paraphrase that shares eight words
+   with either is rejected.
