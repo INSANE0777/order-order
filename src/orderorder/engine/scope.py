@@ -144,6 +144,22 @@ def _check_narrowing(verdict: ScopeVerdict, assessment: ScopeAssessment) -> None
         )
 
 
+def _label_key(label: str | None) -> str:
+    """The paragraph number a label names, however it was spelled.
+
+    The corpus stores `printed_label` as "7"; a model asked which paragraph it read writes
+    "paragraph 7" or "Para. 7". Compared as strings those are different paragraphs, so the engine
+    recorded a wrong pinpoint -- and asked for review -- on a quote it had just verified in the very
+    paragraph the model had named.
+    """
+    text = (label or "").strip().lower().rstrip(".:")
+    for prefix in ("paragraph", "para", "¶"):
+        if text.startswith(prefix):
+            text = text[len(prefix) :].strip().lstrip(".: ")
+            break
+    return text
+
+
 def _verify(
     assessment: ScopeAssessment, candidates: list[Candidate], *, ocr_derived: bool
 ) -> tuple[Candidate | None, QuoteMatch | None]:
@@ -157,10 +173,8 @@ def _verify(
     if not quote or not candidates:
         return None, None
 
-    named = next(
-        (c for c in candidates if c.printed_label and c.printed_label == assessment.paragraph_label),
-        None,
-    )
+    wanted = _label_key(assessment.paragraph_label)
+    named = next((c for c in candidates if wanted and _label_key(c.printed_label) == wanted), None)
     ordered = ([named] if named else []) + [c for c in candidates if c is not named]
     for candidate in ordered:
         match = find_quote(quote, candidate.body, ocr_derived=ocr_derived)
@@ -232,7 +246,7 @@ def assess_scope(
         claim=claim,
         support=assessment.support,
         model_support=assessment.support,
-        paragraph_label=assessment.paragraph_label,
+        paragraph_label=_label_key(assessment.paragraph_label) or None,
         quote=(assessment.quote or "").strip() or None,
         dropped_conditions=list(assessment.dropped_conditions),
         court_modality=assessment.court_modality,
@@ -285,7 +299,9 @@ def assess_scope(
     verdict.char_start = match.char_start
     verdict.char_end = match.char_end
     verdict.matched_paragraph_label = candidate.printed_label
-    if assessment.paragraph_label and candidate.printed_label != assessment.paragraph_label:
+    if _label_key(assessment.paragraph_label) and _label_key(candidate.printed_label) != _label_key(
+        assessment.paragraph_label
+    ):
         verdict.wrong_pinpoint = True
 
     # `is not None`, not a truth test. 0.0 is the least confident answer there is and the falsy

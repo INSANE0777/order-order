@@ -147,6 +147,16 @@ def test_right_quote_wrong_paragraph_is_recorded() -> None:
     assert verdict.matched_paragraph_label == "3"
 
 
+def test_a_spelled_out_pinpoint_is_the_same_paragraph() -> None:
+    """The model writes "paragraph 3", the corpus stores "3". That is not a pinpoint error."""
+    verbose = _assessment(paragraph_label="paragraph 3")
+    verdict = assess_scope(CLAIM, CANDIDATES, StubModel(verbose))
+    assert verdict.quote_verified
+    assert not verdict.wrong_pinpoint
+    assert not verdict.needs_review
+    assert verdict.paragraph_label == "3"
+
+
 def test_low_confidence_is_flagged_for_review() -> None:
     low = _assessment(confidence=MIN_CONFIDENCE_FOR_SUPPORT - 0.1)
     verdict = assess_scope(CLAIM, CANDIDATES, StubModel(low))
