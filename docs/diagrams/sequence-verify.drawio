@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="32.6.1">
+  <diagram id="sequence" name="Sequence">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1520" pageHeight="1320" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="l_user" value="User&#xa;(CLI or web)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;recursiveResize=0;collapsible=0;dropTarget=0;points=[[0,0],[0,1],[1,0],[1,1]];outlineConnect=0;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="150" height="1200" as="geometry" />
+        </mxCell>
+        <mxCell id="l_cli" value="CLI / FastAPI" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;recursiveResize=0;collapsible=0;dropTarget=0;points=[[0,0],[0,1],[1,0],[1,1]];outlineConnect=0;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="240" y="60" width="150" height="1200" as="geometry" />
+        </mxCell>
+        <mxCell id="l_graph" value="verify_text&#xa;(LangGraph, 8 nodes)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;recursiveResize=0;collapsible=0;dropTarget=0;points=[[0,0],[0,1],[1,0],[1,1]];outlineConnect=0;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="440" y="60" width="160" height="1200" as="geometry" />
+        </mxCell>
+        <mxCell id="l_resolver" value="Resolver&#xa;(citation grammar)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;recursiveResize=0;collapsible=0;dropTarget=0;points=[[0,0],[0,1],[1,0],[1,1]];outlineConnect=0;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="650" y="60" width="160" height="1200" as="geometry" />
+        </mxCell>
+        <mxCell id="l_db" value="SQLite corpus&#xa;(judgments, FTS, graph)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;recursiveResize=0;collapsible=0;dropTarget=0;points=[[0,0],[0,1],[1,0],[1,1]];outlineConnect=0;fontSize=11;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="860" y="60" width="170" height="1200" as="geometry" />
+        </mxCell>
+        <mxCell id="l_checks" value="Locator / Quotes /&#xa;Voice" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;recursiveResize=0;collapsible=0;dropTarget=0;points=[[0,0],[0,1],[1,0],[1,1]];outlineConnect=0;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="60" width="160" height="1200" as="geometry" />
+        </mxCell>
+        <mxCell id="l_model" value="Model&#xa;(Groq / Bedrock)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;recursiveResize=0;collapsible=0;dropTarget=0;points=[[0,0],[0,1],[1,0],[1,1]];outlineConnect=0;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1290" y="60" width="160" height="1200" as="geometry" />
+        </mxCell>
+
+        <mxCell id="note_loop" value="Messages 3 to 18 repeat for every citation in the brief. Dashed arrows are returns." style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="20" y="10" width="700" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m0" value="verify --file brief.docx" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=10;exitX=0.5;exitY=0.11667;entryX=0.5;entryY=0.11667;" edge="1" parent="1" source="l_user" target="l_cli">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m1" value="verify_text(text, model)" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=10;exitX=0.5;exitY=0.15833;entryX=0.5;entryY=0.15833;" edge="1" parent="1" source="l_cli" target="l_graph">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m2" value="resolve(citation)" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=10;exitX=0.5;exitY=0.20000;entryX=0.5;entryY=0.20000;" edge="1" parent="1" source="l_graph" target="l_resolver">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m3" value="alias lookup" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=10;exitX=0.5;exitY=0.24167;entryX=0.5;entryY=0.24167;" edge="1" parent="1" source="l_resolver" target="l_db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m4" value="judgment | none" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;fontSize=10;exitX=0.5;exitY=0.28333;entryX=0.5;entryY=0.28333;" edge="1" parent="1" source="l_db" target="l_resolver">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m5" value="resolution" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;fontSize=10;exitX=0.5;exitY=0.32500;entryX=0.5;entryY=0.32500;" edge="1" parent="1" source="l_resolver" target="l_graph">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m6" value="load paragraphs" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=10;exitX=0.5;exitY=0.36667;entryX=0.5;entryY=0.36667;" edge="1" parent="1" source="l_graph" target="l_db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m7" value="paragraphs" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;fontSize=10;exitX=0.5;exitY=0.40833;entryX=0.5;entryY=0.40833;" edge="1" parent="1" source="l_db" target="l_graph">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m8" value="locate pinpoint" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=10;exitX=0.5;exitY=0.45000;entryX=0.5;entryY=0.45000;" edge="1" parent="1" source="l_graph" target="l_checks">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m9" value="paragraph label, sequence break?" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;fontSize=10;exitX=0.5;exitY=0.49167;entryX=0.5;entryY=0.49167;" edge="1" parent="1" source="l_checks" target="l_graph">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m10" value="verify quotation (exact string)" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=10;exitX=0.5;exitY=0.53333;entryX=0.5;entryY=0.53333;" edge="1" parent="1" source="l_graph" target="l_checks">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m11" value="found / cut before qualification" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;fontSize=10;exitX=0.5;exitY=0.57500;entryX=0.5;entryY=0.57500;" edge="1" parent="1" source="l_checks" target="l_graph">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m12" value="scope: claim + candidate paragraph" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=10;exitX=0.5;exitY=0.61667;entryX=0.5;entryY=0.61667;" edge="1" parent="1" source="l_graph" target="l_model">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m13" value="schema-bound verdict + quoted sentence" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;fontSize=10;exitX=0.5;exitY=0.65833;entryX=0.5;entryY=0.65833;" edge="1" parent="1" source="l_model" target="l_graph">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m14" value="attribute voice" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=10;exitX=0.5;exitY=0.70000;entryX=0.5;entryY=0.70000;" edge="1" parent="1" source="l_graph" target="l_checks">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m15" value="court / counsel / quoted / court below" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;fontSize=10;exitX=0.5;exitY=0.74167;entryX=0.5;entryY=0.74167;" edge="1" parent="1" source="l_checks" target="l_graph">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m16" value="treatment edges (bench-strength rule)" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=10;exitX=0.5;exitY=0.78333;entryX=0.5;entryY=0.78333;" edge="1" parent="1" source="l_graph" target="l_db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m17" value="citing judgments + treatment" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;fontSize=10;exitX=0.5;exitY=0.82500;entryX=0.5;entryY=0.82500;" edge="1" parent="1" source="l_db" target="l_graph">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m18" value="verdicts, one grade A–F each" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;fontSize=10;exitX=0.5;exitY=0.86667;entryX=0.5;entryY=0.86667;" edge="1" parent="1" source="l_graph" target="l_cli">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="m19" value="verdict board, annotated brief, opposing memo" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;fontSize=10;exitX=0.5;exitY=0.90833;entryX=0.5;entryY=0.90833;" edge="1" parent="1" source="l_cli" target="l_user">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

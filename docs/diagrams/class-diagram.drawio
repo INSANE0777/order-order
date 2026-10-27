@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="32.6.1">
+  <diagram id="class" name="Class">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1240" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="c_alias" value="&lt;b&gt;CitationAlias&lt;/b&gt;&lt;hr size=&quot;1&quot;&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;id: int &amp;lt;&amp;lt;PK&amp;gt;&amp;gt;&lt;br&gt;judgment_id: str &amp;lt;&amp;lt;FK&amp;gt;&amp;gt;&lt;br&gt;reporter: str&lt;br&gt;citation_string: str&lt;br&gt;normalized: str &amp;lt;&amp;lt;unique&amp;gt;&amp;gt;&lt;br&gt;source: str&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="230" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c_judgment" value="&lt;b&gt;Judgment&lt;/b&gt;&lt;hr size=&quot;1&quot;&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;id: str &amp;lt;&amp;lt;PK&amp;gt;&amp;gt;&lt;br&gt;canonical_key: str &amp;lt;&amp;lt;unique&amp;gt;&amp;gt;&lt;br&gt;court: str&lt;br&gt;title: text&lt;br&gt;decided_on: date&lt;br&gt;neutral_citation: str&lt;br&gt;bench_strength: int&lt;br&gt;source / source_id: str&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="340" y="60" width="250" height="190" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c_edge" value="&lt;b&gt;CitationEdge&lt;/b&gt;&lt;hr size=&quot;1&quot;&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;id: int &amp;lt;&amp;lt;PK&amp;gt;&amp;gt;&lt;br&gt;citing_id: str &amp;lt;&amp;lt;FK&amp;gt;&amp;gt;&lt;br&gt;cited_id: str &amp;lt;&amp;lt;FK&amp;gt;&amp;gt;&lt;br&gt;cited_alias: str&lt;br&gt;treatment: str&lt;br&gt;paragraph_id: str &amp;lt;&amp;lt;FK&amp;gt;&amp;gt;&lt;br&gt;source: str&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="660" y="60" width="230" height="170" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c_digest" value="&lt;b&gt;JudgmentDigest&lt;/b&gt;&lt;hr size=&quot;1&quot;&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;judgment_id: str &amp;lt;&amp;lt;PK, FK&amp;gt;&amp;gt;&lt;br&gt;text_version_id: str &amp;lt;&amp;lt;FK&amp;gt;&amp;gt;&lt;br&gt;digest: json&lt;br&gt;model: str&lt;br&gt;prompt_version: str&lt;br&gt;created_at: datetime&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="960" y="60" width="240" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c_version" value="&lt;b&gt;JudgmentTextVersion&lt;/b&gt;&lt;hr size=&quot;1&quot;&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;id: str &amp;lt;&amp;lt;PK&amp;gt;&amp;gt;&lt;br&gt;judgment_id: str &amp;lt;&amp;lt;FK&amp;gt;&amp;gt;&lt;br&gt;version_key: str&lt;br&gt;source_url: text&lt;br&gt;ocr_derived: bool&lt;br&gt;char_count: int&lt;br&gt;preferred: bool&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="360" width="250" height="170" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c_para" value="&lt;b&gt;Paragraph&lt;/b&gt;&lt;hr size=&quot;1&quot;&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;id: str &amp;lt;&amp;lt;PK&amp;gt;&amp;gt;&lt;br&gt;text_version_id: str &amp;lt;&amp;lt;FK&amp;gt;&amp;gt;&lt;br&gt;seq: int&lt;br&gt;printed_label: str&lt;br&gt;opinion_id: str &amp;lt;&amp;lt;FK&amp;gt;&amp;gt;&lt;br&gt;role: str&lt;br&gt;body: text&lt;br&gt;char_start / char_end: int&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="360" y="360" width="250" height="190" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c_opinion" value="&lt;b&gt;Opinion&lt;/b&gt;&lt;hr size=&quot;1&quot;&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;id: str &amp;lt;&amp;lt;PK&amp;gt;&amp;gt;&lt;br&gt;text_version_id: str &amp;lt;&amp;lt;FK&amp;gt;&amp;gt;&lt;br&gt;kind: majority | concurring | dissenting | headnote&lt;br&gt;author: str&lt;br&gt;seq_start / seq_end: int&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="680" y="360" width="250" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c_palias" value="&lt;b&gt;ParagraphAlias&lt;/b&gt;&lt;hr size=&quot;1&quot;&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;id: int &amp;lt;&amp;lt;PK&amp;gt;&amp;gt;&lt;br&gt;from_version_id: str &amp;lt;&amp;lt;FK&amp;gt;&amp;gt;&lt;br&gt;from_label: str&lt;br&gt;to_version_id: str &amp;lt;&amp;lt;FK&amp;gt;&amp;gt;&lt;br&gt;to_label: str&lt;br&gt;confidence: float&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=top;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="360" width="220" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c_brief" value="&lt;b&gt;Brief&lt;/b&gt;&lt;hr size=&quot;1&quot;&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;id: str &amp;lt;&amp;lt;PK&amp;gt;&amp;gt;&lt;br&gt;title: str&lt;br&gt;text: text&lt;br&gt;facts: text&lt;br&gt;created_at: datetime&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="640" width="220" height="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c_bcite" value="&lt;b&gt;BriefCitation&lt;/b&gt;&lt;hr size=&quot;1&quot;&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;id: str &amp;lt;&amp;lt;PK&amp;gt;&amp;gt;&lt;br&gt;brief_id: str &amp;lt;&amp;lt;FK&amp;gt;&amp;gt;&lt;br&gt;raw: str&lt;br&gt;normalized: str&lt;br&gt;claimed_pinpoint: str&lt;br&gt;proposition: text&lt;br&gt;judgment_id: str &amp;lt;&amp;lt;FK&amp;gt;&amp;gt;&lt;br&gt;resolution: str&lt;br&gt;resolution_score: float&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="340" y="640" width="250" height="190" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c_verdict" value="&lt;b&gt;Verdict&lt;/b&gt;&lt;hr size=&quot;1&quot;&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;id: str &amp;lt;&amp;lt;PK&amp;gt;&amp;gt;&lt;br&gt;brief_citation_id: str &amp;lt;&amp;lt;FK&amp;gt;&amp;gt;&lt;br&gt;existence: str&lt;br&gt;location_status: str&lt;br&gt;support: str&lt;br&gt;voice: str&lt;br&gt;treatment: str&lt;br&gt;grade: str&lt;br&gt;needs_review: bool&lt;br&gt;evidence: json&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="680" y="640" width="250" height="200" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c_job" value="&lt;b&gt;Job&lt;/b&gt;&lt;hr size=&quot;1&quot;&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;id: str &amp;lt;&amp;lt;PK&amp;gt;&amp;gt;&lt;br&gt;kind: str&lt;br&gt;status: str&lt;br&gt;progress: float&lt;br&gt;payload / result: json&lt;br&gt;error: text&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=top;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="640" width="220" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="r1" value="1 .. *" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=none;startArrow=none;fontSize=10;exitX=0;exitY=0.25;entryX=1;entryY=0.25;" edge="1" parent="1" source="c_judgment" target="c_alias">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r2" value="citing 1 .. *" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=none;startArrow=none;fontSize=10;exitX=1;exitY=0.25;entryX=0;entryY=0.25;" edge="1" parent="1" source="c_judgment" target="c_edge">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r3" value="0 .. 1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=none;startArrow=none;fontSize=10;exitX=0.5;exitY=0;entryX=0.5;entryY=0;" edge="1" parent="1" source="c_judgment" target="c_digest">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="465" y="30" />
+              <mxPoint x="1080" y="30" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="r4" value="1 .. *" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=none;startArrow=none;fontSize=10;exitX=0.3;exitY=1;entryX=0.7;entryY=0;" edge="1" parent="1" source="c_judgment" target="c_version">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="415" y="300" />
+              <mxPoint x="215" y="300" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="r5" value="1 .. *" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=none;startArrow=none;fontSize=10;exitX=1;exitY=0.4;entryX=0;entryY=0.4;" edge="1" parent="1" source="c_version" target="c_para">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r6" value="1 .. *" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=none;startArrow=none;fontSize=10;exitX=0.9;exitY=0;entryX=0.1;entryY=0;" edge="1" parent="1" source="c_version" target="c_opinion">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="265" y="310" />
+              <mxPoint x="705" y="310" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="r7" value="0 .. 1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=none;startArrow=none;fontSize=10;exitX=1;exitY=0.6;entryX=0;entryY=0.6;" edge="1" parent="1" source="c_para" target="c_opinion">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=none;startArrow=none;fontSize=10;dashed=1;exitX=0.5;exitY=1;entryX=0.5;entryY=1;" edge="1" parent="1" source="c_palias" target="c_version">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1110" y="570" />
+              <mxPoint x="165" y="570" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="r9" value="1 .. *" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=none;startArrow=none;fontSize=10;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="c_brief" target="c_version">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r10" value="1 .. *" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=none;startArrow=none;fontSize=10;exitX=1;exitY=0.3;entryX=0;entryY=0.3;" edge="1" parent="1" source="c_brief" target="c_bcite">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r11" value="1 .. *" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=none;startArrow=none;fontSize=10;exitX=1;exitY=0.3;entryX=0;entryY=0.3;" edge="1" parent="1" source="c_bcite" target="c_verdict">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r12" value="0 .. 1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=none;startArrow=none;fontSize=10;exitX=0.9;exitY=0;entryX=0.98;entryY=1;" edge="1" parent="1" source="c_bcite" target="c_judgment">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="630" y="640" />
+              <mxPoint x="630" y="300" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
