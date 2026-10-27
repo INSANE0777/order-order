@@ -57,6 +57,7 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 from sqlalchemy import func, select
 from sqlalchemy import text as sql_text
@@ -101,6 +102,7 @@ from orderorder.ingest import bulk, repair
 from orderorder.ingest import corpus as corpus_mod
 from orderorder.ingest import pdf as pdf_mod
 from orderorder.ingest import roles as roles_mod
+from orderorder.ingest.brief import read_brief
 from orderorder.ingest.metadata import import_parquet
 from orderorder.ingest.store import load_paragraphs, store_extracted
 from orderorder.resolver import resolve as resolve_citation
@@ -597,7 +599,7 @@ def locate_command(
             raise typer.Exit(1)
 
         result = locate_claim(paragraphs, proposition, claimed_pinpoint=pinpoint, top_k=top)
-        console.print(f"[bold]{judgment.title[:80]}[/bold]")
+        console.print(f"[bold]{escape(judgment.title[:80])}[/bold]")
         console.print(
             f"[dim]{len(paragraphs)} paragraphs; query terms: {', '.join(result.query_terms[:12])}[/dim]\n"
         )
@@ -606,7 +608,7 @@ def locate_command(
         if check.status == "ok":
             console.print(f"[green]pinpoint ok[/green] paragraph {check.claimed} exists")
         elif check.is_problem:
-            console.print(f"[red]pinpoint problem[/red] {check.note}")
+            console.print(f"[red]pinpoint problem[/red] {escape(check.note)}")
         elif check.status == "none_claimed":
             console.print(f"[dim]no pinpoint claimed; numbering runs to {check.highest_label}[/dim]")
 
@@ -766,8 +768,8 @@ def eval_paraphrase(
     console.print(f"[green]{written} paraphrase queries[/green] written to {out}")
     for item in items[:3]:
         console.print("")
-        console.print(f"[dim]court:[/dim] {item.sentence[:150]}")
-        console.print(f"[dim]query:[/dim] {item.query[:150]}")
+        console.print(f"[dim]court:[/dim] {escape(item.sentence[:150])}")
+        console.print(f"[dim]query:[/dim] {escape(item.query[:150])}")
 
 
 @eval_app.command("search")
@@ -1196,11 +1198,14 @@ def treatment_command(
 
         report = citator.treatment_of(session, judgment.id)
         colour = "red" if report.is_doubtful else "green"
-        console.print(f"[bold]{judgment.title[:80]}[/bold] [dim]{judgment.canonical_key}[/dim]")
+        console.print(
+            f"[bold]{escape(judgment.title[:80])}[/bold] "
+            f"[dim]{escape(judgment.canonical_key)}[/dim]"
+        )
         console.print(f"[{colour}]{report.status.replace('_', ' ')}[/{colour}]  ", end="")
         console.print(f"[dim]cited by {report.citing_count} of {report.corpus_size:,} judgments held[/dim]")
         if report.note:
-            console.print(f"  {report.note}")
+            console.print(f"  {escape(report.note)}")
 
         for link in report.undermined_by:
             console.print(f"  [yellow]rests on[/yellow] {link}")
@@ -1436,25 +1441,26 @@ def contrary_command(
         for lead in dissents:
             console.print(
                 f"\n[bold yellow]the dissent in the case you rely on[/bold yellow]\n"
-                f"   [cyan]{lead.authority.canonical_key}, para {lead.authority.paragraph_label}[/cyan]  "
-                f"[dim]{lead.opposition.cue}[/dim]"
+                f"   [cyan]{escape(lead.authority.canonical_key)}, "
+                f"para {escape(str(lead.authority.paragraph_label))}[/cyan]  "
+                f"[dim]{escape(lead.opposition.cue)}[/dim]"
             )
-            console.print(f'   [yellow]"{lead.sentence[:300]}"[/yellow]')
+            console.print(f'   [yellow]"{escape(lead.sentence[:300])}"[/yellow]')
 
         for rank, lead in enumerate(report.leads, start=1):
             authority_found = lead.authority
             console.print(
-                f"\n[bold]{rank}. {authority_found.title[:70]}[/bold]\n"
-                f"   [cyan]{authority_found.pinpoint}[/cyan]  "
+                f"\n[bold]{rank}. {escape(authority_found.title[:70])}[/bold]\n"
+                f"   [cyan]{escape(str(authority_found.pinpoint))}[/cyan]  "
                 f"[dim]{authority_found.decided_on or '?'} · bench {authority_found.bench_strength or '?'}"
-                f" · {lead.opposition.describe()}[/dim]"
+                f" · {escape(lead.opposition.describe())}[/dim]"
             )
-            console.print(f'   [red]"{lead.sentence[:300]}"[/red]')
+            console.print(f'   [red]"{escape(lead.sentence[:300])}"[/red]')
             if lead.reading is not None:
                 colour = "red" if lead.is_confirmed else "yellow"
-                console.print(f"   [{colour}]read[/{colour}]: {lead.reading.describe()}")
+                console.print(f"   [{colour}]read[/{colour}]: {escape(lead.reading.describe())}")
 
-        console.print(f"\n[dim]{report.describe()}.[/dim]")
+        console.print(f"\n[dim]{escape(report.describe())}.[/dim]")
         if report.found:
             console.print(
                 "[dim]Each is a passage to read, not a holding that you are wrong: a court can state "
@@ -1501,7 +1507,7 @@ def find_command(
 
         authorities = search.find_authorities(
             session, proposition, top=top, candidates=candidates, court_voice_only=not any_voice,
-            dense=dense, roles=list(role) or None, role_boost=role_boost,
+            dense=dense, roles=list(role) if role else None, role_boost=role_boost,
         )
         if not authorities:
             console.print(
@@ -1520,8 +1526,8 @@ def find_command(
 
         for rank, authority in enumerate(authorities, start=1):
             console.print(
-                f"\n[bold]{rank}. {authority.title[:70]}[/bold]\n"
-                f"   [cyan]{authority.pinpoint}[/cyan]  "
+                f"\n[bold]{rank}. {escape(authority.title[:70])}[/bold]\n"
+                f"   [cyan]{escape(str(authority.pinpoint))}[/cyan]  "
                 f"[dim]{authority.decided_on or '?'} · bench {authority.bench_strength or '?'} · "
                 f"score {authority.score:.2f}[/dim]"
             )
@@ -1529,19 +1535,19 @@ def find_command(
                 colour = "yellow" if authority.treatment.is_undermined else "red"
                 console.print(
                     f"   [{colour}]{authority.treatment.status.replace('_', ' ').upper()}[/{colour}] "
-                    f"{authority.treatment.note}"
+                    f"{escape(authority.treatment.note)}"
                 )
             if authority.line:
-                console.print(f'   [green]"{authority.line[:300]}"[/green]')
+                console.print(f'   [green]"{escape(authority.line[:300])}"[/green]')
             if authority.voice and not authority.voice.is_the_court:
-                console.print(f"   [yellow]voice[/yellow]: {authority.voice.voice}")
+                console.print(f"   [yellow]voice[/yellow]: {escape(authority.voice.voice)}")
 
             if model is not None:
                 verdict = _check_authority(session, authority, proposition, model)
                 colour = {"full": "green", "partial": "yellow"}.get(verdict.support, "red")
-                console.print(f"   [{colour}]checked[/{colour}]: {verdict.support}", end="")
+                console.print(f"   [{colour}]checked[/{colour}]: {escape(verdict.support)}", end="")
                 if verdict.scope and verdict.scope.gap:
-                    console.print(f" — {verdict.scope.gap}")
+                    console.print(f" — {escape(verdict.scope.gap)}")
                 else:
                     console.print()
 
@@ -1605,7 +1611,13 @@ def verify_command(
 ) -> None:
     """Verify every citation in a passage: does the case exist, which paragraph, and does it support the claim."""
     if file:
-        text = Path(file).read_text(encoding="utf-8")
+        # The same reader the web upload uses, so a PDF or DOCX brief behaves the same whether it is
+        # dragged onto the page or passed on the command line.
+        try:
+            text = read_brief(Path(file).read_bytes(), file).text
+        except (ValueError, OSError) as exc:
+            console.print(f"[red]{escape(str(exc))}[/red]")
+            raise typer.Exit(1) from exc
     if not text or not text.strip():
         console.print("[red]give some text, or --file[/red]")
         raise typer.Exit(1)
@@ -1653,9 +1665,9 @@ def verify_command(
         colour = colours.get(v.grade, "white")
         board.add_row(
             f"[{colour}]{v.grade}[/{colour}]",
-            v.citation_raw,
-            (v.judgment_title or "-")[:40],
-            v.support,
+            escape(v.citation_raw),
+            escape((v.judgment_title or "-")[:40]),
+            escape(v.support),
             _voice_badge(v),
             _law_badge(v),
             str(len(v.findings)) if v.findings else "-",
@@ -1665,29 +1677,32 @@ def verify_command(
     for v in verdicts:
         if not v.findings and not v.needs_review:
             continue
-        console.print(f"\n[bold]{v.citation_raw}[/bold] [dim]{(v.judgment_title or '')[:60]}[/dim]")
-        console.print(f"  claim: [italic]{_shorten(v.proposition, 150)}[/italic]")
+        console.print(
+            f"\n[bold]{escape(v.citation_raw)}[/bold] [dim]{escape((v.judgment_title or '')[:60])}[/dim]"
+        )
+        console.print(f"  claim: [italic]{escape(_shorten(v.proposition, 150))}[/italic]")
         for finding in v.findings:
-            console.print(f"  [red]{finding}[/red]")
+            console.print(f"  [red]{escape(str(finding))}[/red]")
         if v.needs_review:
-            console.print(f"  [yellow]needs review[/yellow]: {v.review_reason}")
+            console.print(f"  [yellow]needs review[/yellow]: {escape(v.review_reason or '')}")
         if v.applicability is not None and v.applicability.is_problem:
-            console.print(f"  [magenta]distinguishable[/magenta]: {v.applicability.reason}")
+            console.print(f"  [magenta]distinguishable[/magenta]: {escape(v.applicability.reason)}")
         if v.hierarchy is not None and v.hierarchy.is_problem:
-            console.print(f"  [red]wrong court[/red]: {v.hierarchy.note}")
+            console.print(f"  [red]wrong court[/red]: {escape(v.hierarchy.note)}")
         if v.treatment is not None and v.treatment.is_doubtful:
-            console.print(f"  [red]dead law[/red]: {v.treatment.note}")
+            console.print(f"  [red]dead law[/red]: {escape(v.treatment.note)}")
         if v.voice is not None and (v.voice.is_problem or v.voice.is_dissent):
             where = v.paragraph_label or v.claimed_pinpoint or "?"
-            console.print(f"  [magenta]voice[/magenta] (para {where}): {v.voice.reason}")
+            console.print(f"  [magenta]voice[/magenta] (para {escape(where)}): {escape(v.voice.reason)}")
         if v.weight is not None and v.weight.is_obiter:
-            console.print(f"  [magenta]weight[/magenta]: {v.weight.reason}")
+            console.print(f"  [magenta]weight[/magenta]: {escape(v.weight.reason)}")
         if show_quote and v.quote_verified and v.quote:
             console.print(
-                f'  [green]verified quote[/green] (para {v.paragraph_label}): "{_shorten(v.quote, 160)}"'
+                f"  [green]verified quote[/green] (para {escape(v.paragraph_label or '?')}): "
+                f'"{escape(_shorten(v.quote, 160))}"'
             )
         if v.scope and v.scope.narrowed_proposition:
-            console.print(f"  [cyan]supported instead[/cyan]: {v.scope.narrowed_proposition}")
+            console.print(f"  [cyan]supported instead[/cyan]: {escape(v.scope.narrowed_proposition)}")
 
     if memo:
         # Weakest first: the memo is read to decide what to drop, and that decision starts at the
@@ -1751,7 +1766,7 @@ def resolve_command(text: str = typer.Argument(..., help="A citation, optionally
                 f"-> {result.canonical_key or '-'} via {result.method} ({result.score:.0f})"
             )
             if result.note:
-                console.print(f"  [dim]{result.note}[/dim]")
+                console.print(f"  [dim]{escape(result.note)}[/dim]")
             for candidate in result.candidates[:3]:
                 console.print(
                     f"  [dim]{candidate.score:5.1f} {candidate.canonical_key} {candidate.title[:70]}[/dim]"
