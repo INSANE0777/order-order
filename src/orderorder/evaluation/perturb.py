@@ -15,14 +15,18 @@ import hashlib
 import json
 import random
 import re
+import threading
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from orderorder.db.models import CitationEdge, Judgment, JudgmentTextVersion, Paragraph
+from orderorder.db.models import CitationAlias, CitationEdge, Judgment, JudgmentTextVersion, Paragraph
 
 # Eight consecutive words is long enough that a shared run means the same sentence, not the same
 # subject. The quote must be longer still before it is worth calling a quotation.
@@ -269,3 +273,346 @@ def sample_base_items(
         "items_sha256": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
     }
     return chosen, manifest
+
+# --- the paraphrase prompt --------------------------------------------------------------------
+
+PARAPHRASE_PROMPT = """Rewrite the sentence below in your own words, as an advocate would state the
+same proposition in a brief.
+
+Rules:
+- Keep the same legal proposition and the same qualifiers.
+- Do not copy a run of eight or more consecutive words from it.
+- Do not name the case or any party.
+- Return one sentence, between 40 and 400 characters.
+
+Sentence:
+{claim}
+
+Words that must not be copied verbatim:
+{quote}
+"""
+
+
+class ParaphraseOut(BaseModel):
+    """The model's restatement."""
+
+    text: str = Field(description="One sentence restating the proposition in different words.")
+
+
+@dataclass(frozen=True)
+class Paraphrase:
+    item_id: str
+    text: str
+    longest_shared_run: int
+
+
+def longest_shared_run(text: str, source: str) -> int:
+    """How many consecutive words `text` shares with `source`, at its longest."""
+    detail = _shared_run_detail(text, source, min_words=1)
+    return detail[4] if detail else 0
+
+
+def make_paraphrases(
+    items: list[BaseItem],
+    model,
+    *,
+    reject_log: list[dict] | None = None,
+) -> list[Paraphrase]:
+    """Restate each claim without copying the judgment. One retry, then a recorded rejection."""
+    reject_log = reject_log if reject_log is not None else []
+    out: list[Paraphrase] = []
+    for item in items:
+        reason, detail = "error", ""
+        for _ in range(2):
+            try:
+                answer = model.invoke(PARAPHRASE_PROMPT.format(claim=item.claim, quote=item.quote))
+                text = (getattr(answer, "text", "") or "").strip()
+            except Exception as exc:  # noqa: BLE001 - a failed rewrite is data, not a crash
+                reason, detail = "error", f"{type(exc).__name__}: {exc}"
+                continue
+            shared = longest_shared_run(text, item.quote)
+            if not (MIN_CLAIM_CHARS <= len(text) <= MAX_CLAIM_CHARS):
+                reason, detail = "length", f"{len(text)} characters"
+            elif shared >= SHINGLE_WORDS:
+                reason, detail = "overlap", f"{shared} shared words"
+            elif len(TWO_CASES.findall(text)) >= 2:
+                reason, detail = "multi_citation", text[:80]
+            else:
+                out.append(Paraphrase(item_id=item.item_id, text=text, longest_shared_run=shared))
+                reason = ""
+                break
+        if reason:
+            reject_log.append({"item_id": item.item_id, "reason": reason, "detail": detail})
+    return out
+
+
+# --- arms -------------------------------------------------------------------------------------
+
+POINTER_MODES = frozenset({1, 2, 3, 4, 12})
+PARAPHRASE_ARMS = frozenset(
+    {"paraphrase_clean", "paraphrase_wrong_paragraph", "paraphrase_wrong_judgment"}
+)
+
+
+@dataclass(frozen=True)
+class ArmItem:
+    arm: str
+    item_id: str
+    claim: str
+    citation: str
+    expected_modes: tuple[int, ...]
+    distractor_key: str | None = None
+    distractor_rank: int | None = None
+
+
+def _citation_for(session: Session, judgment: Judgment, label: str | None) -> str:
+    alias = (
+        session.execute(select(CitationAlias).where(CitationAlias.judgment_id == judgment.id))
+        .scalars()
+        .first()
+    )
+    base = (
+        alias.citation_string
+        if alias is not None
+        else (judgment.neutral_citation or judgment.canonical_key)
+    )
+    return f"{base}, para {label}" if label else base
+
+
+def _wrong_paragraph(
+    target_paragraphs: list[Paragraph], item: BaseItem, rng: random.Random
+) -> Paragraph | None:
+    """A paragraph far enough away that the quote cannot be there, chosen deterministically."""
+    quote = " ".join(WORD.findall(item.quote.lower()))
+    target_seq = next((p.seq for p in target_paragraphs if p.id == item.cited_paragraph_id), None)
+    if target_seq is None:
+        return None
+    eligible = [
+        p
+        for p in target_paragraphs
+        if abs(p.seq - target_seq) >= 2 and quote not in " ".join(WORD.findall(p.body.lower()))
+    ]
+    return rng.choice(eligible) if eligible else None
+
+
+def _wrong_judgment(
+    session: Session, item: BaseItem, rng: random.Random
+) -> Judgment | None:
+    """Another judgment the same brief cites, from the same decade, that does not contain the quote."""
+    citing = session.execute(
+        select(Judgment).where(Judgment.canonical_key == item.citing_key)
+    ).scalars().first()
+    if citing is None:
+        return None
+    siblings = (
+        session.execute(
+            select(Judgment)
+            .join(CitationEdge, CitationEdge.cited_id == Judgment.id)
+            .where(CitationEdge.citing_id == citing.id)
+            .order_by(Judgment.canonical_key)
+        )
+        .scalars()
+        .all()
+    )
+    quote = " ".join(WORD.findall(item.quote.lower()))
+    eligible = []
+    for judgment in siblings:
+        if judgment.canonical_key == item.cited_key or judgment.decided_on is None:
+            continue
+        if (judgment.decided_on.year // 10) * 10 != item.decade:
+            continue
+        _, paragraphs = _paragraphs(session, judgment.id)
+        if not paragraphs:
+            continue
+        if any(quote in " ".join(WORD.findall(p.body.lower())) for p in paragraphs):
+            continue
+        eligible.append(judgment)
+    return rng.choice(eligible) if eligible else None
+
+
+def build_arms(
+    session: Session,
+    items: list[BaseItem],
+    paraphrases: list[Paraphrase],
+    *,
+    seed: int = 20261027,
+) -> list[ArmItem]:
+    """Six arms per item that has a paraphrase, three otherwise."""
+    by_item = {p.item_id: p for p in paraphrases}
+    arms: list[ArmItem] = []
+    for item in items:
+        rng = random.Random(f"{seed}:{item.item_id}")
+        cited = session.get(Judgment, item.cited_judgment_id)
+        if cited is None:
+            continue
+        _, target_paragraphs = _paragraphs(session, cited.id)
+        clean_citation = _citation_for(session, cited, item.cited_label)
+
+        for family, claim in (
+            ("verbatim", item.claim),
+            ("paraphrase", by_item[item.item_id].text if item.item_id in by_item else None),
+        ):
+            if claim is None:
+                continue
+            arms.append(
+                ArmItem(
+                    arm=f"{family}_clean",
+                    item_id=item.item_id,
+                    claim=claim,
+                    citation=clean_citation,
+                    expected_modes=(),
+                )
+            )
+            neighbor = _wrong_paragraph(target_paragraphs, item, rng)
+            if neighbor is not None:
+                arms.append(
+                    ArmItem(
+                        arm=f"{family}_wrong_paragraph",
+                        item_id=item.item_id,
+                        claim=claim,
+                        citation=_citation_for(session, cited, neighbor.printed_label),
+                        expected_modes=(12, 4),
+                        distractor_key=neighbor.id,
+                    )
+                )
+            other = _wrong_judgment(session, item, rng)
+            if other is not None:
+                arms.append(
+                    ArmItem(
+                        arm=f"{family}_wrong_judgment",
+                        item_id=item.item_id,
+                        claim=claim,
+                        citation=_citation_for(session, other, None),
+                        expected_modes=(2, 4),
+                        distractor_key=other.canonical_key,
+                    )
+                )
+    arms.sort(key=lambda a: (a.item_id, a.arm))
+    return arms
+
+
+# --- scoring ----------------------------------------------------------------------------------
+
+
+def _interval(k: int, n: int) -> dict[str, float | int]:
+    point, low, high = wilson(k, n)
+    return {"point": point, "low": low, "high": high, "n": n}
+
+
+def wilson(k: int, n: int, *, z: float = 1.96) -> tuple[float, float, float]:
+    """Point estimate and Wilson score interval. Never reports certainty at n = 100%."""
+    if n <= 0:
+        return 0.0, 0.0, 0.0
+    p = k / n
+    denominator = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / denominator
+    half = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / denominator
+    return p, max(0.0, centre - half), min(1.0, centre + half)
+
+
+def classify(arm: ArmItem, row: dict) -> str:
+    """One of error, wrong_flag, caught, pass, abstain, not_caught — in that precedence."""
+    if row.get("error"):
+        return "error"
+    if row.get("node_error"):
+        return "abstain"
+    findings = row.get("findings") or []
+    modes = {finding.get("mode") for finding in findings}
+    pointer = bool(modes & POINTER_MODES)
+
+    if arm.arm.endswith("clean"):
+        if row.get("existence") == "not_found":
+            return "wrong_flag"
+        if pointer:
+            return "wrong_flag"
+        if row.get("needs_review") and not findings:
+            return "abstain"
+        return "pass"
+    if pointer:
+        return "caught"
+    if row.get("needs_review"):
+        return "abstain"
+    return "not_caught"
+
+
+def summarise(arms: list[ArmItem], rows: list[dict]) -> dict:
+    """Per-arm outcomes with intervals. No pooled rate, and nothing below n = 10 is published."""
+    outcome_by_key = {(row.get("arm"), row.get("item_id")): classify(arm, row) for arm in arms for row in rows if row.get("arm") == arm.arm and row.get("item_id") == arm.item_id}
+    by_arm: dict[str, list[str]] = {}
+    for arm in arms:
+        outcome = outcome_by_key.get((arm.arm, arm.item_id))
+        if outcome is not None:
+            by_arm.setdefault(arm.arm, []).append(outcome)
+
+    report: dict[str, dict] = {}
+    for arm_name, outcomes in by_arm.items():
+        counts = Counter(outcomes)
+        decided_n = counts["caught"] + counts["not_caught"]
+        all_n = decided_n + counts["abstain"] + counts["error"]
+        clean_n = counts["pass"] + counts["wrong_flag"]
+        cell: dict = {
+            "constructed": len(outcomes),
+            "intended": sum(1 for a in arms if a.arm == arm_name),
+            **{key: counts[key] for key in ("pass", "wrong_flag", "caught", "not_caught", "abstain", "error")},
+            "suppressed": len(outcomes) < 10,
+        }
+        if arm_name.endswith("clean"):
+            cell["false_alarm"] = _interval(counts["wrong_flag"], clean_n)
+        else:
+            cell["decided_catch"] = _interval(counts["caught"], decided_n)
+            cell["all_in_catch"] = _interval(counts["caught"], all_n)
+        report[arm_name] = cell
+    return {"arms": report, "rows": len(rows)}
+
+
+# --- runner -----------------------------------------------------------------------------------
+
+CACHE_KEYS = ("arm", "item_id")
+
+
+def run_arms(
+    arms: list[ArmItem],
+    *,
+    verify_fn,
+    cache_path,
+    workers: int = 1,
+    on_result=None,
+) -> list[dict]:
+    """Run every arm once, resuming from the cache and never re-billing a completed item."""
+    cache_path = Path(cache_path)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+    done: dict[tuple[str, str], dict] = {}
+    if cache_path.exists():
+        for line in cache_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            if not row.get("error"):
+                done[(row["arm"], row["item_id"])] = row
+
+    pending = [arm for arm in arms if (arm.arm, arm.item_id) not in done]
+    lock = threading.Lock()
+
+    def work(arm: ArmItem) -> dict:
+        try:
+            row = dict(verify_fn(arm))
+        except Exception as exc:  # noqa: BLE001 - one failed item must not abort the batch
+            row = {"error": f"{type(exc).__name__}: {exc}"}
+        row["arm"] = arm.arm
+        row["item_id"] = arm.item_id
+        with lock, cache_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, sort_keys=True) + "\n")
+        if on_result is not None:
+            on_result(row)
+        return row
+
+    if workers > 1 and len(pending) > 1:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            fresh = list(pool.map(work, pending))
+    else:
+        fresh = [work(arm) for arm in pending]
+
+    rows = list(done.values()) + fresh
+    rows.sort(key=lambda row: (row["arm"], row["item_id"]))
+    return rows
