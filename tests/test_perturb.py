@@ -7,6 +7,9 @@ nothing needs the 3 GB corpus.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
+import json
+from collections import Counter
 
 import pytest
 
@@ -79,6 +82,23 @@ def _judgment(session, key: str, title: str, text: str, *, year: int = 2019, ben
         ExtractedJudgment(source_path=key, page_count=2, headnote="", judgment=text),
     )
     return judgment
+
+
+def _pair(session, suffix: str, cited_text: str, citing_text: str):
+    """One cited judgment with one paragraph, one citing judgment, and the index over them."""
+    cited = _judgment(session, f"INSC:2015:{suffix}", f"CITED {suffix}", cited_text, year=2015)
+    citing = _judgment(session, f"INSC:2019:{suffix}", f"CITING {suffix}", citing_text, year=2019)
+    session.add(
+        CitationEdge(
+            citing_id=citing.id,
+            cited_id=cited.id,
+            cited_alias=f"2015 INSC {suffix}",
+            source="test",
+        )
+    )
+    session.commit()
+    build_index(session)
+    return citing, cited
 
 
 @pytest.fixture
@@ -163,6 +183,22 @@ def test_an_edge_without_a_shared_run_is_counted_and_dropped(session) -> None:
     assert manifest["counts"]["edges_seen"] == 1
     assert manifest["counts"]["no_run"] == 1
 
+
+def test_a_claim_naming_two_judgments_is_dropped(session) -> None:
+    cited = (
+        "1. A misrepresentation vitiates consent only where it induced the contract, and the burden "
+        "of proving inducement lies on the party alleging it in every such case.\n"
+    )
+    citing = (
+        "1. As held in (2015) 1 SCC 1 and (2016) 2 SCC 2, a misrepresentation vitiates consent only "
+        "where it induced the contract, and the burden of proving inducement lies on the party "
+        "alleging it in every such case.\n"
+    )
+    _pair(session, "7", cited, citing)
+    items, manifest = sample_base_items(session)
+    assert items == []
+    assert manifest["counts"]["multi_citation"] == 1
+
 # --- the paraphrase family --------------------------------------------------------------------
 
 
@@ -206,6 +242,37 @@ def test_a_paraphrase_that_copies_the_run_is_rejected(corpus) -> None:
     assert reject and reject[0]["reason"] == "overlap"
 
 
+def test_a_paraphrase_that_copies_eight_words_of_the_claim_is_rejected(session) -> None:
+    cited = (
+        "1. A misrepresentation vitiates consent only where it induced the contract, and the burden "
+        "of proving inducement lies on the party alleging it in every such case.\n"
+    )
+    citing = (
+        "1. As held in ALPHA versus BETA, a misrepresentation vitiates consent only where it induced "
+        "the contract, and the burden of proving inducement lies on the party alleging it in every "
+        "such case, and the tribunal must always record its reasons expressly.\n"
+    )
+    _pair(session, "5", cited, citing)
+    items = _items(session)
+    text = "It is settled that the tribunal must always record its reasons expressly."
+    reject: list[dict] = []
+    paraphrases = make_paraphrases(items, _Stub(text, text), reject_log=reject)
+    assert paraphrases == []
+    assert reject and reject[0]["reason"] == "overlap"
+    assert "claim" in reject[0]["detail"]
+
+
+def test_a_paraphrase_naming_a_case_with_one_citation_is_rejected(corpus) -> None:
+    session, _, _ = corpus
+    items = _items(session)
+    text = "In ALPHA v. BETA, (2019) 4 SCC 118, deceit makes a consent voidable."
+    reject: list[dict] = []
+    paraphrases = make_paraphrases(items, _Stub(text, text), reject_log=reject)
+    assert paraphrases == []
+    assert reject and reject[0]["reason"] == "multi_citation"
+    assert "(2019) 4 SCC 118" in reject[0]["detail"]
+
+
 def test_a_model_that_raises_is_retried_then_rejected(corpus) -> None:
     session, _, _ = corpus
     items = _items(session)
@@ -242,6 +309,26 @@ def test_four_arms_without_a_paraphrase(sibling_corpus) -> None:
         "verbatim_wrong_paragraph",
         "verbatim_wrong_judgment",
     }
+
+
+def test_a_single_paragraph_judgment_records_the_wrong_paragraph_drop(session) -> None:
+    cited = (
+        "1. A misrepresentation vitiates consent only where it induced the contract, and the burden "
+        "of proving inducement lies on the party alleging it in every such case.\n"
+    )
+    citing = (
+        "1. As held in ALPHA versus BETA, a misrepresentation vitiates consent only where it induced "
+        "the contract, and the burden of proving inducement lies on the party alleging it in every "
+        "such case.\n"
+    )
+    _pair(session, "6", cited, citing)
+    items, _ = sample_base_items(session)
+    assert len(items) == 1
+    drops: Counter[str] = Counter()
+    arms = build_arms(session, items, [], drops=drops)
+    assert {a.arm for a in arms} == {"verbatim_clean"}
+    assert drops["verbatim_wrong_paragraph:no_candidate"] == 1
+    assert drops["verbatim_wrong_judgment:no_candidate"] == 1
 
 
 def test_six_arms_with_a_paraphrase(sibling_corpus) -> None:
@@ -363,6 +450,58 @@ def test_the_runner_writes_one_row_per_arm_and_resumes(tmp_path) -> None:
 
     run_arms(arms, verify_fn=verify, cache_path=cache)
     assert len(calls) == 2, "completed rows must not be re-run"
+
+
+def _cached(
+    model_id: str, *, arm: str = "verbatim_clean", item_id: str = "x", prompt_versions: str = "v1"
+) -> dict:
+    row = _row(arm=arm, item_id=item_id, model_id=model_id, prompt_versions=prompt_versions)
+    row["cache_key"] = hashlib.sha256(
+        f"{arm}|{item_id}|{prompt_versions}|{model_id}".encode()
+    ).hexdigest()
+    return row
+
+
+def test_a_cached_row_from_a_different_model_is_rerun(tmp_path) -> None:
+    cache = tmp_path / "responses.jsonl"
+    cache.write_text(json.dumps(_cached("old-model")) + "\n", encoding="utf-8")
+    seen: list[str] = []
+
+    def verify(arm):
+        seen.append(arm.arm)
+        return _row(model_id="new-model", prompt_versions="v1")
+
+    rows = run_arms(
+        [_arm("verbatim_clean")],
+        verify_fn=verify,
+        cache_path=cache,
+        model_id="new-model",
+        prompt_versions="v1",
+    )
+    assert seen == ["verbatim_clean"]
+    assert len(rows) == 1
+    assert rows[0]["model_id"] == "new-model"
+    assert rows[0]["cache_key"] == _cached("new-model")["cache_key"]
+
+
+def test_a_cached_row_from_the_same_model_is_not_rerun(tmp_path) -> None:
+    cache = tmp_path / "responses.jsonl"
+    cache.write_text(json.dumps(_cached("new-model")) + "\n", encoding="utf-8")
+    seen: list[str] = []
+
+    def verify(arm):
+        seen.append(arm.arm)
+        return _row(model_id="new-model", prompt_versions="v1")
+
+    rows = run_arms(
+        [_arm("verbatim_clean")],
+        verify_fn=verify,
+        cache_path=cache,
+        model_id="new-model",
+        prompt_versions="v1",
+    )
+    assert seen == []
+    assert len(rows) == 1
 
 
 def test_an_errored_row_is_retried_and_a_failure_does_not_abort(tmp_path) -> None:

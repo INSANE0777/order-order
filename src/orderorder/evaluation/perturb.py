@@ -27,6 +27,7 @@ from sqlalchemy import select
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 
+from orderorder.citations.grammar import extract_citations
 from orderorder.db.models import CitationAlias, CitationEdge, Judgment, JudgmentTextVersion, Paragraph
 
 # Eight consecutive words is long enough that a shared run means the same sentence, not the same
@@ -38,7 +39,7 @@ MAX_CLAIM_CHARS = 400
 
 WORD = re.compile(r"[A-Za-z0-9']+")
 SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+")
-TWO_CASES = re.compile(r"\bv\.\s", re.IGNORECASE)
+VERSUS = re.compile(r"\bversus\b|\bv\.\s", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -284,7 +285,7 @@ def sample_base_items(
         if not (MIN_CLAIM_CHARS <= len(claim) <= MAX_CLAIM_CHARS):
             counts["claim_length"] += 1
             continue
-        if len(TWO_CASES.findall(claim)) >= 2:
+        if len(extract_citations(claim)) > 1:
             counts["multi_citation"] += 1
             continue
 
@@ -383,6 +384,12 @@ def longest_shared_run(text: str, source: str) -> int:
     return detail[4] if detail else 0
 
 
+def _names_judgment(text: str) -> bool:
+    """Two citations, or one beside a party-versus-party name, means the paraphrase named a case."""
+    citations = extract_citations(text)
+    return len(citations) >= 2 or (len(citations) == 1 and VERSUS.search(text) is not None)
+
+
 def make_paraphrases(
     items: list[BaseItem],
     model,
@@ -401,12 +408,15 @@ def make_paraphrases(
             except Exception as exc:  # noqa: BLE001 - a failed rewrite is data, not a crash
                 reason, detail = "error", f"{type(exc).__name__}: {exc}"
                 continue
-            shared = longest_shared_run(text, item.quote)
+            shared_quote = longest_shared_run(text, item.quote)
+            shared_claim = longest_shared_run(text, item.claim)
+            shared = max(shared_quote, shared_claim)
             if not (MIN_CLAIM_CHARS <= len(text) <= MAX_CLAIM_CHARS):
                 reason, detail = "length", f"{len(text)} characters"
             elif shared >= SHINGLE_WORDS:
-                reason, detail = "overlap", f"{shared} shared words"
-            elif len(TWO_CASES.findall(text)) >= 2:
+                source = "claim sentence" if shared_claim >= SHINGLE_WORDS else "quoted run"
+                reason, detail = "overlap", f"{shared} shared words with the {source}"
+            elif _names_judgment(text):
                 reason, detail = "multi_citation", text[:80]
             else:
                 out.append(Paraphrase(item_id=item.item_id, text=text, longest_shared_run=shared))
@@ -507,8 +517,10 @@ def build_arms(
     paraphrases: list[Paraphrase],
     *,
     seed: int = 20261027,
+    drops: Counter[str] | None = None,
 ) -> list[ArmItem]:
-    """Six arms per item that has a paraphrase, three otherwise."""
+    """Six arms per item that has a paraphrase, three otherwise, counting each missed arm in `drops`."""
+    drops = drops if drops is not None else Counter()
     by_item = {p.item_id: p for p in paraphrases}
     arms: list[ArmItem] = []
     for item in items:
@@ -535,7 +547,9 @@ def build_arms(
                 )
             )
             neighbor = _wrong_paragraph(target_paragraphs, item, rng)
-            if neighbor is not None:
+            if neighbor is None:
+                drops[f"{family}_wrong_paragraph:no_candidate"] += 1
+            else:
                 arms.append(
                     ArmItem(
                         arm=f"{family}_wrong_paragraph",
@@ -547,7 +561,9 @@ def build_arms(
                     )
                 )
             other = _wrong_judgment(session, item, rng)
-            if other is not None:
+            if other is None:
+                drops[f"{family}_wrong_judgment:no_candidate"] += 1
+            else:
                 arms.append(
                     ArmItem(
                         arm=f"{family}_wrong_judgment",
@@ -638,7 +654,9 @@ def summarise(arms: list[ArmItem], rows: list[dict]) -> dict:
 
 # --- runner -----------------------------------------------------------------------------------
 
-CACHE_KEYS = ("arm", "item_id")
+def _cache_key(arm: str, item_id: str, prompt_versions: str, model_id: str) -> str:
+    raw = f"{arm}|{item_id}|{prompt_versions}|{model_id}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def run_arms(
@@ -648,8 +666,15 @@ def run_arms(
     cache_path,
     workers: int = 1,
     on_result=None,
+    model_id: str | None = None,
+    prompt_versions: str | None = None,
 ) -> list[dict]:
-    """Run every arm once, resuming from the cache and never re-billing a completed item."""
+    """Run every arm once, resuming from the cache and never re-billing a completed item.
+
+    A cached row is reused only when its `cache_key` matches this run's arm, item, prompt versions
+    and model. When a value is not pinned here, the cached row's own value is used, so a cache
+    written before the key existed is re-run once and keyed from then on.
+    """
     cache_path = Path(cache_path)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -659,7 +684,15 @@ def run_arms(
             if not line.strip():
                 continue
             row = json.loads(line)
-            if not row.get("error"):
+            if row.get("error"):
+                continue
+            wanted = _cache_key(
+                row["arm"],
+                row["item_id"],
+                prompt_versions if prompt_versions is not None else row.get("prompt_versions") or "",
+                model_id if model_id is not None else row.get("model_id") or "",
+            )
+            if row.get("cache_key") == wanted:
                 done[(row["arm"], row["item_id"])] = row
 
     pending = [arm for arm in arms if (arm.arm, arm.item_id) not in done]
@@ -672,6 +705,12 @@ def run_arms(
             row = {"error": f"{type(exc).__name__}: {exc}"}
         row["arm"] = arm.arm
         row["item_id"] = arm.item_id
+        row["cache_key"] = _cache_key(
+            arm.arm,
+            arm.item_id,
+            row.get("prompt_versions") or "",
+            row.get("model_id") or "",
+        )
         with lock, cache_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(row, sort_keys=True) + "\n")
         if on_result is not None:
